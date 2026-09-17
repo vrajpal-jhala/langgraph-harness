@@ -1,0 +1,57 @@
+diff --git a/node_modules/@langchain/core/dist/runnables/base.js b/node_modules/@langchain/core/dist/runnables/base.js
+index 655c9eb..f9f6e65 100644
+--- a/node_modules/@langchain/core/dist/runnables/base.js
++++ b/node_modules/@langchain/core/dist/runnables/base.js
+@@ -353,6 +353,7 @@ var Runnable = class extends Serializable {
+ 					await logStreamCallbackHandler.writer.write(patch);
+ 				}
+ 			} finally {
++				config.signal?.removeEventListener("abort", onParentAbort);
+ 				await logStreamCallbackHandler.writer.close();
+ 			}
+ 		}
+@@ -360,6 +361,7 @@ var Runnable = class extends Serializable {
+ 		try {
+ 			for await (const log of logStreamCallbackHandler) yield log;
+ 		} finally {
++			config.signal?.removeEventListener("abort", onParentAbort);
+ 			await runnableStreamConsumePromise;
+ 		}
+ 	}
+@@ -390,24 +392,17 @@ var Runnable = class extends Serializable {
+ 		const abortController = new AbortController();
+ 		const outerThis = this;
+ 		async function consumeRunnableStream() {
+-			let signal;
++			const onParentAbort = () => abortController.abort(config.signal.reason);
++			config.signal?.addEventListener("abort", onParentAbort, { once: true });
+ 			try {
+-				if (config.signal) {
+-					if ("any" in AbortSignal) signal = AbortSignal.any([abortController.signal, config.signal]);
+-					else {
+-						const composed = new AbortController();
+-						config.signal.addEventListener("abort", () => composed.abort(), { once: true });
+-						abortController.signal.addEventListener("abort", () => composed.abort(), { once: true });
+-						signal = composed.signal;
+-					}
+-				} else signal = abortController.signal;
+ 				const runnableStream = await outerThis.stream(input, {
+ 					...config,
+-					signal
++					signal: abortController.signal
+ 				});
+ 				const tappedStream = eventStreamer.tapOutputIterable(runId, runnableStream);
+ 				for await (const _ of tappedStream) if (abortController.signal.aborted) break;
+ 			} finally {
++				config.signal?.removeEventListener("abort", onParentAbort);
+ 				await eventStreamer.finish();
+ 			}
+ 		}
+@@ -429,6 +424,7 @@ var Runnable = class extends Serializable {
+ 				yield event;
+ 			}
+ 		} finally {
++			config.signal?.removeEventListener("abort", onParentAbort);
+ 			abortController.abort();
+ 			await runnableStreamConsumePromise;
+ 		}

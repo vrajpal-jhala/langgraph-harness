@@ -1,0 +1,54 @@
+# https://github.com/opensandbox-group/OpenSandbox/blob/main/server/configuration.md
+
+[server]
+host = "0.0.0.0"
+port = 8080
+max_sandbox_timeout_seconds = 86400
+
+[log]
+level = "INFO"
+
+[runtime]
+type = "docker"
+execd_image = "opensandbox/execd:v1.0.21"
+
+[secure_runtime]
+type = "kata"
+docker_runtime = "kata"
+
+[storage]
+# Filled in at container start from DATA_PATH by entrypoint.sh.
+allowed_host_paths = []
+volume_default_size = "1Gi"
+
+[store]
+type = "sqlite"
+path = "~/.opensandbox/opensandbox.db"
+
+[docker]
+network_mode = "bridge"
+# Bridge-mode port range for sandbox allocation (2–3 ports/sandbox) — narrow to match firewall policy.
+port_range_min = 40000
+port_range_max = 60000
+# Docker host gateway to reach egress sidecar ports from within the container.
+host_ip = "host.docker.internal"
+# Drops capabilities usable for host-level tampering (module load, ptrace, raw sockets, etc.).
+drop_capabilities = ["AUDIT_WRITE", "MKNOD", "NET_ADMIN", "NET_RAW", "SYS_ADMIN", "SYS_MODULE", "SYS_PTRACE", "SYS_TIME", "SYS_TTY_CONFIG"]
+# Blocks any process in the container from gaining new privileges via setuid/setcap.
+no_new_privileges = true
+apparmor_profile = ""
+# Fork-bomb guard — cap on live processes per sandbox.
+pids_limit = 4096
+seccomp_profile = ""
+
+[ingress]
+mode = "direct"
+
+[egress]
+image = "opensandbox/egress:v1.1.4"
+# Inert — no sandbox request sets networkPolicy, so the egress sidecar never attaches.
+mode = "dns+nft"
+
+[renew_intent]
+enabled = false
+min_interval_seconds = 60

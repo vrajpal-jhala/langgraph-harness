@@ -1,0 +1,10 @@
+{
+  "name": "demo-fixtures",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tooling that seeds a personal GitLab project and the harness DB with synthetic data for demo screenshots.",
+  "type": "module",
+  "dependencies": {
+    "pg": "8.23.0"
+  }
+}

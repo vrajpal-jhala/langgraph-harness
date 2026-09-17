@@ -1,0 +1,18 @@
+.schedules-page {
+  max-width: var(--thread-list-width);
+  width: 100%;
+  margin: 0 auto;
+  min-height: var(--app-shell-main-height);
+}
+
+.schedules-empty {
+  flex: 1;
+}
+
+.schedule-run-link {
+  color: var(--mantine-color-anchor);
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

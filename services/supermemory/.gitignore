@@ -1,0 +1,7 @@
+# container storage (secrets + persisted graph data)
+.supermemory/
+
+# scraped issue markdown + host-run script secrets
+.data/
+.env
+.env.scripts

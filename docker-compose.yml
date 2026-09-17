@@ -1,0 +1,222 @@
+name: harness
+
+x-sandbox-data-mount: &sandboxDataMount /data/app
+# The default network's gateway (networks.default.ipam below) — Docker's host-gateway special
+# value resolves to docker0 instead, so extra_hosts entries reference this anchor directly.
+x-host-gateway: &hostGateway '172.18.0.1'
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: harness_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=harness
+    volumes:
+      - ${DATA_PATH}/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    container_name: harness_redis
+    volumes:
+      - ${DATA_PATH}/redis:/data
+    restart: unless-stopped
+
+  lightpanda:
+    image: lightpanda/browser:nightly
+    container_name: harness_lightpanda
+    # advertise-host: the default response advertises --host (0.0.0.0), which
+    # puppeteer.connect() can't dial — advertise the docker-network service name backend uses.
+    command:
+      [
+        '/bin/lightpanda',
+        'serve',
+        '--host',
+        '0.0.0.0',
+        '--port',
+        '9222',
+        '--advertise-host',
+        'lightpanda',
+      ]
+    restart: unless-stopped
+
+  supermemory:
+    build: ./services/supermemory
+    container_name: harness_supermemory
+    env_file: ./services/supermemory/.env
+    environment:
+      # localhost would be the container itself; reach sglang on the host.
+      OPENAI_BASE_URL: http://host.docker.internal:30000/v1
+    volumes:
+      - ${DATA_PATH}/supermemory:/data
+    extra_hosts:
+      host.docker.internal: *hostGateway
+    restart: unless-stopped
+
+  # Gates docker-kata's socket down to container lifecycle calls only — no networks/volumes/swarm/secrets.
+  docker-socket-proxy-kata:
+    image: tecnativa/docker-socket-proxy
+    container_name: harness_docker_socket_proxy_kata
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      POST: 1
+      NETWORKS: 0
+      VOLUMES: 0
+      SWARM: 0
+      SERVICES: 0
+      SECRETS: 0
+      NODES: 0
+      PLUGINS: 0
+      SYSTEM: 1
+      INFO: 1
+      # Matches the directory mount below, not a file mount.
+      SOCKET_PATH: /run/docker-sock-dir/docker.sock
+    volumes:
+      # Mounting the dir (not the socket file) so a dockerd restart's new inode is still visible without recreating this container.
+      - /run/docker-kata:/run/docker-sock-dir:ro
+    restart: unless-stopped
+
+  opensandbox:
+    build: ./services/opensandbox
+    container_name: harness_opensandbox
+    environment:
+      # Host path — bind mounts resolve on the host, not this container.
+      DATA_PATH: ${DATA_PATH}
+      OPENSANDBOX_SERVER_API_KEY: ${OPENSANDBOX_API_KEY}
+      # Proxied — to restrict which Docker API calls this container can make.
+      DOCKER_HOST: tcp://docker-socket-proxy-kata:2375
+    extra_hosts:
+      host.docker.internal: *hostGateway
+    volumes:
+      - ${DATA_PATH}/opensandbox:/root/.opensandbox
+    depends_on:
+      - docker-socket-proxy-kata
+    restart: unless-stopped
+
+  # Read-only front for the system daemon — no POST, unlike the docker-kata proxy above.
+  docker-socket-proxy-system:
+    image: tecnativa/docker-socket-proxy
+    container_name: harness_docker_socket_proxy_system
+    environment:
+      CONTAINERS: 1
+      IMAGES: 0
+      POST: 0
+      NETWORKS: 0
+      VOLUMES: 0
+      SWARM: 0
+      SERVICES: 0
+      SECRETS: 0
+      NODES: 0
+      PLUGINS: 0
+      SYSTEM: 0
+      INFO: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  monitoring:
+    build: ./services/monitoring
+    container_name: harness_monitoring
+    # Node as raw PID 1 never responds to SIGTERM — without this, every stop needs the full grace period, then SIGKILL.
+    init: true
+    environment:
+      SYSTEM_DOCKER_HOST: tcp://docker-socket-proxy-system:2375
+      # Container-internal mount point, not the host path.
+      DATA_PATH: /data
+      OPENSANDBOX_URL: http://opensandbox:8080
+      OPENSANDBOX_SERVER_API_KEY: ${OPENSANDBOX_API_KEY}
+      MONITORING_API_KEY: ${MONITORING_API_KEY}
+    volumes:
+      - ${DATA_PATH}:/data:ro
+    depends_on:
+      - docker-socket-proxy-system
+      - opensandbox
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: harness_backend
+    env_file: ./backend/.env
+    environment:
+      DB_HOST: postgres
+      REDIS_URL: redis://redis:6379
+      # localhost would be the container itself; reach Ollama/sglang on the host.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      SGLANG_BASE_URL: http://host.docker.internal:30000
+      LIGHTPANDA_CDP_URL: http://lightpanda:9222
+      SUPERMEMORY_URL: http://supermemory:6767
+      OPENSANDBOX_URL: http://opensandbox:8080
+      MONITORING_URL: http://monitoring:4100
+      MONITORING_API_KEY: ${MONITORING_API_KEY}
+      # This container's own mount point — unlike DATA_PATH, not the host path.
+      APP_DATA_PATH: *sandboxDataMount
+      DATA_PATH: ${DATA_PATH}
+    volumes:
+      - type: bind
+        source: ${DATA_PATH}/app
+        target: *sandboxDataMount
+    extra_hosts:
+      host.docker.internal: *hostGateway
+    ports:
+      - '3698:3698'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3698/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      lightpanda:
+        condition: service_started
+      supermemory:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      # GITLAB_API_URL is sourced from backend/.env — build with:
+      # set -a && source backend/.env && set +a && docker compose up --build
+      args:
+        - GITLAB_API_URL=${GITLAB_API_URL}
+    container_name: harness_frontend
+    ports:
+      - '5173:80'
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Run pending migrations — called by update.sh and deploy.sh automatically.
+  # To run manually: docker compose --profile migrate run --rm db-migrate
+  db-migrate:
+    build:
+      context: ./backend
+      target: builder
+    command: npx tsx ./scripts/migrate.ts up
+    env_file: ./backend/.env
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migrate
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16

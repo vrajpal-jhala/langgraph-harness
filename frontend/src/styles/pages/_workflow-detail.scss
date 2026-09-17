@@ -1,0 +1,24 @@
+.workflow-detail {
+  height: var(--app-shell-main-height);
+
+  &__header {
+    padding: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+    border-bottom: 1px solid var(--mantine-color-default-border);
+  }
+
+  &__body {
+    max-width: var(--thread-list-width);
+    width: 100%;
+    margin: 0 auto;
+
+    .mermaid-graph {
+      display: flex;
+      justify-content: center;
+
+      svg {
+        max-width: 100%;
+        height: auto;
+      }
+    }
+  }
+}

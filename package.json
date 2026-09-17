@@ -1,0 +1,38 @@
+{
+  "name": "langgraph-harness",
+  "version": "0.1.0",
+  "author": "Vrajpal Jhala",
+  "description": "A shared engineering memory - it captures context across your GitLab projects and puts it to work through AI agents.",
+  "keywords": [],
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "install:backend": "npm --prefix backend install",
+    "install:frontend": "npm --prefix frontend install",
+    "postinstall": "run-s install:backend install:frontend",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "wait-on http://localhost:3698/health && npm --prefix frontend run dev",
+    "dev:services": "run-p dev:backend dev:frontend",
+    "dev": "node --env-file=backend/.env dev.mjs",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "run-s build:backend build:frontend",
+    "gen:types": "npm --prefix backend run gen:types",
+    "prepare": "husky",
+    "preview:backend": "npm --prefix backend run preview",
+    "preview:frontend": "npm --prefix frontend run preview",
+    "preview": "run-p preview:backend preview:frontend",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,css,scss,md,yml,yaml}": "prettier --write"
+  },
+  "devDependencies": {
+    "husky": "9.1.7",
+    "lint-staged": "17.5.1",
+    "npm-run-all": "4.1.5",
+    "prettier": "3.9.6",
+    "wait-on": "9.1.0"
+  }
+}

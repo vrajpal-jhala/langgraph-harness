@@ -1,0 +1,112 @@
+.thread-detail {
+  height: var(--app-shell-main-height);
+  display: flex;
+  flex-direction: column;
+
+  &__header {
+    padding: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+    border-bottom: 1px solid var(--mantine-color-default-border);
+  }
+
+  &__header-title {
+    min-width: 0;
+  }
+
+  &__title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
+  &__runs-pane {
+    width: var(--app-shell-navbar-width);
+    border-left: 1px solid var(--mantine-color-default-border);
+    display: flex;
+    flex-direction: column;
+    gap: var(--mantine-spacing-xs);
+    padding: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+  }
+
+  &__tabs-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--mantine-spacing-md);
+    padding-top: var(--mantine-spacing-md);
+    min-width: 0;
+  }
+
+  &__tabs {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  &__tab-panel {
+    flex: 1;
+    min-height: 0;
+    padding: var(--mantine-spacing-lg);
+
+    .run-summary .mantine-Alert-message {
+      word-break: break-word;
+    }
+
+    .run-summary,
+    .run-timeline {
+      max-width: var(--thread-list-width);
+      margin: auto;
+    }
+  }
+
+  &__footer {
+    max-width: calc(100% - var(--mantine-spacing-xl));
+    width: var(--thread-list-width);
+    margin: auto;
+
+    .context-meter {
+      &__header {
+        &--clickable {
+          cursor: pointer;
+        }
+      }
+
+      &__tooltip-label {
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: right;
+      }
+    }
+  }
+
+  &[data-breakpoint='tablet'] {
+    .mantine-Tabs-list {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background-color: var(--mantine-color-dark-9);
+    }
+
+    .thread-detail__footer {
+      position: sticky;
+      bottom: 0;
+      background-color: var(--mantine-color-dark-9);
+      max-width: 100%;
+    }
+  }
+}
+
+.thread-detail__drawer {
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: var(--mantine-spacing-md);
+}

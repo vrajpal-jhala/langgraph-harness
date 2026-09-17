@@ -1,0 +1,87 @@
+.threads-page {
+  max-width: var(--thread-list-width);
+  width: 100%;
+  margin: 0 auto;
+  min-height: var(--app-shell-main-height);
+
+  [class*='pillsList'] {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.thread-row {
+  cursor: pointer;
+
+  .thread-delete-btn {
+    visibility: hidden;
+  }
+  &:hover .thread-delete-btn {
+    visibility: visible;
+  }
+}
+
+.thread-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-badge {
+  white-space: nowrap;
+}
+
+.thread-title-box {
+  min-width: 0;
+  flex: 1;
+}
+
+.thread-actions-group {
+  flex-shrink: 0;
+}
+
+.thread-card {
+  cursor: pointer;
+}
+
+.thread-filter {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.thread-filter-checkbox {
+  pointer-events: none;
+
+  + .thread-filter-text {
+    word-break: break-word;
+  }
+}
+
+.thread-col-status {
+  width: 115px;
+}
+.thread-col-runs {
+  width: 90px;
+}
+.thread-col-duration {
+  width: 80px;
+}
+.thread-col-updated {
+  width: 80px;
+}
+.thread-col-delete {
+  width: 40px;
+}
+
+.thread-empty {
+  flex: 1;
+}
+
+.thread-list-scrollarea {
+  height: calc(var(--app-shell-main-height) - 180px);
+}

@@ -1,0 +1,15 @@
+.todo-list {
+  &__header {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .todo-item {
+    &__dot {
+      padding: 2.5px;
+      border: 1.5px solid var(--mantine-color-text);
+      border-radius: 50%;
+      margin: 1px;
+    }
+  }
+}

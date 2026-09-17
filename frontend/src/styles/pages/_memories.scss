@@ -1,0 +1,48 @@
+.memories-page {
+  max-width: var(--thread-list-width);
+  width: 100%;
+  margin: 0 auto;
+  min-height: var(--app-shell-main-height);
+
+  [class*='pillsList'] {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.memories-filter {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.memories-category-checkbox {
+  pointer-events: none;
+}
+
+.memories-empty {
+  flex: 1;
+}
+
+.memories-category {
+  border-bottom: 1px solid var(--mantine-color-dark-4);
+  padding-bottom: var(--mantine-spacing-md);
+
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+}
+
+.memories-filter-text {
+  word-break: break-word;
+}
+
+.memories-entry-content {
+  min-width: 0;
+  word-break: break-all;
+}

@@ -1,0 +1,17 @@
+{
+  "name": "monitoring",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@alibaba-group/opensandbox": "0.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.18",
+    "typescript": "7.0.2"
+  }
+}

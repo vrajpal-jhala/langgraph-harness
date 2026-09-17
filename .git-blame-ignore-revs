@@ -1,0 +1,6 @@
+# Revisions listed here are skipped by `git blame`.
+# Enable locally: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitLab/GitHub honor this file automatically in their blame views.)
+
+# style: format entire codebase with prettier
+8f24df85395cb1a4bd466f48f8c68d87f3861ec6

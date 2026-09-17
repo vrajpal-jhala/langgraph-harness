@@ -1,0 +1,33 @@
+# Example .harness.yml — per-repo configuration for langgraph-harness.
+# Copy to the repository root on the DEFAULT branch and adjust.
+# Everything is optional; a missing or invalid file means "run with defaults".
+
+# Config schema version. Only 1 is currently supported.
+version: 1
+
+# Instruction docs (read from the default branch) fed to the reviewer as scoped
+# guidance. The combined block is capped at 32,000 characters.
+#
+#   - path:  repo-relative path to the doc
+#   - match: optional globs; attach the doc only when the MR changes a matching
+#            file. Omit `match` to always attach the doc.
+
+mr_review_instructions:
+  - path: docs/review-guidelines.md
+  - path: docs/typescript.md
+    match: ['**/*.ts', '**/*.tsx']
+  - path: docs/python.md
+    match: ['**/*.py']
+
+# Same shape as above, fed to the work-item-resolve agent instead.
+work_item_resolve_instructions:
+  - path: docs/issue-resolution-guidelines.md
+
+# Skip review entirely when an MR's source or target branch matches a glob.
+# Patterns use micromatch: `*` within one path segment, `**` across segments.
+exclude_branches:
+  source: ['release/*', 'wip/**']
+  target: ['staging']
+
+# Only review an MR once the bot is one of its reviewers; default false reviews as today.
+mr_review_requires_harness_reviewer: false

@@ -1,0 +1,147 @@
+name: harness
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: harness_postgres
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=harness
+    volumes:
+      - ${DATA_PATH}/postgres:/var/lib/postgresql
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d harness']
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 5s
+
+  redis:
+    image: redis:8-alpine
+    container_name: harness_redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - ${DATA_PATH}/redis:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli ping | grep -q PONG']
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  lightpanda:
+    image: lightpanda/browser:nightly
+    container_name: harness_lightpanda
+    # advertise-host: the default response advertises --host (0.0.0.0), which
+    # puppeteer.connect() can't dial — advertise the address the host-run backend actually uses.
+    command:
+      [
+        '/bin/lightpanda',
+        'serve',
+        '--host',
+        '0.0.0.0',
+        '--port',
+        '9222',
+        '--advertise-host',
+        'localhost',
+      ]
+    ports:
+      - '9222:9222'
+    restart: unless-stopped
+
+  supermemory:
+    build: ./services/supermemory
+    container_name: harness_supermemory
+    env_file: ./services/supermemory/.env
+    volumes:
+      - ${DATA_PATH}/supermemory:/data
+    ports:
+      - '6767:6767'
+    restart: unless-stopped
+
+  opensandbox:
+    build: ./services/opensandbox
+    container_name: harness_opensandbox
+    environment:
+      DATA_PATH: ${DATA_PATH}
+      OPENSANDBOX_INSECURE_SERVER: 'YES'
+      OPENSANDBOX_DISABLE_SECURE_RUNTIME: 'YES'
+      OPENSANDBOX_SANDBOX_NETWORK: harness_sandbox
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - ${DATA_PATH}/opensandbox:/root/.opensandbox
+      # Grants sibling-container creation — equivalent to root on the host.
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - '8080:8080'
+    restart: unless-stopped
+    develop:
+      watch:
+        - path: ./services/opensandbox/Dockerfile
+          action: rebuild
+        - path: ./services/opensandbox/entrypoint.sh
+          action: rebuild
+        - path: ./services/opensandbox/sandbox.toml
+          action: rebuild
+    networks:
+      - default
+      - sandbox
+
+  docker-socket-proxy-system:
+    image: tecnativa/docker-socket-proxy
+    container_name: harness_docker_socket_proxy_system
+    environment:
+      CONTAINERS: 1
+      IMAGES: 0
+      POST: 0
+      NETWORKS: 0
+      VOLUMES: 0
+      SWARM: 0
+      SERVICES: 0
+      SECRETS: 0
+      NODES: 0
+      PLUGINS: 0
+      SYSTEM: 0
+      INFO: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  monitoring:
+    build: ./services/monitoring
+    container_name: harness_monitoring
+    # Node as raw PID 1 never responds to SIGTERM — without this, every stop needs the full grace period, then SIGKILL.
+    init: true
+    environment:
+      SYSTEM_DOCKER_HOST: tcp://docker-socket-proxy-system:2375
+      DATA_PATH: /data
+      OPENSANDBOX_URL: http://opensandbox:8080
+      # opensandbox runs OPENSANDBOX_INSECURE_SERVER in dev, so this value is never checked.
+      OPENSANDBOX_SERVER_API_KEY: dev-insecure
+      MONITORING_API_KEY: ${MONITORING_API_KEY}
+    volumes:
+      - ${DATA_PATH}:/data:ro
+    ports:
+      - '4100:4100'
+    depends_on:
+      - docker-socket-proxy-system
+      - opensandbox
+    restart: unless-stopped
+    develop:
+      watch:
+        - path: ./services/monitoring/src
+          action: rebuild
+        - path: ./services/monitoring/package.json
+          action: rebuild
+        - path: ./services/monitoring/Dockerfile
+          action: rebuild
+
+networks:
+  sandbox:
+    name: harness_sandbox

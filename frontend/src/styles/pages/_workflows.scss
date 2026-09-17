@@ -1,0 +1,31 @@
+.workflows-page {
+  max-width: var(--thread-list-width);
+  width: 100%;
+  margin: 0 auto;
+}
+
+.workflow-empty {
+  flex: 1;
+}
+
+.workflow-card {
+  cursor: pointer;
+
+  .workflow-card__title {
+    min-width: 0;
+  }
+
+  .workflow-card__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workflow-card__description {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+}

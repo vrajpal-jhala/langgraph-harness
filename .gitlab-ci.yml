@@ -1,0 +1,31 @@
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   SSH_PRIVATE_KEY  — Variable type; paste the base64-encoded private key: base64 -i ~/.ssh/harness_deploy
+#   SSH_KNOWN_HOSTS  — output of `ssh-keyscan <SSH_HOST>`; set once per server to prevent MITM
+#   SSH_HOST         — hostname or IP of the production server
+#   SSH_USER         — SSH username on the server
+# Note: DEPLOY_PATH is not a CI variable — it is baked into the server's authorized_keys command restriction.
+# See docs/deployment.md for full setup instructions.
+
+stages:
+  - deploy
+
+deploy:
+  stage: deploy
+  image: debian:bookworm-slim
+  # tags:
+  #   - <your-runner-tag>  # restrict to a specific GitLab Runner, if needed
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+  environment:
+    name: production
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq openssh-client
+    - '[ -n "$SSH_PRIVATE_KEY" ]  || { echo "SSH_PRIVATE_KEY is not set"; exit 1; }'
+    - '[ -n "$SSH_HOST" ]         || { echo "SSH_HOST is not set"; exit 1; }'
+    - '[ -n "$SSH_USER" ]         || { echo "SSH_USER is not set"; exit 1; }'
+    - '[ -n "$SSH_KNOWN_HOSTS" ]  || { echo "SSH_KNOWN_HOSTS is not set"; exit 1; }'
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+    - printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+  script:
+    - ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST"

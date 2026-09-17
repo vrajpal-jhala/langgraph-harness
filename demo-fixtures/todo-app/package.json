@@ -1,0 +1,15 @@
+{
+  "name": "demo-todo-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal todo API used as a demo project for langgraph-harness's review and resolve workflows.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test src/**/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

@@ -1,0 +1,26 @@
+.image-lightbox {
+  &__content {
+    background: none;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  &__image {
+    display: block;
+    max-width: 90vw;
+    max-height: 90vh;
+    width: auto;
+    height: auto;
+    border-radius: var(--mantine-radius-md);
+  }
+
+  &__close {
+    background-color: var(--mantine-color-dark-7);
+    color: var(--mantine-color-white);
+    border: 1px solid var(--mantine-color-dark-4);
+
+    &:hover {
+      background-color: var(--mantine-color-dark-6);
+    }
+  }
+}

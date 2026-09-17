@@ -1,0 +1,20 @@
+.analytics-page {
+  max-width: var(--thread-list-width);
+  width: 100%;
+  margin: 0 auto;
+  height: var(--app-shell-main-height);
+}
+
+.analytics-body-scrollarea {
+  flex: 1;
+  min-height: 0;
+}
+
+.analytics-repo-filter {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.analytics-empty {
+  flex: 1;
+}

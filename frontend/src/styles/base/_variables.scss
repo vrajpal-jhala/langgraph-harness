@@ -1,0 +1,11 @@
+:root[data-mantine-color-scheme='dark'] {
+  --mantine-color-body: var(--mantine-color-dark-9);
+}
+
+html {
+  --app-shell-main-height: calc(
+    100dvh - var(--app-shell-header-offset, 0px) - 2 * var(--mantine-spacing-md)
+  );
+  --thread-list-width: 960px;
+  --chat-width: 768px;
+}

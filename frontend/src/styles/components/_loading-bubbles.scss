@@ -1,0 +1,26 @@
+.loading-bubbles {
+  height: 28px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.loading-bubble {
+  width: 6px;
+  height: 6px;
+  background-color: var(--mantine-color-text);
+  border-radius: 50%;
+  animation-name: bounce;
+  animation-duration: 0.8s;
+  animation-iteration-count: infinite;
+  animation-direction: normal;
+  animation-timing-function: ease-in-out;
+
+  &.circle2 {
+    animation-delay: 0.1s;
+  }
+  &.circle3 {
+    animation-delay: 0.2s;
+  }
+}

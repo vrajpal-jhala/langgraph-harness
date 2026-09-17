@@ -1,0 +1,44 @@
+# Format staged files with Prettier (via lint-staged) before anything else, so
+# the formatted versions are what get committed. Aborts the commit on failure.
+npx lint-staged || exit 1
+
+# Lint each package when this commit touches it. Whole-package lint (fast) rather
+# than staged-only, matching the gen:types idiom below. Aborts on any lint error.
+if git diff --cached --name-only --diff-filter=ACMR | grep -q '^backend/'; then
+  echo "husky: backend changed — linting..."
+  npm --prefix backend run lint || exit 1
+fi
+
+if git diff --cached --name-only --diff-filter=ACMR | grep -q '^frontend/'; then
+  echo "husky: frontend changed — linting..."
+  npm --prefix frontend run lint || exit 1
+fi
+
+# Keep the committed Eden type snapshot (frontend/src/__generated__/app.d.ts) in
+# sync with the backend API. When this commit touches backend/src, regenerate it
+# and stage the result so it lands in the same commit.
+#
+# Regeneration needs backend deps installed (root `npm install` covers it). If
+# gen:types fails (e.g. a backend type error), the && short-circuits and the
+# commit aborts — which is the intended safety. Bypass with `git commit --no-verify`.
+if git diff --cached --name-only --diff-filter=ACMR | grep -q '^backend/src/'; then
+  echo "husky: backend/src changed — regenerating Eden types..."
+  npm --prefix backend run gen:types && git add frontend/src/__generated__/app.d.ts
+fi
+
+# Typecheck each package when this commit touches it. eslint above only checks
+# syntax/style (no parserOptions.project), so it can't catch type errors — this
+# is the only step that can. Backend runs first since it produces the Eden
+# types frontend depends on.
+if git diff --cached --name-only --diff-filter=ACMR | grep -q '^backend/'; then
+  echo "husky: backend changed — typechecking..."
+  npm --prefix backend run typecheck || exit 1
+fi
+
+# Frontend also needs to re-typecheck when only backend/src changed: the Eden
+# types regenerated above are structural, so a backend-only edit can silently
+# break frontend consumers without touching a single frontend file.
+if git diff --cached --name-only --diff-filter=ACMR | grep -qE '^(frontend/|backend/src/)'; then
+  echo "husky: frontend (or backend/src) changed — typechecking frontend..."
+  npm --prefix frontend run typecheck || exit 1
+fi
