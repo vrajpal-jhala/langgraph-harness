@@ -44,7 +44,10 @@ let exited = false;
 function shutdown(code) {
   if (exited) return;
   exited = true;
-  spawnSync('docker', [...composeArgs, 'down'], { stdio: 'inherit', cwd: root });
+  spawnSync('docker', [...composeArgs, 'down'], {
+    stdio: 'inherit',
+    cwd: root,
+  });
   process.exit(code ?? 0);
 }
 

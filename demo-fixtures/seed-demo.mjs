@@ -23,7 +23,9 @@ const PROJECT_NAME = process.env.GITLAB_PROJECT || 'langgraph-harness-demo';
 const RESET = process.argv.includes('--reset');
 
 if (!TOKEN || !NAMESPACE) {
-  console.error('Set GITLAB_TOKEN (personal access token, api scope) and GITLAB_NAMESPACE (your username or a group path you own).');
+  console.error(
+    'Set GITLAB_TOKEN (personal access token, api scope) and GITLAB_NAMESPACE (your username or a group path you own).',
+  );
   process.exit(1);
 }
 
@@ -33,10 +35,17 @@ const PROJECT_PATH = `${NAMESPACE}/${PROJECT_NAME}`;
 async function api(path, opts = {}) {
   const res = await fetch(`${API}${path}`, {
     ...opts,
-    headers: { 'PRIVATE-TOKEN': TOKEN, 'Content-Type': 'application/json', ...opts.headers },
+    headers: {
+      'PRIVATE-TOKEN': TOKEN,
+      'Content-Type': 'application/json',
+      ...opts.headers,
+    },
   });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`${opts.method || 'GET'} ${path} -> ${res.status}: ${await res.text()}`);
+  if (!res.ok)
+    throw new Error(
+      `${opts.method || 'GET'} ${path} -> ${res.status}: ${await res.text()}`,
+    );
   return res.status === 204 ? null : res.json();
 }
 
@@ -77,7 +86,9 @@ async function deleteProject(project) {
 }
 
 async function branchExists(project, branch) {
-  return api(`/projects/${project.id}/repository/branches/${encodeURIComponent(branch)}`);
+  return api(
+    `/projects/${project.id}/repository/branches/${encodeURIComponent(branch)}`,
+  );
 }
 
 function pushBaseline() {
@@ -118,13 +129,17 @@ async function ensureFeatureBranch(project) {
     return branch;
   }
   console.log(`Pushing ${branch}...`);
-  pushFeatureBranch(branch, join(HERE, 'feature-due-today'), 'Add a due-today filter to the todo list');
+  pushFeatureBranch(
+    branch,
+    join(HERE, 'feature-due-today'),
+    'Add a due-today filter to the todo list',
+  );
   return branch;
 }
 
 async function ensureMergeRequest(project, sourceBranch) {
   const open = await api(
-    `/projects/${project.id}/merge_requests?source_branch=${encodeURIComponent(sourceBranch)}&state=opened`
+    `/projects/${project.id}/merge_requests?source_branch=${encodeURIComponent(sourceBranch)}&state=opened`,
   );
   if (open && open.length) {
     console.log('MR already open, skipping.');
@@ -137,14 +152,17 @@ async function ensureMergeRequest(project, sourceBranch) {
       source_branch: sourceBranch,
       target_branch: 'main',
       title: 'Add a due-today filter to the todo list',
-      description: 'Adds `GET /todos/due-today` so the UI can highlight what needs doing today.',
+      description:
+        'Adds `GET /todos/due-today` so the UI can highlight what needs doing today.',
     }),
   });
 }
 
 async function ensureIssue(project) {
   const title = 'Add a completed-count badge to GET /todos';
-  const found = await api(`/projects/${project.id}/issues?search=${encodeURIComponent(title)}`);
+  const found = await api(
+    `/projects/${project.id}/issues?search=${encodeURIComponent(title)}`,
+  );
   if (found && found.length) {
     console.log('Issue already exists, skipping.');
     return;
@@ -174,7 +192,9 @@ async function main() {
   await ensureIssue(project);
 
   console.log(`\nDone: https://${GITLAB_HOST}/${PROJECT_PATH}`);
-  console.log('Next: point a webhook at your tunneled dev backend, then assign the issue to your bot user.');
+  console.log(
+    'Next: point a webhook at your tunneled dev backend, then assign the issue to your bot user.',
+  );
 }
 
 main().catch((err) => {

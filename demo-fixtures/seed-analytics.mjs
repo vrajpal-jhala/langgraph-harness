@@ -8,10 +8,18 @@
 import pg from 'pg';
 import { randomUUID } from 'node:crypto';
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/harness';
+const DATABASE_URL =
+  process.env.DATABASE_URL ||
+  'postgres://postgres:postgres@localhost:5432/harness';
 const THREAD_COUNT = Number(process.env.SEED_COUNT || 60);
 
-const PROJECTS = ['acme/website', 'acme/mobile-app', 'acme/infra', 'acme/api', 'acme/design-system'];
+const PROJECTS = [
+  'acme/website',
+  'acme/mobile-app',
+  'acme/infra',
+  'acme/api',
+  'acme/design-system',
+];
 
 const KIND_WEIGHTS = [
   ['mr_review', 0.55],
@@ -20,11 +28,23 @@ const KIND_WEIGHTS = [
   ['task_resolve', 0.05],
 ];
 
-const ERROR_KINDS = ['timeout', 'guardAbort', 'manualAbort', 'modelError', 'serverRestart', 'generationLoop'];
+const ERROR_KINDS = [
+  'timeout',
+  'guardAbort',
+  'manualAbort',
+  'modelError',
+  'serverRestart',
+  'generationLoop',
+];
 
 // Must match the middleware keys the Analytics page's guardrail table looks up per kind
 // (frontend/src/pages/analytics/index.tsx) — any other key silently renders as zero rows.
-const COMMON_NUDGES = ['DuplicateCallGuard', 'TrailingQuestionGuard', 'NoToolCallGuard', 'ExtractProjectMemory'];
+const COMMON_NUDGES = [
+  'DuplicateCallGuard',
+  'TrailingQuestionGuard',
+  'NoToolCallGuard',
+  'ExtractProjectMemory',
+];
 const NUDGE_MIDDLEWARES = {
   mr_review: COMMON_NUDGES,
   chat: ['HumanApproval'],
@@ -59,11 +79,35 @@ const CHAT_MESSAGES = [
 ];
 
 const MEMORY_ENTRIES = [
-  { category: 'convention', title: 'Prefers early returns', content: 'Team consistently prefers early returns over nested conditionals in review comments.' },
-  { category: 'false_positive', title: 'Flaky payment webhook test', content: 'The payment webhook suite has a known-flaky timing test — do not flag failures there as caused by the current change.' },
-  { category: 'decision', title: 'No default exports', content: 'Team decided against default exports repo-wide; flag new ones.' },
-  { category: 'convention', title: 'SCSS BEM nesting', content: 'BEM elements/modifiers must nest under their block with &__/&--, not flat top-level selectors.' },
-  { category: 'false_positive', title: 'Generated types churn', content: '__generated__/*.d.ts diffs are expected noise after any schema change — do not comment on them.' },
+  {
+    category: 'convention',
+    title: 'Prefers early returns',
+    content:
+      'Team consistently prefers early returns over nested conditionals in review comments.',
+  },
+  {
+    category: 'false_positive',
+    title: 'Flaky payment webhook test',
+    content:
+      'The payment webhook suite has a known-flaky timing test — do not flag failures there as caused by the current change.',
+  },
+  {
+    category: 'decision',
+    title: 'No default exports',
+    content: 'Team decided against default exports repo-wide; flag new ones.',
+  },
+  {
+    category: 'convention',
+    title: 'SCSS BEM nesting',
+    content:
+      'BEM elements/modifiers must nest under their block with &__/&--, not flat top-level selectors.',
+  },
+  {
+    category: 'false_positive',
+    title: 'Generated types churn',
+    content:
+      '__generated__/*.d.ts diffs are expected noise after any schema change — do not comment on them.',
+  },
 ];
 
 function pickWeighted(weights) {
@@ -80,7 +124,8 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
 // Squares a uniform random so most threads land in the last few weeks, not spread flat over the window.
-const recentTimestamp = (maxDaysAgo) => new Date(Date.now() - Math.random() ** 2 * maxDaysAgo * 24 * 60 * 60 * 1000);
+const recentTimestamp = (maxDaysAgo) =>
+  new Date(Date.now() - Math.random() ** 2 * maxDaysAgo * 24 * 60 * 60 * 1000);
 
 function buildInput(kind, project, mrIid) {
   switch (kind) {
@@ -145,7 +190,8 @@ function buildRunSummary(kind, success) {
   const completionTokens = randInt(200, 4000);
 
   return {
-    duration_ms: kind === 'chat' ? randInt(3000, 40000) : randInt(20000, 240000),
+    duration_ms:
+      kind === 'chat' ? randInt(3000, 40000) : randInt(20000, 240000),
     success,
     error_kind: success ? null : pick(ERROR_KINDS),
     llm_calls: randInt(3, 25),
@@ -162,12 +208,29 @@ function buildRunSummary(kind, success) {
     llm_backend_wait_ms: randInt(100, 5000),
     nudge_stats: buildNudgeStats(kind),
     comment_critic: isReviewish
-      ? { verdicts: randInt(2, 15), dropped: randInt(0, 5), failed: 0, hadError: false, retries: 0 }
+      ? {
+          verdicts: randInt(2, 15),
+          dropped: randInt(0, 5),
+          failed: 0,
+          hadError: false,
+          retries: 0,
+        }
       : null,
     memory_curator: isReviewish
-      ? { added: randInt(0, 2), updated: randInt(0, 2), retired: 0, skipped: randInt(0, 3), missed: 0, hadError: false, retries: 0 }
+      ? {
+          added: randInt(0, 2),
+          updated: randInt(0, 2),
+          retired: 0,
+          skipped: randInt(0, 3),
+          missed: 0,
+          hadError: false,
+          retries: 0,
+        }
       : null,
-    own_comments: kind === 'mr_review' ? { total: randInt(1, 8), resolved: randInt(0, 8) } : null,
+    own_comments:
+      kind === 'mr_review'
+        ? { total: randInt(1, 8), resolved: randInt(0, 8) }
+        : null,
   };
 }
 
@@ -184,8 +247,15 @@ function buildRunTimeline(threadCreatedAt) {
     const startedAt = cursor;
     const durationMs = randInt(8000, 240000);
     const completedAt = new Date(startedAt.getTime() + durationMs);
-    runs.push({ startedAt, completedAt, status: success ? 'completed' : 'failed', success });
-    cursor = new Date(completedAt.getTime() + randInt(60_000, 6 * 60 * 60 * 1000)); // gap before a re-review
+    runs.push({
+      startedAt,
+      completedAt,
+      status: success ? 'completed' : 'failed',
+      success,
+    });
+    cursor = new Date(
+      completedAt.getTime() + randInt(60_000, 6 * 60 * 60 * 1000),
+    ); // gap before a re-review
   }
   return runs;
 }
@@ -228,7 +298,15 @@ async function main() {
         await client.query(
           `INSERT INTO runs (id, thread_id, status, input, kind, created_at, started_at, completed_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)`,
-          [runId, threadId, run.status, buildInput(kind, project, mrIid), kind, run.startedAt, run.completedAt],
+          [
+            runId,
+            threadId,
+            run.status,
+            buildInput(kind, project, mrIid),
+            kind,
+            run.startedAt,
+            run.completedAt,
+          ],
         );
 
         const summary = buildRunSummary(kind, run.success);
@@ -283,7 +361,9 @@ async function main() {
     }
 
     await client.query('COMMIT');
-    console.log(`Seeded ${THREAD_COUNT} threads with runs and summaries, plus ${MEMORY_ENTRIES.length} memories.`);
+    console.log(
+      `Seeded ${THREAD_COUNT} threads with runs and summaries, plus ${MEMORY_ENTRIES.length} memories.`,
+    );
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

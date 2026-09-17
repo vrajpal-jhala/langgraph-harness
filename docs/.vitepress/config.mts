@@ -30,10 +30,17 @@ export default defineConfig({
       'meta',
       {
         property: 'og:image',
-        content: 'https://vrajpal-jhala.github.io/langgraph-harness/screenshots/analytics-overview.png',
+        content:
+          'https://vrajpal-jhala.github.io/langgraph-harness/screenshots/analytics-overview.png',
       },
     ],
-    ['meta', { property: 'og:url', content: 'https://vrajpal-jhala.github.io/langgraph-harness/' }],
+    [
+      'meta',
+      {
+        property: 'og:url',
+        content: 'https://vrajpal-jhala.github.io/langgraph-harness/',
+      },
+    ],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:title', content: 'langgraph-harness' }],
     [
@@ -48,7 +55,8 @@ export default defineConfig({
       'meta',
       {
         name: 'twitter:image',
-        content: 'https://vrajpal-jhala.github.io/langgraph-harness/screenshots/analytics-overview.png',
+        content:
+          'https://vrajpal-jhala.github.io/langgraph-harness/screenshots/analytics-overview.png',
       },
     ],
   ],
