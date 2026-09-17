@@ -1,76 +1,75 @@
+<div align="center">
+
+<img src="docs/public/logo.svg" width="72" alt="langgraph-harness logo" />
+
 # langgraph-harness
+
+**The engineering context platform for GitLab**
+
+Reviews merge requests, resolves issues autonomously, and chats with full project context — remembering what matters so every run builds on the last.
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-22%2B-339933?logo=node.js&logoColor=white)](package.json)
+[![Docs](https://img.shields.io/badge/docs-vrajpal--jhala.github.io-6366f1)](https://vrajpal-jhala.github.io/langgraph-harness/)
+
+[Docs](https://vrajpal-jhala.github.io/langgraph-harness/) · [Getting Started](https://vrajpal-jhala.github.io/langgraph-harness/guide/getting-started) · [Features](https://vrajpal-jhala.github.io/langgraph-harness/features) · [Screenshots](https://vrajpal-jhala.github.io/langgraph-harness/screenshots)
+
+</div>
 
 > Not affiliated with LangChain. See [DISCLAIMER.md](DISCLAIMER.md).
 
-The engineering context platform for GitLab. langgraph-harness reviews merge requests, resolves issues autonomously, and chats with full project context — remembering what matters so every run builds on the last.
+---
 
-Reviews fire on webhook events. A LangGraph agent with GitLab MCP tooling does the work. A React UI lets you watch live runs and dig through history.
+## What it does
+
+Four harnesses, one shared foundation:
+
+- 🔍 **MR Review** — fires on webhook events, reads the diff, drafts comments, publishes them. No polling, no manual trigger.
+- 🛠️ **Issue Resolution** — assign an issue and get a sandboxed agent that opens a draft MR and keeps responding to follow-up comments on the same branch.
+- 💬 **Chat** — an interactive, GitLab-aware assistant with real tool access: GitLab data, a headless browser, its own review/chat history.
+- 🛡️ **Guardrails & quality control** — every drafted comment is screened before it posts; a run that misbehaves (repeats a call, ends on a question, skips a check) gets caught and corrected mid-run, not after the fact.
+
+Full breakdown: [Features](https://vrajpal-jhala.github.io/langgraph-harness/features) · [Architecture](https://vrajpal-jhala.github.io/langgraph-harness/architecture)
+
+## Screenshots
+
+<div align="center">
+<img src="docs/public/screenshots/thread-detail.png" width="720" alt="Thread detail view showing a review run" />
+</div>
+
+More in the [screenshots gallery](https://vrajpal-jhala.github.io/langgraph-harness/screenshots).
 
 ## Stack
 
-- **Frontend** — React admin UI (Dashboard, Threads, Chat, Workflows) for monitoring threads and run events, and chatting directly with the agent outside a merge request
+- **Frontend** — React admin UI (Dashboard, Threads, Chat, Workflows) for monitoring runs and chatting directly with the agent
 - **Backend** — Elysia API server running a LangGraph agent with persistent checkpoints
-- **Agent** — Multi-provider LLM (OpenRouter, Ollama, or sglang) with GitLab tools and skill-based workflows
-- **Queue** — BullMQ runs initial reviews immediately; re-reviews debounce for 5 minutes (collapsing rapid pushes) unless the queue is free, in which case they start immediately. Concurrency is capped at 4 simultaneous reviews. The UI shows live queue state — active, debouncing, and waiting reviews — with a countdown on debouncing threads. A run that hasn't finished after 10 minutes is aborted automatically.
-- **Memory** — the agent flags durable, project-specific facts as it reviews (conventions, recurring false positives, team preferences, decisions); a curator pass dedups and stores them per project, seeding future reviews of the same project. Chat has its own personal memories, saved and recalled directly by the model as durable facts about the user across conversations.
-
-## Prerequisites
-
-- Node.js 22+
-- Docker (for PostgreSQL, Redis, and Lightpanda)
-- A GitLab personal access token with `api` scope
-- A GitLab OAuth application (for sign-in) — client ID and secret
-- OpenRouter API key **or** a local Ollama/sglang instance
+- **Agent** — Multi-provider LLM (OpenRouter, Ollama, or sglang) with GitLab MCP tools and skill-based workflows
+- **Queue** — BullMQ; debounced re-reviews, capped concurrency, live queue state in the UI
+- **Memory** — durable, project-scoped facts learned across reviews; personal memory in Chat
 
 ## Quick Start
 
-**1. Install dependencies**
+**Prerequisites:** Node.js 22+, Docker, a GitLab PAT (`api` scope), a GitLab OAuth app, and an OpenRouter key or a local Ollama/sglang instance.
 
 ```bash
 npm install
-```
-
-**2. Configure backend**
-
-```bash
 cp backend/.env.example backend/.env
-# fill in GITLAB_PAT, GITLAB_OAUTH_CLIENT_ID/SECRET, SESSION_SECRET, SECRETS_ENCRYPTION_KEY, ADMIN_GITLAB_USERNAMES,
-# and one of OPENROUTER_API_KEY, OLLAMA_BASE_URL, or SGLANG_BASE_URL
+# fill in GITLAB_PAT, GITLAB_OAUTH_CLIENT_ID/SECRET, SESSION_SECRET, SECRETS_ENCRYPTION_KEY,
+# ADMIN_GITLAB_USERNAMES, and one of OPENROUTER_API_KEY / OLLAMA_BASE_URL / SGLANG_BASE_URL
+npm run dev
 ```
 
-**3. Run**
+Frontend at `http://localhost:5173`, API at `http://localhost:3698`.
 
-```bash
-npm run dev   # starts infra, runs migrations, and starts the dev server
-```
+Full walkthrough — GitLab OAuth app setup, webhook config, per-repo `.harness.yml`: [Getting Started](https://vrajpal-jhala.github.io/langgraph-harness/guide/getting-started).
 
-Frontend opens at `http://localhost:5173`, API at `http://localhost:3698`.
+## Deployment & CI/CD
 
-See [`backend/README.md`](backend/README.md) for architecture diagrams, API docs, agent internals, webhook setup, and environment variable reference.
+Self-hosted via Docker Compose; production deploys are automated through GitLab CI on push. See [Deployment](https://vrajpal-jhala.github.io/langgraph-harness/deployment) for server setup, and [sglang Deployment](https://vrajpal-jhala.github.io/langgraph-harness/sglang-deployment) if self-hosting the LLM backend.
 
-## CI/CD
+## The Story
 
-Deployment is automated via GitLab CI on every push to `master`. The pipeline SSH-deploys to the production server and runs `update.sh` to rebuild and restart services. See [`docs/deployment.md`](docs/deployment.md) for the server-side setup — accounts, the SSH forced-command mechanism, directory layout, and what `update.sh` does.
-
-```mermaid
-flowchart LR
-    P[Push to master] --> CI[GitLab CI]
-    CI --> SSH[SSH to server]
-    SSH --> UP[update.sh]
-    UP --> B[build backend + frontend]
-    UP --> M[run migrations]
-    B --> R[restart services]
-    M --> R
-```
-
-**Required CI/CD variables** (Settings → CI/CD → Variables):
-
-| Variable          | Type     | Description                                              |
-| ----------------- | -------- | -------------------------------------------------------- |
-| `SSH_PRIVATE_KEY` | Variable | Private key for the deploy user (no passphrase)          |
-| `SSH_KNOWN_HOSTS` | Variable | Output of `ssh-keyscan <SSH_HOST>` — set once per server |
-| `SSH_HOST`        | Variable | Hostname or IP of the production server                  |
-| `SSH_USER`        | Variable | SSH username on the production server                    |
+Curious how this got built? [The Story So Far](https://vrajpal-jhala.github.io/langgraph-harness/journey).
 
 ---
 

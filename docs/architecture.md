@@ -2,7 +2,20 @@
 
 Layered view of langgraph-harness: the LangGraph **Harness/Loop**, the **Memory layer**, and **LLM Ops**, plus future agents that consume the same foundation.
 
-Four harnesses exist side by side, not one plugging into another: **MR Review** (below, webhook on MR events → debounced queue → agent loop over GitLab MCP tools → draft-note/comment reply), **Work Item Resolve** (webhook on issue assignment + MR comments → its own FIFO queue → agent loop inside an ephemeral sandboxed container → draft MR / MR reply), **Task Resolve** (admin submits a free-text prompt via the API, or schedules one to fire once or on a recurring cadence — no issue, no assignment webhook — which opens its own draft MR directly; MR comments on it trigger a reply run through the same webhook path Work Item Resolve uses → draft MR / MR reply), and **Chat** (user message via API, no webhook and no queue at all — runs immediately — agent loop with a human-approval gate on write-capable tool calls → reply streamed to the UI). They share the Postgres checkpointer, the project/personal-memory store, and the React UI/analytics (which also carries retry/abort/delete actions, not just viewing) — but each harness's tool surface is structurally different (MR Review: GitLab MCP tools against a bare worktree, no sandbox; Issue Resolve and Task Resolve: sandbox shell + file access, a read+reply GitLab MCP allowlist (bot token), and a web-fetch tool (headless browser + Readability, SSRF-guarded); Chat: the user's own GitLab token against the full MCP toolset, plus personal-memory and its own web-fetch tools), so none of them is a variant of another's loop — though Issue Resolve and Task Resolve go further and share the exact same compiled agent (`agent.ts`: same middleware stack, same tool set), differing only in what triggers a run and what supplies the task.
+Four harnesses exist side by side, not one plugging into another:
+
+- **MR Review** (below) — webhook on MR events → debounced queue → agent loop over GitLab MCP tools → draft-note/comment reply.
+- **Work Item Resolve** — webhook on issue assignment + MR comments → its own FIFO queue → agent loop inside an ephemeral sandboxed container → draft MR / MR reply.
+- **Task Resolve** — admin submits a free-text prompt via the API, or schedules one to fire once or on a recurring cadence (no issue, no assignment webhook) → opens its own draft MR directly; MR comments on it trigger a reply through the same webhook path Work Item Resolve uses → draft MR / MR reply.
+- **Chat** — user message via API, no webhook and no queue at all, runs immediately → agent loop with a human-approval gate on write-capable tool calls → reply streamed to the UI.
+
+They share the Postgres checkpointer, the project/personal-memory store, and the React UI/analytics (which also carries retry/abort/delete actions, not just viewing) — but each harness's tool surface is structurally different:
+
+- **MR Review** — GitLab MCP tools against a bare worktree, no sandbox.
+- **Issue Resolve and Task Resolve** — sandbox shell + file access, a read+reply GitLab MCP allowlist (bot token), and a web-fetch tool (headless browser + Readability, SSRF-guarded).
+- **Chat** — the user's own GitLab token against the full MCP toolset, plus personal memory and its own web-fetch tools.
+
+So none of them is a variant of another's loop — though Issue Resolve and Task Resolve go further and share the exact same compiled agent (`agent.ts`: same middleware stack, same tool set), differing only in what triggers a run and what supplies the task.
 
 **Status legend**
 

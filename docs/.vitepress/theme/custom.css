@@ -1,0 +1,55 @@
+.mermaid-container {
+  position: relative;
+}
+
+.mermaid {
+  height: 70vh;
+  min-height: 320px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.mermaid:active {
+  cursor: grabbing;
+}
+
+.mermaid svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.mermaid-zoom-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mermaid-zoom-controls button {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--vp-c-border);
+  background-color: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
+}
+
+.mermaid-zoom-controls button:hover {
+  background-color: var(--vp-c-bg-mute);
+  border-color: var(--vp-c-brand-1);
+}
