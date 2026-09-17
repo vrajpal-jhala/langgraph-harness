@@ -26,7 +26,7 @@
     "format:check": "prettier --check ."
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx,json,css,scss,md,yml,yaml}": "prettier --write"
+    "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,json,css,scss,md,yml,yaml}": "prettier --write"
   },
   "devDependencies": {
     "husky": "9.1.7",
