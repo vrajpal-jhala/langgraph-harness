@@ -146,6 +146,18 @@ const RunTimeline = ({
             .map((e) => [e.data.id, e]),
         );
 
+        const reasoningStartTs = new Map(
+          run.events
+            .filter((e) => e.event === 'reasoning_start')
+            .map((e) => [e.data.id, e.data.timestamp]),
+        );
+
+        const reasoningEndTs = new Map(
+          run.events
+            .filter((e) => e.event === 'reasoning_end')
+            .map((e) => [e.data.id, e.data.timestamp]),
+        );
+
         const toolOutputs = new Map(
           run.events
             .filter((e) => e.event === 'tool_output')
@@ -253,7 +265,9 @@ const RunTimeline = ({
             e.event === 'comment_critic_end' ||
             e.event === 'reply_critic_end' ||
             e.event === 'corrective_nudge_end' ||
-            e.event === 'extract_project_memory_end'
+            e.event === 'extract_project_memory_end' ||
+            e.event === 'reasoning_start' ||
+            e.event === 'reasoning_end'
           ) {
             return acc;
           }
@@ -1145,6 +1159,13 @@ const RunTimeline = ({
 
               if (event.event === 'message') {
                 const eventId = event.data.id;
+                const reasoningStart = reasoningStartTs.get(eventId);
+                const reasoningEnd = reasoningEndTs.get(eventId);
+                const reasoningDuration =
+                  reasoningStart && reasoningEnd
+                    ? formatDuration(reasoningEnd - reasoningStart)
+                    : null;
+
                 return (
                   <div
                     key={eventId}
@@ -1164,6 +1185,15 @@ const RunTimeline = ({
                           <Icon as={IconChevronDown} />
                         )}
                         <Text>Thinking</Text>
+                        {reasoningDuration && reasoningStart && (
+                          <Tooltip
+                            label={new Date(reasoningStart).toLocaleString()}
+                          >
+                            <Text component="span" size="sm" c="dimmed" ml={8}>
+                              {reasoningDuration}
+                            </Text>
+                          </Tooltip>
+                        )}
                       </div>
                     )}
                     {!collapsed.includes(eventId) && (

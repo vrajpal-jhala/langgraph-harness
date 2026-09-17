@@ -4,11 +4,16 @@ import { type RunEvent, type WriterEvent } from '#types.js';
 
 import { logger } from '#utils/logger.js';
 
-// Carries messageId across chunks for one stream's lifetime — a fresh state per translateRunStream/translateChunk-loop call, never shared across streams.
-export type TranslateState = { messageId: string | null };
+// Carries messageId (and its reasoning-phase flags) across chunks for one stream's lifetime — a
+// fresh state per translateRunStream/translateChunk-loop call, never shared across streams.
+export type TranslateState = {
+  messageId: string | null;
+  reasoningStarted: boolean;
+  reasoningEnded: boolean;
+};
 
 export function createTranslateState(): TranslateState {
-  return { messageId: null };
+  return { messageId: null, reasoningStarted: false, reasoningEnded: false };
 }
 
 // Shared by translateRunStream (main graph) and spawnSubagent's forwarding loop (nested agent stream) — 'checkpoints' is excluded since a nested stream never carries it.
@@ -52,6 +57,37 @@ export function translateChunk(
     if (!state.messageId) {
       state.messageId =
         (chunk[0].id as string | undefined) ?? crypto.randomUUID();
+      state.reasoningStarted = false;
+      state.reasoningEnded = false;
+    }
+
+    const reasoningContent =
+      (chunk[0].additional_kwargs.reasoning_content as string) || '';
+
+    if (reasoningContent && !state.reasoningStarted) {
+      state.reasoningStarted = true;
+      events.push({
+        event: 'reasoning_start',
+        data: {
+          id: state.messageId,
+          timestamp: Date.now(),
+          ...(subagentId && { subagentId }),
+        },
+      });
+    }
+
+    // Ends once the reasoning delta itself stops flowing, not when `content` appears — a
+    // tool-call-only turn (reason, then call a tool with no assistant text) never gets one.
+    if (!reasoningContent && state.reasoningStarted && !state.reasoningEnded) {
+      state.reasoningEnded = true;
+      events.push({
+        event: 'reasoning_end',
+        data: {
+          id: state.messageId,
+          timestamp: Date.now(),
+          ...(subagentId && { subagentId }),
+        },
+      });
     }
 
     events.push({
@@ -59,8 +95,7 @@ export function translateChunk(
       data: {
         id: state.messageId,
         content: chunk[0].content as string,
-        reasoningContent:
-          (chunk[0].additional_kwargs.reasoning_content as string) || '',
+        reasoningContent,
         ...(subagentId && { subagentId }),
       },
     });

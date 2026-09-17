@@ -441,6 +441,14 @@ export type WorkflowEvent =
       };
     }
   | {
+      event: 'reasoning_start';
+      data: { id: string; timestamp: number; subagentId?: string };
+    }
+  | {
+      event: 'reasoning_end';
+      data: { id: string; timestamp: number; subagentId?: string };
+    }
+  | {
       event: 'tool_input';
       data: {
         id: string;
