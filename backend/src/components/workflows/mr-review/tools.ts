@@ -554,7 +554,6 @@ function getVerifier(model: string, reasoning: boolean): CompiledVerifier {
   return verifier;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const spawnSubagent = tool(
   async ({ path, diff, instructions }, runtime: GitToolRuntime) => {
     // Scoped to this call — a loop detected below aborts only this subagent, not the run.
@@ -773,7 +772,7 @@ export const tools = {
       readTextFile,
       readMultipleFiles,
       listDirectory,
-      // spawnSubagent,
+      spawnSubagent,
       ...allTools.filter(mcpToolFilter(MR_TOOL_ALLOWLIST, 'gitlab')),
     ];
   },
