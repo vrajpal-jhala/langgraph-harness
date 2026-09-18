@@ -1,6 +1,6 @@
 # Deployment
 
-langgraph-harness runs as a single Docker Compose stack on one production server, deployed by GitLab CI on every push to `master`. This doc covers the server-side setup: accounts, SSH, directory layout, and what `update.sh` actually does. Application env vars are documented in [`backend/README.md`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/backend/README.md); this doc is about the box, not the app config.
+This is how we run langgraph-harness in production: a single Docker Compose stack on one server, deployed by GitLab CI on every push to `master`. Use this as a reference for standing up your own — it covers the server-side setup: accounts, SSH, directory layout, and what `update.sh` actually does, plus the gotchas we hit getting sandboxed execution working reliably. Application env vars are documented in [`backend/README.md`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/backend/README.md); this doc is about the box, not the app config.
 
 ## Server layout
 
@@ -97,7 +97,7 @@ Because volume paths are resolved (and baked into each container's mount config)
 
 `docker-compose.yml` pins the default network's subnet to `172.18.0.0/16` (`networks.default.ipam`) rather than leaving it Docker-assigned — the [UFW rule](#opensandbox) that lets `backend` reach a sandbox's published port on the host is scoped to this subnet as its source IP range, so an unpinned network reassigning itself on a stack rebuild would silently break it.
 
-**Multiple Docker daemons, one shared iptables table.** This host runs two independent `dockerd` instances: the main one (this Compose stack) and a rootful daemon at `/opt/kata-docker` for OpenSandbox's Kata sandboxes (see [OpenSandbox](#opensandbox)). Docker's `DOCKER-FORWARD`/`DOCKER-BRIDGE`/`DOCKER-CT`/`DOCKER-USER` iptables chains are global to the host kernel, not namespaced per daemon.
+**Multiple Docker daemons, one shared iptables table.** Once you add OpenSandbox's Kata sandboxes (see [OpenSandbox](#opensandbox)), your host ends up running two independent `dockerd` instances: the main one (this Compose stack) and a rootful daemon at `/opt/kata-docker`. Docker's `DOCKER-FORWARD`/`DOCKER-BRIDGE`/`DOCKER-CT`/`DOCKER-USER` iptables chains are global to the host kernel, not namespaced per daemon.
 
 Only the main daemon manages these chains. `docker-kata`'s `/opt/kata-docker/docker/daemon.json` sets `"iptables": false`, so it never writes to them — required, not optional: a daemon that does manage iptables rewrites the shared chains with only its own bridge's rules on every restart, silently dropping every other daemon's already-installed per-bridge rules for networks it doesn't know about. Any additional Docker daemon added to this host must set `"iptables": false` too (or use explicit systemd ordering plus a post-boot resync check) — this doesn't happen automatically.
 
@@ -126,7 +126,7 @@ sudo systemctl restart docker
 
 `opensandbox` creates sibling containers (sandboxes) via the Docker API for the dev-agent workflow's sandboxed command/file execution — access to that API is otherwise equivalent to root on the host, so several mitigations are in place.
 
-**Secure runtime (Kata Containers).** Sandboxes run as Kata Containers VMs (QEMU) — each sandbox gets its own guest kernel, not just syscall interception on top of the host's, the way the previous gVisor runtime worked. Kata runs on its own dedicated **rootful** Docker daemon, `docker-kata` (`/opt/kata-docker/`), with its own `containerd` instance too (`containerd-kata.service`, own config/socket/data root under `/opt/kata-docker/containerd`) — the main daemon's `docker.service` explicitly points at the system `containerd` (`--containerd=/run/containerd/containerd.sock`), so sharing it would put both daemons' containers in the same namespace, defeating the isolation this design relies on. This host's `containerd` (v2.2.6) uses config schema `version = 3` — generate the real default (`containerd config default`) rather than hand-writing one from an older schema; plugins are disabled via a top-level `disabled_plugins` list, and CRI's plugin ID is split into `io.containerd.cri.v1.images`/`io.containerd.cri.v1.runtime`.
+**Secure runtime (Kata Containers).** Sandboxes run as Kata Containers VMs (QEMU) — each sandbox gets its own guest kernel, not just syscall interception on top of the host's, the way the previous gVisor runtime worked. Kata runs on its own dedicated **rootful** Docker daemon, `docker-kata` (`/opt/kata-docker/`), with its own `containerd` instance too (`containerd-kata.service`, own config/socket/data root under `/opt/kata-docker/containerd`) — the main daemon's `docker.service` explicitly points at the system `containerd` (`--containerd=/run/containerd/containerd.sock`), so sharing it would put both daemons' containers in the same namespace, defeating the isolation this design relies on. A modern `containerd` (we're on v2.2.6) uses config schema `version = 3` — generate the real default (`containerd config default`) rather than hand-writing one from an older schema; plugins are disabled via a top-level `disabled_plugins` list, and CRI's plugin ID is split into `io.containerd.cri.v1.images`/`io.containerd.cri.v1.runtime`.
 
 ```json
 // /opt/kata-docker/docker/daemon.json
@@ -158,7 +158,7 @@ Docker persists a created network's bridge-name binding in its own local state (
 
 Unlike gVisor's rootless setup, `docker-kata` needs no dedicated unprivileged host account, no subuid/subgid range, no `rootlesskit`, and no AppArmor profile for unprivileged user namespaces — a rootful daemon gets normal cgroup v2 delegation and normal DNAT-based port-publishing, neither of which needed the workarounds the rootless daemon did.
 
-**Host firewall (UFW).** This server's UFW default-denies incoming traffic, which blocks every sandbox's health check (surfaces as `SandboxReadyTimeoutException` — the sandbox itself comes up fine, its published port just isn't reachable) unless this rule is present:
+**Host firewall (UFW).** UFW's default policy denies incoming traffic, which blocks every sandbox's health check (surfaces as `SandboxReadyTimeoutException` — the sandbox itself comes up fine, its published port just isn't reachable) unless this rule is present:
 
 ```bash
 sudo ufw allow from 172.18.0.0/16 to any port 40000:60000 proto tcp
@@ -177,8 +177,10 @@ The proxy mounts the socket's **directory**, not the file (`/run/docker-kata:/ru
 **`docker-kata0` has no outbound path unless explicitly opened.** The main daemon owns the shared iptables chains (see above) and only populates `DOCKER-BRIDGE` for bridges it created itself — `docker-kata0` isn't one of them, so traffic from a sandbox or its egress sidecar leaving the host falls through `FORWARD`'s default `DROP` with no error, no log, nothing in `docker logs`. Fixed with a standing UFW rule, not a raw `iptables` rule a main-daemon restart would wipe:
 
 ```bash
-sudo ufw route allow in on docker-kata0 out on enp36s0f0
+sudo ufw route allow in on docker-kata0 out on <your-uplink-interface>
 ```
+
+Find your uplink interface with `ip route show default` (the `dev` field on the default route) — ours was `enp36s0f0`, yours will likely be named differently.
 
 Symptom: sandboxes create successfully (creation only needs the Docker API via `docker-socket-proxy-kata`, on `harness_default`) but every outbound connection from inside one — including the egress sidecar's own upstream DNS — hangs until timeout. Diagnose with `sudo iptables -L DOCKER-BRIDGE -n -v` (no entry for `docker-kata0`) or a live capture on `docker-kata0` vs. the physical uplink to see where packets stop.
 

@@ -244,5 +244,5 @@ flowchart TB
 
 ## Phasing note
 
-- **Phase 1 (low-friction):** episodic memory (retrievable/consolidated, not just persisted) on **existing Postgres**; add Langfuse. Semantic memory (project + personal) is already built — no `pgvector` needed for it, contrary to this note's original premise. Scale evolving memories (Supermemory) past its 2-project chat-only PoC.
+- **Phase 1 (low-friction):** episodic memory (retrievable/consolidated, not just persisted) on **existing Postgres**; add Langfuse. Semantic memory (project + personal) is already built and doesn't need `pgvector`. Scale evolving memories (Supermemory) past its 2-project chat-only PoC.
 - **Phase 2 (only if evolving memories' linking isn't enough for genuine multi-hop/temporal reasoning):** add a dedicated graph store — Graphiti on **FalkorDB** (Redis module) or `graphiti-postgres`/Apache AGE — avoiding a Neo4j deployment.
