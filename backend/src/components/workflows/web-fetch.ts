@@ -136,6 +136,7 @@ export const fetchWebPage = tool(
   ({ url }) =>
     serialized(async () => {
       let browser: Browser | undefined;
+      let page: Page | undefined;
       try {
         // connect()'s handshake fetch() has no built-in timeout, so a wedged Lightpanda would jam the queue forever.
         browser = await Promise.race([
@@ -148,14 +149,15 @@ export const fetchWebPage = tool(
           ),
         ]);
         // browser.pages()' existing page is Lightpanda's inert startup placeholder — goto() on it just hangs.
-        const page = await browser.newPage();
+        page = await browser.newPage();
         return await renderPage(url, page);
       } catch (err) {
         return {
           error: `Failed to fetch ${url}: ${err instanceof Error ? err.message : String(err)}`,
         };
       } finally {
-        // disconnect(), not close() — this is Lightpanda's shared browser process, not ours to shut down.
+        // Our page, so we close it; disconnect() (not close()) on the browser itself, since that's Lightpanda's shared process, not ours to shut down.
+        await page?.close();
         browser?.disconnect();
       }
     }),
