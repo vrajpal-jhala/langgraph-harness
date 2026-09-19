@@ -363,6 +363,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
           repo: projectPath,
           worktreeRepoPath: worktree.repoPath,
           branchName,
+          expectedSha: worktree.preFetchSha,
           signal,
         });
 

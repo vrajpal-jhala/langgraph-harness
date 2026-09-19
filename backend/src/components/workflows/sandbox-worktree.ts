@@ -117,12 +117,14 @@ export async function* pushBranch(params: {
   repo: string;
   worktreeRepoPath: string;
   branchName: string;
+  expectedSha?: string | null;
   signal?: AbortSignal;
 }): AsyncGenerator<RunEvent, void> {
-  const { repo, worktreeRepoPath, branchName, signal } = params;
+  const { repo, worktreeRepoPath, branchName, expectedSha, signal } = params;
 
   const stepId = crypto.randomUUID();
   let error = '';
+  let forced = false;
 
   yield {
     event: 'run_step_start',
@@ -135,7 +137,29 @@ export async function* pushBranch(params: {
   };
   try {
     if (!config.mock.workflow) {
-      await gitService.push(repo, worktreeRepoPath, branchName, signal);
+      try {
+        await gitService.push(
+          repo,
+          worktreeRepoPath,
+          branchName,
+          signal,
+          undefined,
+          expectedSha !== undefined,
+        );
+      } catch (err) {
+        const text = err instanceof Error ? err.message : String(err);
+        if (expectedSha === undefined || !text.includes('[rejected]'))
+          throw err;
+        // A follow-up run may amend its own already-pushed commit on this bot-owned branch.
+        forced = true;
+        await gitService.push(
+          repo,
+          worktreeRepoPath,
+          branchName,
+          signal,
+          expectedSha,
+        );
+      }
     }
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
@@ -143,7 +167,13 @@ export async function* pushBranch(params: {
   } finally {
     yield {
       event: 'run_step_end',
-      data: { id: stepId, step: RunStep.Push, error, timestamp: Date.now() },
+      data: {
+        id: stepId,
+        step: RunStep.Push,
+        forced,
+        error,
+        timestamp: Date.now(),
+      },
     };
   }
 }

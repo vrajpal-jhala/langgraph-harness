@@ -368,6 +368,7 @@ export type RunStepEndEvent =
       data: {
         id: string;
         step: 'push';
+        forced: boolean;
         error: string;
         timestamp: number;
       };

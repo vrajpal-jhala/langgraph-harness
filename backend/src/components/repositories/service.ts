@@ -104,9 +104,16 @@ export const gitService = {
     path: string,
     ref: string,
     signal?: AbortSignal,
+    // leaseSha (undefined = plain push, null = branch must not exist yet) sets an explicit --force-with-lease value.
+    leaseSha?: string | null,
+    quiet?: boolean,
   ) => {
     assertSafeRefArg(ref, 'ref');
-    await git(['push', remoteUrl(repo), ref], path, signal);
+    const lease =
+      leaseSha !== undefined
+        ? [`--force-with-lease=${ref}:${leaseSha ?? ''}`]
+        : [];
+    await git(['push', ...lease, remoteUrl(repo), ref], path, signal, quiet);
   },
 
   // Revives a deleted branch ref locally by pointing it at the still-reachable commit.

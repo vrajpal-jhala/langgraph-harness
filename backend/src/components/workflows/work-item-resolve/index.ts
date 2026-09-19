@@ -332,6 +332,7 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
           repo: projectPath,
           worktreeRepoPath: worktree.repoPath,
           branchName,
+          expectedSha: worktree.preFetchSha,
           signal,
         });
 

@@ -291,6 +291,7 @@ export type RunStepEndEvent =
       data: {
         id: string;
         step: typeof RunStep.Push;
+        forced: boolean;
         error: string;
         timestamp: number;
       };

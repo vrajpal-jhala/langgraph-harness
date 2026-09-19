@@ -484,6 +484,10 @@ const RunTimeline = ({
                   done && endEvent.data.step === 'prepare_worktree'
                     ? endEvent.data
                     : undefined;
+                const pushEnd =
+                  done && endEvent.data.step === 'push'
+                    ? endEvent.data
+                    : undefined;
 
                 return (
                   <div
@@ -528,6 +532,14 @@ const RunTimeline = ({
                           c="var(--mantine-color-yellow-6)"
                         >
                           (retried {worktreeEnd.retries}x)
+                        </Text>
+                      )}
+                      {pushEnd?.forced && (
+                        <Text
+                          component="span"
+                          c="var(--mantine-color-yellow-6)"
+                        >
+                          (force)
                         </Text>
                       )}
                       {duration && (

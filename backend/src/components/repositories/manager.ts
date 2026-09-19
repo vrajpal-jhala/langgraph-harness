@@ -172,6 +172,11 @@ export const repositoriesManager = {
         retries: fetchRetries,
       } = await fetchRepository(repo, signal);
 
+      // Remote branch tip right after fetch (null if it doesn't exist yet) — leased on a force-push retry.
+      const preFetchSha = await gitService
+        .revParse(barePath, ref, signal)
+        .catch(() => null);
+
       const worktreePath = getWorktreePath(identity);
       const existing = await worktreeLeasesDal.findByKey(identity);
 
@@ -247,6 +252,7 @@ export const repositoriesManager = {
         cloned,
         revived,
         retries,
+        preFetchSha,
         release: async () => {
           if (released) return;
           released = true;
