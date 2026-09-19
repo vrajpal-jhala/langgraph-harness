@@ -75,6 +75,15 @@ user-facing if it changes what the user observes (a crash stops happening, a
 run completes instead of hanging) — judge by observable effect, not by which
 files changed.
 
+Two categories look plausible but aren't: dev/demo tooling (a `seed-demo`
+script, fixture data, a debug-only flag) is for people developing the harness,
+not people using it — skip it even when the commit says `feat:`. And
+docs-site-only changes (content edits, landing-page copy, a docs-only script)
+document the product but aren't the product — skip those too, unless the
+change fixes something that breaks the site's actual function for a reader
+(e.g. broken links/images from a wrong base path), which is a real bug, not
+content.
+
 ## 2. Write entries in the existing style
 
 Read the top 2-3 entries in `CHANGELOG.md` before writing — the format is
