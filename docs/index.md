@@ -22,6 +22,10 @@ hero:
       link: https://github.com/vrajpal-jhala/langgraph-harness
 ---
 
+<script setup>
+import { withBase } from 'vitepress'
+</script>
+
 <div class="landing">
 
 <section class="landing-section landing-section--intro-center">
@@ -49,7 +53,7 @@ npm run dev
 
 :::
 
-<a class="landing-link" href="/guide/getting-started">Full setup guide &rarr;</a>
+<a class="landing-link" :href="withBase('/guide/getting-started')">Full setup guide &rarr;</a>
 
 </div>
 
@@ -60,11 +64,11 @@ npm run dev
     <p class="landing-eyebrow">Live analytics</p>
     <h2>Every run, watched — not just trusted</h2>
     <p>A React admin UI shows live runs, queue state, and per-project analytics: reliability, guardrail health, comment acceptance rate, and more. Nothing here is a black box you find out about after the fact.</p>
-    <a class="landing-link" href="/screenshots">See the full gallery &rarr;</a>
+    <a class="landing-link" :href="withBase('/screenshots')">See the full gallery &rarr;</a>
   </div>
   <div class="browser-frame">
     <div class="browser-frame-bar"><span></span><span></span><span></span></div>
-    <img src="/screenshots/analytics-overview.png" alt="Analytics overview dashboard" loading="lazy" />
+    <img :src="withBase('/screenshots/analytics-overview.png')" alt="Analytics overview dashboard" loading="lazy" />
   </div>
 </section>
 
