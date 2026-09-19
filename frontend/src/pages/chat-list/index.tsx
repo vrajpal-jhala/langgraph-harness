@@ -144,7 +144,7 @@ const ChatListPage = () => {
         <Stack gap="xs">
           {chats.map((chat) => {
             const upd = formatDate(chat.updated_at);
-            // Marker only appears with signal: teal while streaming, red on failure, yellow awaiting approval; completed shows nothing.
+            // Marker only appears with signal: blue while streaming, red on failure, yellow awaiting approval; completed shows nothing.
             const marker = chat.latest_run_status && (
               <Indicator
                 color={CHAT_STATUS_COLOR[chat.latest_run_status]}

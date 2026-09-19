@@ -22,7 +22,7 @@ import { Context } from '@/contexts';
 const POLL_INTERVAL_MS = 5000;
 
 const JOB_STATE_COLOR: Record<string, string> = {
-  active: 'teal',
+  active: 'blue',
   waiting: 'gray',
   delayed: 'yellow',
   completed: 'green',

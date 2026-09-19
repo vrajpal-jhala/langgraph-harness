@@ -323,7 +323,7 @@ const AnalyticsPage = () => {
                           {
                             name: 'avgLlmBackendWaitMs',
                             label: 'Avg backend wait',
-                            color: 'teal.6',
+                            color: 'orange.6',
                           },
                         ]}
                         curveType="monotone"
@@ -353,7 +353,7 @@ const AnalyticsPage = () => {
                           {
                             name: 'avgDurationMs',
                             label: 'Avg duration',
-                            color: 'teal.6',
+                            color: 'blue.6',
                           },
                         ]}
                         curveType="monotone"
@@ -382,7 +382,7 @@ const AnalyticsPage = () => {
                         data={trend}
                         dataKey="date"
                         series={[
-                          { name: 'total', label: 'Runs', color: 'teal.6' },
+                          { name: 'total', label: 'Runs', color: 'blue.6' },
                         ]}
                         curveType="monotone"
                         withDots={false}
@@ -413,7 +413,7 @@ const AnalyticsPage = () => {
                           {
                             name: 'successRate',
                             label: 'Success rate',
-                            color: 'teal.6',
+                            color: 'blue.6',
                           },
                         ]}
                         curveType="monotone"
@@ -479,7 +479,7 @@ const AnalyticsPage = () => {
                           {
                             name: 'serverRestart',
                             label: 'Server restart',
-                            color: 'teal.6',
+                            color: 'green.6',
                           },
                         ]}
                         curveType="monotone"
