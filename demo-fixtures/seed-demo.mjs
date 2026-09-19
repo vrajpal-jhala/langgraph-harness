@@ -21,6 +21,7 @@ const TOKEN = process.env.GITLAB_TOKEN;
 const NAMESPACE = process.env.GITLAB_NAMESPACE;
 const PROJECT_NAME = process.env.GITLAB_PROJECT || 'langgraph-harness-demo';
 const RESET = process.argv.includes('--reset');
+const FIX_BUG = process.argv.includes('--fix-bug');
 
 if (!TOKEN || !NAMESPACE) {
   console.error(
@@ -113,6 +114,19 @@ function pushFeatureBranch(branch, overlayDir, commitMessage) {
   rmSync(scratch, { recursive: true, force: true });
 }
 
+// Commits onto an existing branch (rather than branching fresh off main), so
+// the fix lands as a follow-up commit on the same MR and triggers a re-review.
+function pushFixCommit(branch, overlayDir, commitMessage) {
+  const scratch = scratchDir();
+  git(['clone', remoteUrl(), scratch]);
+  git(['checkout', branch], scratch);
+  cpSync(overlayDir, scratch, { recursive: true });
+  git(['add', '-A'], scratch);
+  git(['commit', '-m', commitMessage], scratch);
+  git(['push', 'origin', branch], scratch);
+  rmSync(scratch, { recursive: true, force: true });
+}
+
 async function ensureBaseline(project) {
   if (await branchExists(project, 'main')) {
     console.log('main already pushed, skipping.');
@@ -135,6 +149,18 @@ async function ensureFeatureBranch(project) {
     'Add a due-today filter to the todo list',
   );
   return branch;
+}
+
+const FIX_COMMIT_MESSAGE = 'fix: due-today off-by-one, add regression test';
+
+async function ensureBugFix(project, branch) {
+  const info = await branchExists(project, branch);
+  if (info?.commit?.message?.startsWith(FIX_COMMIT_MESSAGE)) {
+    console.log('Bug fix already pushed, skipping.');
+    return;
+  }
+  console.log('Pushing bug fix...');
+  pushFixCommit(branch, join(HERE, 'fix-due-today'), FIX_COMMIT_MESSAGE);
 }
 
 async function ensureMergeRequest(project, sourceBranch) {
@@ -190,10 +216,13 @@ async function main() {
   const branch = await ensureFeatureBranch(project);
   await ensureMergeRequest(project, branch);
   await ensureIssue(project);
+  if (FIX_BUG) await ensureBugFix(project, branch);
 
   console.log(`\nDone: https://${GITLAB_HOST}/${PROJECT_PATH}`);
   console.log(
-    'Next: point a webhook at your tunneled dev backend, then assign the issue to your bot user.',
+    FIX_BUG
+      ? 'Fix pushed — the MR should re-trigger a review.'
+      : 'Next: point a webhook at your tunneled dev backend, then assign the issue to your bot user. Once the review demo is done, re-run with --fix-bug to push the fix and trigger a re-review.',
   );
 }
 
