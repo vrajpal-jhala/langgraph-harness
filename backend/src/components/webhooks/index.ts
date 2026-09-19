@@ -189,6 +189,7 @@ export const webhook = new Elysia({ prefix: '/webhooks' })
       project,
       changes,
       merge_request,
+      reviewers,
       user,
     } = body ?? {};
 
@@ -480,7 +481,7 @@ export const webhook = new Elysia({ prefix: '/webhooks' })
     if (parsed?.mr_review_requires_harness_reviewer) {
       const currentlyReviewer = new Set([
         ...usernamesFrom(changes?.reviewers?.current),
-        ...usernamesFrom(merge_request?.reviewers),
+        ...usernamesFrom(reviewers),
       ]).has(config.gitlab.username);
 
       if (!currentlyReviewer)
