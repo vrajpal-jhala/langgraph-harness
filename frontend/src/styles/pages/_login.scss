@@ -20,13 +20,16 @@
       content: '';
       position: absolute;
       inset: -40px;
-      background: radial-gradient(
-        circle,
-        rgba(13, 148, 136, 0.35),
-        transparent 70%
+      border-radius: 50%;
+      background: linear-gradient(
+        -45deg,
+        rgba(37, 99, 235, 0.1) 50%,
+        rgba(20, 184, 166, 0.1) 50%
       );
       filter: blur(20px);
-      animation: login-page-glow 5s ease-in-out infinite;
+      animation:
+        login-page-glow 5s ease-in-out infinite,
+        login-page-spin 24s linear infinite;
     }
 
     img {
@@ -60,10 +63,19 @@
 @keyframes login-page-glow {
   0%,
   100% {
-    opacity: 0.6;
+    opacity: 0.3;
   }
   50% {
-    opacity: 1;
+    opacity: 0.5;
+  }
+}
+
+@keyframes login-page-spin {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
   }
 }
 
