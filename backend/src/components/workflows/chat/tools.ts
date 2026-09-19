@@ -7,7 +7,6 @@ import {
   type ToolRuntime,
 } from '@langchain/core/tools';
 import { MultiServerMCPClient } from '@langchain/mcp-adapters';
-import puppeteer, { type Browser, type BrowserContext } from 'puppeteer-core';
 import { z } from 'zod';
 
 import {
@@ -21,7 +20,7 @@ import {
 import { memoriesDal } from '#components/memories/dal.js';
 import { runsDal } from '#components/runs/dal.js';
 import { threadsDal } from '#components/threads/dal.js';
-import { buildFetchWebPageTool } from '#components/workflows/web-fetch.js';
+import { fetchWebPage } from '#components/workflows/web-fetch.js';
 import type { ChatToolContext } from './state.js';
 
 import { config, supermemoryProjects } from '#utils/config.js';
@@ -816,7 +815,7 @@ type BuildChatToolsOptions = {
   gitlabToken?: string;
 };
 
-// Built fresh per run, not a module singleton like MR-review's stdio client — GitLab's token rides as a per-request header, and the browser context isolates one run's cookies/navigation from another's, so both must be constructed and torn down within the run's own lifetime.
+// Built fresh per run, not a module singleton like MR-review's stdio client — GitLab's token rides as a per-request header, so the MCP client must be constructed and torn down within the run's own lifetime.
 export async function buildChatTools({
   server,
   gitlab,
@@ -836,8 +835,6 @@ export async function buildChatTools({
     searchChatContent,
   ];
   let client: MultiServerMCPClient | null = null;
-  let browser: Browser | null = null;
-  let browserContext: BrowserContext | null = null;
 
   // Not configured everywhere (PoC) — skip rather than register tools that can only ever error.
   if (config.supermemory.apiKey && supermemoryProjects.length) {
@@ -874,12 +871,7 @@ export async function buildChatTools({
   }
 
   if (webSearch) {
-    browser = await puppeteer.connect({
-      browserURL: config.lightpanda.cdpUrl,
-    });
-    // An isolated context so concurrent chat runs don't share cookies/navigation state on Lightpanda's one shared browser.
-    browserContext = await browser.createBrowserContext();
-    tools.push(buildFetchWebPageTool(browserContext));
+    tools.push(fetchWebPage);
   }
 
   return {
@@ -888,9 +880,6 @@ export async function buildChatTools({
       // Must terminate before close(): close() aborts the transport's request signal, which would cancel the DELETE terminateSession() sends.
       await terminateGitlabSession(client);
       await client?.close();
-      // disconnect(), not close() — this is Lightpanda's shared browser process, not ours to shut down.
-      await browserContext?.close();
-      browser?.disconnect();
     },
   };
 }

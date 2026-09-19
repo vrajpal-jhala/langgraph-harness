@@ -4,7 +4,7 @@ import { tool } from '@langchain/core/tools';
 import { Readability } from '@mozilla/readability';
 import ipaddr from 'ipaddr.js';
 import { JSDOM } from 'jsdom';
-import puppeteer, { type BrowserContext } from 'puppeteer-core';
+import puppeteer, { type Browser, type Page } from 'puppeteer-core';
 import { z } from 'zod';
 
 import { config } from '#utils/config.js';
@@ -82,11 +82,10 @@ function extractArticle(
   return { content: cleanWhitespace(root.textContent ?? '') };
 }
 
-async function renderPage(url: string, browserContext: BrowserContext) {
+async function renderPage(url: string, page: Page) {
   const blocked = await blockedReason(url);
   if (blocked) return { error: `Refused to fetch: ${blocked}` };
 
-  const page = await browserContext.newPage();
   try {
     const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
     // page.goto resolves with a response even for a 403/503 bot-challenge page — without this check its (often empty) body would pass through as if it were the real page.
@@ -115,40 +114,51 @@ async function renderPage(url: string, browserContext: BrowserContext) {
     return {
       error: `Failed to fetch ${url}: ${err instanceof Error ? err.message : String(err)}`,
     };
-  } finally {
-    await page.close();
   }
 }
 
-export function buildFetchWebPageTool(browserContext: BrowserContext) {
-  return tool(({ url }) => renderPage(url, browserContext), {
-    name: 'fetch_web_page',
-    description: DESCRIPTION,
-    schema: fetchWebPageSchema,
-  });
+// Per-process only — multiple backend replicas would still race Lightpanda's one target.
+let queue: Promise<unknown> = Promise.resolve();
+// Serializes calls: the single shared page can't navigate two URLs at once.
+function serialized<T>(fn: () => Promise<T>): Promise<T> {
+  const result = queue.then(fn, fn);
+  queue = result.then(
+    () => {},
+    () => {},
+  );
+  return result;
 }
 
-// Connects per call rather than holding a context for the workflow's lifetime: the sandboxed workflows build their tools once at boot, and a browser opened there would both fail startup when Lightpanda is down and share cookies across every later run.
+const CONNECT_TIMEOUT_MS = 15_000;
+
+// Connects per call — sandboxed workflows build tools once at boot, before Lightpanda may be up.
 export const fetchWebPage = tool(
-  async ({ url }) => {
-    let browser;
-    let browserContext;
-    try {
-      browser = await puppeteer.connect({
-        browserURL: config.lightpanda.cdpUrl,
-      });
-      browserContext = await browser.createBrowserContext();
-      return await renderPage(url, browserContext);
-    } catch (err) {
-      return {
-        error: `Failed to fetch ${url}: ${err instanceof Error ? err.message : String(err)}`,
-      };
-    } finally {
-      await browserContext?.close().catch(() => {});
-      // disconnect(), not close() — this is Lightpanda's shared browser process, not ours to shut down.
-      browser?.disconnect();
-    }
-  },
+  ({ url }) =>
+    serialized(async () => {
+      let browser: Browser | undefined;
+      try {
+        // connect()'s handshake fetch() has no built-in timeout, so a wedged Lightpanda would jam the queue forever.
+        browser = await Promise.race([
+          puppeteer.connect({ browserURL: config.lightpanda.cdpUrl }),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error('Timed out connecting to Lightpanda')),
+              CONNECT_TIMEOUT_MS,
+            ),
+          ),
+        ]);
+        // browser.pages()' existing page is Lightpanda's inert startup placeholder — goto() on it just hangs.
+        const page = await browser.newPage();
+        return await renderPage(url, page);
+      } catch (err) {
+        return {
+          error: `Failed to fetch ${url}: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      } finally {
+        // disconnect(), not close() — this is Lightpanda's shared browser process, not ours to shut down.
+        browser?.disconnect();
+      }
+    }),
   {
     name: 'fetch_web_page',
     description: DESCRIPTION,
