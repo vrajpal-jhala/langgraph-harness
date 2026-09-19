@@ -16,6 +16,8 @@ export default defineConfig({
         type: 'image/svg+xml',
       },
     ],
+    // set before paint so landing sections can start hidden with no flash-of-visible-then-hidden
+    ['script', {}, "document.documentElement.classList.add('has-js')"],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:title', content: 'langgraph-harness' }],
     [
@@ -96,7 +98,13 @@ export default defineConfig({
           { text: 'sglang Deployment', link: '/sglang-deployment' },
         ],
       },
-      { text: 'Screenshots', link: '/screenshots' },
+      {
+        text: 'Gallery',
+        items: [
+          { text: 'Screenshots', link: '/screenshots' },
+          { text: 'Screencasts', link: '/screencasts' },
+        ],
+      },
       { text: 'Story', link: '/journey' },
     ],
 
@@ -124,6 +132,7 @@ export default defineConfig({
         text: 'More',
         items: [
           { text: 'Screenshots', link: '/screenshots' },
+          { text: 'Screencasts', link: '/screencasts' },
           { text: 'The Story So Far', link: '/journey' },
         ],
       },

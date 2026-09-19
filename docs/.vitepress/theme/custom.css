@@ -1,33 +1,179 @@
+body {
+  /* clips the few px .landing-section--wide's 100vw breakout overshoots by (100vw includes the scrollbar gutter; --vp-offset doesn't) */
+  overflow-x: hidden;
+}
+
+.VPHero {
+  position: relative;
+  overflow: hidden;
+}
+
+.VPHero::before {
+  content: '';
+  position: absolute;
+  inset: -20% -10% auto;
+  height: 640px;
+  background-image: radial-gradient(
+    circle,
+    var(--vp-c-divider) 1px,
+    transparent 1px
+  );
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 55% 60% at 50% 30%,
+    black,
+    transparent
+  );
+  mask-image: radial-gradient(ellipse 55% 60% at 50% 30%, black, transparent);
+  pointer-events: none;
+}
+
+.VPHero .container {
+  position: relative;
+}
+
+.VPHero .image-bg {
+  animation: home-hero-glow 5s ease-in-out infinite;
+  background-image: none;
+  filter: none;
+}
+
+.VPHero .image-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-image: linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--vp-c-indigo-1) 10%, transparent) 50%,
+    color-mix(in srgb, var(--vp-c-green-1) 10%, transparent) 50%
+  );
+  filter: blur(32px);
+  animation: home-hero-spin 24s linear infinite;
+}
+
+.VPHero .main {
+  animation: home-hero-rise 0.5s ease-out;
+}
+
+@keyframes home-hero-glow {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes home-hero-spin {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes home-hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .VPHero .image-bg,
+  .VPHero .image-bg::before,
+  .VPHero .main {
+    animation: none;
+  }
+}
+
+/* Landing page sections
+   ------------------------------------------------------------------ */
+
 .landing {
   padding-bottom: 96px;
 }
 
 .landing-section + .landing-section {
-  margin-top: 64px;
-  padding-top: 48px;
-  border-top: 1px solid var(--vp-c-divider);
+  margin-top: 112px;
+}
+
+/* Workflows: the only section wide enough to earn breaking out of the doc
+   container — matched to the nav bar's own max-width so it reads as one rule. */
+.landing-section--wide {
+  box-sizing: border-box;
+  width: 100vw;
+  margin-left: var(--vp-offset, 0);
+  padding-right: max(24px, calc((100vw - 1376px) / 2));
+  padding-left: max(24px, calc((100vw - 1376px) / 2));
+}
+
+/* Reveal-on-scroll: sections start hidden only once JS (added pre-paint,
+   see config.mts head script) confirms it can also bring them back. */
+html.has-js .landing-section {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s ease;
+}
+
+html.has-js .landing-section.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.has-js .landing-section {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
 
 .landing-eyebrow {
-  margin: 0 0 8px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  display: inline-flex;
+  margin: 0 0 12px;
+  padding: 3px 11px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
   color: var(--vp-c-brand-1);
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .landing-section h2 {
   margin: 0 0 32px;
   border-top: none;
   padding-top: 0;
-  font-size: 28px;
+  font-size: 30px;
+  line-height: 1.25;
+}
+
+.landing-section--intro-center {
+  text-align: center;
+}
+
+.landing-quickstart {
+  max-width: 520px;
+  margin: 0 auto;
 }
 
 .landing-grid {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(2, 1fr);
-  gap: 32px 48px;
+  gap: 24px;
 }
 
 .landing-grid--3 {
@@ -41,8 +187,25 @@
   }
 }
 
+.landing-item {
+  padding: 28px 24px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 16px;
+  background-color: var(--vp-c-bg-soft);
+  text-align: center;
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
+}
+
+.landing-item:hover {
+  border-color: var(--vp-c-brand-1);
+  transform: translateY(-2px);
+}
+
 .landing-item-head {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 12px;
 }
@@ -52,9 +215,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   background-color: var(--vp-c-brand-soft);
   color: var(--vp-c-brand-1);
 }
@@ -85,18 +248,214 @@
   background-color: var(--vp-c-bg-mute);
 }
 
-.landing-item--surface {
-  padding: 20px;
-  border-radius: 12px;
-  background-color: var(--vp-c-bg);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.06),
-    0 10px 24px rgba(0, 0, 0, 0.07);
+.landing-link {
+  display: inline-block;
+  margin-top: 20px;
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+  text-decoration: none;
 }
 
-.dark .landing-item--surface {
+.landing-link:hover {
+  text-decoration: underline;
+}
+
+/* Feature showcase: text column + framed screenshot */
+
+.landing-showcase {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 48px;
+  text-align: left;
+}
+
+.landing-showcase-text p {
+  color: var(--vp-c-text-2);
+  line-height: 1.7;
+}
+
+@media (max-width: 768px) {
+  .landing-showcase {
+    grid-template-columns: 1fr;
+  }
+}
+
+.browser-frame {
+  overflow: hidden;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
   background-color: var(--vp-c-bg-soft);
-  box-shadow: none;
+  box-shadow: 0 20px 60px -24px rgba(0, 0, 0, 0.35);
+}
+
+.browser-frame-bar {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  background-color: var(--vp-c-bg-alt);
+}
+
+.browser-frame-bar span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--vp-c-divider);
+}
+
+.browser-frame img {
+  display: block;
+  width: 100%;
+}
+
+/* Workflow switcher: one video on stage at a time, picked from a tab list */
+
+.landing-workflow-switcher {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  align-items: center;
+  gap: 64px;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .landing-workflow-switcher {
+    grid-template-columns: 1fr;
+  }
+
+  /* collapse to an accordion: only the selected tab shows its description */
+  .landing-workflow-tab p {
+    display: none;
+  }
+
+  #landing-wf-review:checked
+    ~ .landing-workflow-tablist
+    label[for='landing-wf-review']
+    p,
+  #landing-wf-issue:checked
+    ~ .landing-workflow-tablist
+    label[for='landing-wf-issue']
+    p,
+  #landing-wf-task:checked
+    ~ .landing-workflow-tablist
+    label[for='landing-wf-task']
+    p,
+  #landing-wf-chat:checked
+    ~ .landing-workflow-tablist
+    label[for='landing-wf-chat']
+    p {
+    display: block;
+    margin-top: 6px;
+  }
+}
+
+.landing-workflow-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.landing-workflow-tablist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.landing-workflow-tab {
+  display: block;
+  padding: 14px 16px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) {
+  .landing-workflow-tab:hover {
+    background-color: var(--vp-c-bg-soft);
+  }
+}
+
+.landing-workflow-tab-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.landing-workflow-tab .landing-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.landing-workflow-tab h3 {
+  margin: 0;
+  border-top: none;
+  padding-top: 0;
+  font-size: 16px;
+}
+
+.landing-workflow-tab .landing-badge {
+  margin: 0 0 0 auto;
+}
+
+.landing-workflow-tab p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+#landing-wf-review:checked
+  ~ .landing-workflow-tablist
+  label[for='landing-wf-review'],
+#landing-wf-issue:checked
+  ~ .landing-workflow-tablist
+  label[for='landing-wf-issue'],
+#landing-wf-task:checked
+  ~ .landing-workflow-tablist
+  label[for='landing-wf-task'],
+#landing-wf-chat:checked
+  ~ .landing-workflow-tablist
+  label[for='landing-wf-chat'] {
+  border-color: var(--vp-c-brand-1);
+  background-color: var(--vp-c-brand-soft);
+}
+
+.landing-workflow-stage {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 16px;
+  background-color: var(--vp-c-bg-soft);
+}
+
+.landing-workflow-panel {
+  display: none;
+}
+
+#landing-wf-review:checked ~ .landing-workflow-stage #landing-panel-review,
+#landing-wf-issue:checked ~ .landing-workflow-stage #landing-panel-issue,
+#landing-wf-task:checked ~ .landing-workflow-stage #landing-panel-task,
+#landing-wf-chat:checked ~ .landing-workflow-stage #landing-panel-chat {
+  display: block;
+}
+
+.landing-workflow-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1554 / 926;
+  object-fit: cover;
 }
 
 .mermaid-container {

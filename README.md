@@ -12,7 +12,9 @@ Reviews merge requests, resolves issues autonomously, and chats with full projec
 [![Node](https://img.shields.io/badge/node-22%2B-339933?logo=node.js&logoColor=white)](package.json)
 [![Docs](https://img.shields.io/badge/docs-vrajpal--jhala.github.io-6366f1)](https://vrajpal-jhala.github.io/langgraph-harness/)
 
-[Docs](https://vrajpal-jhala.github.io/langgraph-harness/) · [Getting Started](https://vrajpal-jhala.github.io/langgraph-harness/guide/getting-started) · [Features](https://vrajpal-jhala.github.io/langgraph-harness/features) · [Screenshots](https://vrajpal-jhala.github.io/langgraph-harness/screenshots)
+[Docs](https://vrajpal-jhala.github.io/langgraph-harness/) · [Getting Started](https://vrajpal-jhala.github.io/langgraph-harness/guide/getting-started) · [Features](https://vrajpal-jhala.github.io/langgraph-harness/features) · [Screenshots](https://vrajpal-jhala.github.io/langgraph-harness/screenshots) · [Screencasts](https://vrajpal-jhala.github.io/langgraph-harness/screencasts)
+
+<img src="docs/public/hero.gif" width="900" alt="Agent resolving an issue end-to-end" />
 
 </div>
 
