@@ -65,7 +65,10 @@ const runCommand = tool(
         .number()
         .int()
         .optional()
-        .describe('Kill the command if it runs longer than this'),
+        .default(300)
+        .describe(
+          'Kill the command if it runs longer than this (default 300s) — raise it upfront for a known-long build/install, or retry higher if a command times out',
+        ),
     }),
   },
 );
