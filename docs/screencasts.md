@@ -8,7 +8,7 @@ Fires on webhook events — reads the diff, drafts comments, and publishes them,
 
 <Screencast
   poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/mr-review-workflow.webp"
-  src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/mr-review-workflow-final-cropped.mp4"
+  src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/mr-review-workflow.mp4"
   alt="MR review workflow demo"
 />
 
@@ -18,7 +18,7 @@ Assign an issue and the agent implements the fix in a sandboxed checkout, opens 
 
 <Screencast
   poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/issue-resolve-workflow.webp"
-  src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/issue-resolve-workflow-final-cropped.mp4"
+  src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/issue-resolve-workflow.mp4"
   alt="Issue resolution workflow demo"
 />
 
@@ -28,7 +28,7 @@ The same sandboxed loop, started from a free-text instruction instead of a GitLa
 
 <Screencast
   poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow.webp"
-  src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow-final-cropped.mp4"
+  src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow.mp4"
   alt="Task resolution workflow demo"
 />
 
@@ -38,6 +38,6 @@ A GitLab-aware assistant with full GitLab access, live web fetch, image uploads,
 
 <Screencast
   poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/chat-workflow.webp"
-  src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/chat-workflow-final-cropped.mp4"
+  src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/chat-workflow.mp4"
   alt="Chat workflow demo"
 />
