@@ -1,5 +1,5 @@
 body {
-  /* clips the few px .landing-section--wide's 100vw breakout overshoots by (100vw includes the scrollbar gutter; --vp-offset doesn't) */
+  /* clips the few px .landing-section--wide's width:100vw overshoots the viewport by on desktop browsers with a layout scrollbar */
   overflow-x: hidden;
 }
 
@@ -110,7 +110,7 @@ body {
 .landing-section--wide {
   box-sizing: border-box;
   width: 100vw;
-  margin-left: var(--vp-offset, 0);
+  margin-left: calc(50% - 50vw);
   padding-right: max(24px, calc((100vw - 1376px) / 2));
   padding-left: max(24px, calc((100vw - 1376px) / 2));
 }
@@ -414,6 +414,7 @@ html.has-js .landing-section.is-visible {
   line-height: 1.6;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 #landing-wf-review:checked
