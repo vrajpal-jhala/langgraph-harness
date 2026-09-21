@@ -307,6 +307,8 @@ html.has-js .landing-section.is-visible {
 .browser-frame img {
   display: block;
   width: 100%;
+  aspect-ratio: 1920 / 1200;
+  object-fit: cover;
 }
 
 /* Workflow switcher: one video on stage at a time, picked from a tab list */
