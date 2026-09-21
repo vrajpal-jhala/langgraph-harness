@@ -54,6 +54,10 @@ The agent fetches the diff, drafts and publishes comments, and posts a final sum
 
 <style scoped>
 img {
+  display: block;
+  width: 100%;
   border-radius: 12px;
+  aspect-ratio: 1920 / 1200;
+  object-fit: cover;
 }
 </style>

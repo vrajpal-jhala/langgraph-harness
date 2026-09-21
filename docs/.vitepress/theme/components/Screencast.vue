@@ -14,6 +14,7 @@ const isPlaying = ref(false);
 const isMuted = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
+const isBuffering = ref(false);
 const controlsVisible = ref(true);
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -62,6 +63,14 @@ function onSeek(event: Event) {
   if (videoEl.value) videoEl.value.currentTime = value;
 }
 
+function onWaiting() {
+  isBuffering.value = true;
+}
+
+function onPlaying() {
+  isBuffering.value = false;
+}
+
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds)) return '0:00';
   const m = Math.floor(seconds / 60);
@@ -99,6 +108,12 @@ function formatTime(seconds: number) {
       "
       @loadedmetadata="onLoadedMetadata"
       @timeupdate="onTimeUpdate"
+      @waiting="onWaiting"
+      @stalled="onWaiting"
+      @seeking="onWaiting"
+      @playing="onPlaying"
+      @canplay="onPlaying"
+      @seeked="onPlaying"
     />
 
     <button
@@ -114,6 +129,25 @@ function formatTime(seconds: number) {
     </button>
 
     <div v-if="!started && label" class="screencast-caption">{{ label }}</div>
+
+    <div
+      v-if="started && isBuffering"
+      class="screencast-buffering"
+      aria-hidden="true"
+    >
+      <svg viewBox="0 0 24 24" width="32" height="32">
+        <circle
+          cx="12"
+          cy="12"
+          r="10"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-dasharray="47 90"
+        />
+      </svg>
+    </div>
 
     <!-- ponytail: controls stay visible once started; add auto-hide-on-idle if the bar gets distracting -->
     <div v-if="started" class="screencast-controls">
@@ -209,6 +243,7 @@ function formatTime(seconds: number) {
   position: relative;
   border-radius: 12px;
   overflow: hidden;
+  aspect-ratio: 1854 / 926;
   background-color: var(--vp-c-bg-soft);
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.06),
@@ -217,7 +252,9 @@ function formatTime(seconds: number) {
 
 .screencast-media {
   width: 100%;
+  height: 100%;
   display: block;
+  object-fit: cover;
 }
 
 .screencast-media--video {
@@ -252,6 +289,33 @@ function formatTime(seconds: number) {
 
 .screencast-play svg {
   margin-left: 3px;
+}
+
+.screencast-buffering {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: white;
+  background-color: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+
+.screencast-buffering svg {
+  animation: screencast-spin 0.8s linear infinite;
+}
+
+@keyframes screencast-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .screencast-caption {
