@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+
 set -a && source backend/.env && set +a
 
 : "${DATA_PATH:?DATA_PATH is not set in backend/.env}"

@@ -1,6 +1,6 @@
 # Deployment
 
-This is how we run langgraph-harness in production: a single Docker Compose stack on one server, deployed by GitLab CI on every push to `master`. Use this as a reference for standing up your own — it covers the server-side setup: accounts, SSH, directory layout, and what `update.sh` actually does, plus the gotchas we hit getting sandboxed execution working reliably. Application env vars are documented in [`backend/README.md`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/backend/README.md); this doc is about the box, not the app config.
+This is how we run langgraph-harness in production: a single Docker Compose stack on one server, deployed by GitLab CI on every push to `master`. Use this as a reference for standing up your own — it covers the server-side setup: accounts, SSH, directory layout, and what `deployment/update.sh` actually does, plus the gotchas we hit getting sandboxed execution working reliably. Application env vars are documented in [`backend/README.md`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/backend/README.md); this doc is about the box, not the app config.
 
 ## Server layout
 
@@ -14,7 +14,7 @@ Everything lives under the `harness-deploy` service account's home directory:
 │   └── harness_deploy          # outbound deploy key, read access to the GitLab repo
 ├── harness/                    # git checkout — the actual repo
 │   ├── docker-compose.yml
-│   ├── update.sh
+│   ├── deployment/update.sh
 │   ├── backend/.env            # secrets, never committed
 │   ├── backend/
 │   ├── frontend/
@@ -64,10 +64,12 @@ Requires the `acl` package (`setfacl`/`getfacl`) and a filesystem that supports 
 `harness-deploy`'s `authorized_keys` has exactly one entry, restricted with a forced command:
 
 ```
-command="cd /opt/harness/harness && bash update.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... harness-deploy
+command="cd /opt/harness/harness && bash deployment/update.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... harness-deploy
 ```
 
-Whoever holds the matching private key (GitLab CI, via the `SSH_PRIVATE_KEY` variable) can only ever trigger `update.sh` — no interactive shell (`no-pty`), no forwarding. There is no second, unrestricted key on this account; if you ever see one, it defeats the whole point of the restriction above and should be removed.
+Whoever holds the matching private key (GitLab CI, via the `SSH_PRIVATE_KEY` variable) can only ever trigger `deployment/update.sh` — no interactive shell (`no-pty`), no forwarding. There is no second, unrestricted key on this account; if you ever see one, it defeats the whole point of the restriction above and should be removed.
+
+> **Upgrading an existing server:** `update.sh` moved to `deployment/update.sh`. This path is baked into `authorized_keys`, not tracked by git, so pulling the new layout alone does **not** update it — edit the `command=` restriction on the server (as shown above) _before or at the same time as_ deploying past this change, or the next CI-triggered deploy will fail with a "no such file" error.
 
 Outbound access (this account pulling from GitLab) uses a **separate** key pair, configured in `~/.ssh/config`:
 
@@ -93,7 +95,7 @@ That key is registered as a deploy key on the GitLab repo (read access), unrelat
 
 Volumes are keyed off a single `${DATA_PATH}` variable (set in `backend/.env`, **must be an absolute path** — `backend/src/utils/config.ts` throws on startup if it isn't) — resist the urge to hardcode absolute paths per-service; this is what let the whole `.harness` data directory move house without touching `docker-compose.yml`. The `backend` service's own `environment:` block also gets this same host-rooted value under the key `DATA_PATH`, plus a second key, `APP_DATA_PATH: /data` — the _container-internal_ mount point the app code actually reads/writes through. Backend code needs both: `APP_DATA_PATH` for its own file I/O (`config.dataPath`), and `DATA_PATH` (`config.hostDataPath`) to translate a path into one OpenSandbox can use, since OpenSandbox's Docker daemon resolves mount sources against the host, not against the backend's own container (`toHostDataPath()` in `backend/src/utils/config.ts` does that translation). `opensandbox` itself also reads `${DATA_PATH}` directly (not just as a volume source) for the same host-path reason — its `entrypoint.sh` needs the real host path to tell the Docker daemon what a sandbox is allowed to bind-mount. A relative value would silently resolve against whatever directory the process happens to run from — fine in dev (a real repo checkout), meaningless in the built container (resolves to `/`) — so this is enforced at startup rather than left as a convention.
 
-Because volume paths are resolved (and baked into each container's mount config) at `docker compose up` time, moving `.harness` on the host doesn't retarget an already-running container — it has to be recreated (`docker compose down` + `up`, or `update.sh`'s `--force-recreate`) to pick up a new location.
+Because volume paths are resolved (and baked into each container's mount config) at `docker compose up` time, moving `.harness` on the host doesn't retarget an already-running container — it has to be recreated (`docker compose down` + `up`, or `deployment/update.sh`'s `--force-recreate`) to pick up a new location.
 
 `docker-compose.yml` pins the default network's subnet to `172.18.0.0/16` (`networks.default.ipam`) rather than leaving it Docker-assigned — the [UFW rule](#opensandbox) that lets `backend` reach a sandbox's published port on the host is scoped to this subnet as its source IP range, so an unpinned network reassigning itself on a stack rebuild would silently break it.
 
@@ -194,7 +196,7 @@ Its API key (`OPENSANDBOX_SERVER_API_KEY` on the container, checked against the 
 
 `nginx` on the host (not part of the Compose stack) terminates TLS for your public hostname and proxies to `backend` (`127.0.0.1:3698`) and `frontend` (`127.0.0.1:5173`) by path. It lives at `/etc/nginx/sites-enabled/default` on the box, outside this repo.
 
-## `update.sh`
+## `deployment/update.sh`
 
 What CI actually triggers via the forced SSH command:
 
