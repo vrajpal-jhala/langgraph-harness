@@ -42,6 +42,7 @@ export async function resolveSandboxConfig(
 export async function createSandbox({
   image,
   volumes,
+  signal,
 }: {
   image: string;
   volumes: {
@@ -50,6 +51,7 @@ export async function createSandbox({
     mountPath: string;
     readOnly?: boolean;
   }[];
+  signal?: AbortSignal;
 }): Promise<Sandbox> {
   return Sandbox.create({
     connectionConfig: {
@@ -67,6 +69,7 @@ export async function createSandbox({
       mountPath: v.mountPath,
       readOnly: v.readOnly ?? false,
     })),
+    signal,
   });
 }
 

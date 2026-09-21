@@ -140,7 +140,6 @@ vite.config.ts.timestamp-*
 
 # app
 .harness
-.synex
 
 # raw/intermediate screencast footage — hosted in langgraph-harness-media instead, never committed
 docs/public/screencasts

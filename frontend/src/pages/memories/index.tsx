@@ -345,7 +345,7 @@ const MemoriesPage = () => {
               title="No memories yet"
               description={
                 selected === MemoryScope.Personal
-                  ? "Synex hasn't saved any personal memories from your chats yet."
+                  ? "The agent hasn't saved any personal memories from your chats yet."
                   : "This project hasn't accumulated any durable memories from reviews yet."
               }
               size="md"

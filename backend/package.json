@@ -22,7 +22,7 @@
     "preview": "NODE_ENV=production node --env-file=.env ./build/index.js"
   },
   "dependencies": {
-    "@alibaba-group/opensandbox": "0.1.11",
+    "@alibaba-group/opensandbox": "1.1.0",
     "@better-auth/kysely-adapter": "1.7.4",
     "@elysiajs/cors": "1.4.2",
     "@elysiajs/node": "1.4.5",
