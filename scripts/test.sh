@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Trigger test webhook events against the local backend, attributed to your-gitlab-username.
-# Run: ./test.sh
-# Override host: HOST=https://your-host.com ./test.sh
+# Run: ./scripts/test.sh
+# Override host: HOST=https://your-host.com ./scripts/test.sh
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 BACKEND_NODE_ENV="$(grep -m1 -E '^NODE_ENV=' backend/.env 2>/dev/null | cut -d= -f2-)"
 if [ "$BACKEND_NODE_ENV" != "development" ]; then

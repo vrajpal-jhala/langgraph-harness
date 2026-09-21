@@ -65,4 +65,4 @@ This brings up Postgres/Redis/the auxiliary services via Docker Compose, runs pe
 
 In production, reviews fire automatically: add a webhook on your GitLab project (**Settings → Webhooks**) pointing at `<your-instance>/webhooks/gitlab`, secret matching `WEBHOOK_TOKENS`, triggered on merge request and note events.
 
-For local testing without a real webhook, [`test.sh`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/test.sh) posts synthetic GitLab webhook payloads straight at your local backend — useful for exercising the routing/filter logic, though the agent still calls the real GitLab API to fetch context, so it needs a real project/MR to point at.
+For local testing without a real webhook, [`scripts/test.sh`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/scripts/test.sh) posts synthetic GitLab webhook payloads straight at your local backend — useful for exercising the routing/filter logic, though the agent still calls the real GitLab API to fetch context, so it needs a real project/MR to point at.

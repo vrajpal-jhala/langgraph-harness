@@ -1,10 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+# Absolute, so the re-exec below still finds this file after we cd away.
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+cd "$(dirname "$SELF")/.."
+
 # Re-exec after the pull so this commit's own changes to this file take effect now, not next deploy.
 if [ "${HARNESS_UPDATE_REEXECED:-}" != "1" ]; then
   git pull
-  exec env HARNESS_UPDATE_REEXECED=1 bash "$0"
+  exec env HARNESS_UPDATE_REEXECED=1 bash "$SELF"
 fi
 
 set -a && source backend/.env && set +a

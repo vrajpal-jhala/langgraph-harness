@@ -1,6 +1,6 @@
 {
   "name": "langgraph-harness",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": "Vrajpal Jhala",
   "description": "A shared engineering memory - it captures context across your GitLab projects and puts it to work through AI agents.",
   "keywords": [],
@@ -13,7 +13,7 @@
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "wait-on http://localhost:3698/health && npm --prefix frontend run dev",
     "dev:services": "run-p dev:backend dev:frontend",
-    "dev": "node --env-file=backend/.env dev.mjs",
+    "dev": "node --env-file=backend/.env scripts/dev.mjs",
     "build:backend": "npm --prefix backend run build",
     "build:frontend": "npm --prefix frontend run build",
     "build": "run-s build:backend build:frontend",

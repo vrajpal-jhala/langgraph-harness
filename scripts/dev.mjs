@@ -3,7 +3,7 @@ import { spawn, spawnSync } from 'child_process';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-const root = dirname(fileURLToPath(import.meta.url));
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const dataPath = process.env.DATA_PATH;
 
 if (!dataPath) {

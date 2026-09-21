@@ -199,7 +199,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Run pending migrations — called by update.sh and deploy.sh automatically.
+  # Run pending migrations — called by deployment/update.sh and deployment/deploy.sh automatically.
   # To run manually: docker compose --profile migrate run --rm db-migrate
   db-migrate:
     build:

@@ -12,13 +12,16 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      # onnxruntime-node's postinstall download has timed out over IPv6 on this runner before.
+      NODE_OPTIONS: --dns-result-order=ipv4first
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci || npm ci || npm ci
       - run: npm run format:check
       - run: npm --prefix backend run typecheck
       - run: npm --prefix backend run lint
