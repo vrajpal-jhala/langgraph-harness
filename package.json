@@ -1,6 +1,6 @@
 {
   "name": "langgraph-harness",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": "Vrajpal Jhala",
   "description": "A shared engineering memory - it captures context across your GitLab projects and puts it to work through AI agents.",
   "keywords": [],

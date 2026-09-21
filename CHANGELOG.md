@@ -4,6 +4,14 @@ All notable changes to langgraph-harness are documented here.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-21
+
+### Breaking Changes
+
+- **Deploy and dev scripts moved out of the repo root** — `deploy.sh` and `update.sh` now live under `deployment/`, and `test.sh`/`dev.mjs` under `scripts/`. If you're running an existing production server, its SSH `authorized_keys` forced command still points at the old `update.sh` path and pulling this change won't update it — edit it to `deployment/update.sh` before or during your next deploy, or the deploy will fail. A first-time server setup is unaffected, since the setup docs already reference the new path.
+
+---
+
 ## [0.1.1] - 2026-09-20
 
 ### Fixes
