@@ -4,6 +4,14 @@ All notable changes to langgraph-harness are documented here.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-21
+
+### Fixes
+
+- **Aborting a run now actually cancels sandbox creation** — clicking abort while a run's sandbox was still being provisioned previously had no effect; the run's cancellation now reaches sandbox creation, so it stops instead of continuing to provision.
+
+---
+
 ## [0.2.0] - 2026-09-21
 
 ### Breaking Changes
