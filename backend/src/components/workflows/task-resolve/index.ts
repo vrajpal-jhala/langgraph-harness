@@ -242,6 +242,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
                 mountPath: SANDBOX_REPO_DIR,
               },
             ],
+            signal,
           });
         } catch (err) {
           // OpenSandbox error text can include real host paths.

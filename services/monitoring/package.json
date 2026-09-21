@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@alibaba-group/opensandbox": "0.1.11"
+    "@alibaba-group/opensandbox": "1.1.0"
   },
   "devDependencies": {
     "@types/node": "22.15.18",
