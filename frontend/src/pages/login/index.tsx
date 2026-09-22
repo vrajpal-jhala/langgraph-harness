@@ -56,7 +56,7 @@ const LoginPage = () => {
         </div>
         <Stack align="center" gap={4}>
           <Title order={1} className="login-page__title">
-            The engineering context platform for GitLab
+            The AI coding agent platform for GitLab
           </Title>
           <Text
             c="dimmed"

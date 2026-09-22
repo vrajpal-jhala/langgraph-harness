@@ -34,7 +34,7 @@ Every guardrail is a _backstop_, not the primary correctness mechanism — the s
 
 ## Memory
 
-As the agent works, it flags durable, project-specific facts — conventions, recurring false positives, team decisions — which a curator pass dedups and stores per project, seeding every future review of that project. Chat has its own personal memories, saved and recalled directly by the model as durable facts about the user across conversations.
+Context engineering for GitLab: as the agent works, it flags durable, project-specific facts — conventions, recurring false positives, team decisions — which a curator pass dedups and stores per project, seeding every future review of that project. Chat has its own personal memories, saved and recalled directly by the model as durable facts about the user across conversations.
 
 ## Scheduling
 

@@ -4,9 +4,11 @@
 
 # langgraph-harness
 
-**The engineering context platform for GitLab**
+**Self-hosted AI coding agent platform for GitLab, built with LangGraph**
 
 Reviews merge requests, resolves issues autonomously, and chats with full project context — remembering what matters so every run builds on the last.
+
+In active production use since mid-2026 — 979 reviews, 64% comment acceptance rate (Sept 2026, [see snapshot](#screenshots)).
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-22%2B-339933?logo=node.js&logoColor=white)](package.json)
@@ -14,7 +16,7 @@ Reviews merge requests, resolves issues autonomously, and chats with full projec
 
 [Docs](https://vrajpal-jhala.github.io/langgraph-harness/) · [Getting Started](https://vrajpal-jhala.github.io/langgraph-harness/guide/getting-started) · [Features](https://vrajpal-jhala.github.io/langgraph-harness/features) · [Screenshots](https://vrajpal-jhala.github.io/langgraph-harness/screenshots) · [Screencasts](https://vrajpal-jhala.github.io/langgraph-harness/screencasts)
 
-<img src="docs/public/hero.gif" width="900" alt="Agent resolving an issue end-to-end" />
+<img src="docs/public/hero.gif" width="900" alt="Demo: agent resolving an issue end-to-end" />
 
 </div>
 
@@ -27,16 +29,17 @@ Reviews merge requests, resolves issues autonomously, and chats with full projec
 Four harnesses, one shared foundation:
 
 - 🔍 **MR Review** — fires on webhook events, reads the diff, drafts comments, publishes them. No polling, no manual trigger.
-- 🛠️ **Issue Resolution** — assign an issue and get a sandboxed agent that opens a draft MR and keeps responding to follow-up comments on the same branch.
-- 💬 **Chat** — an interactive, GitLab-aware assistant with real tool access: GitLab data, a headless browser, its own review/chat history.
-- 🛡️ **Guardrails & quality control** — every drafted comment is screened before it posts; a run that misbehaves (repeats a call, ends on a question, skips a check) gets caught and corrected mid-run, not after the fact.
+- 🛠️ **Issue Resolution** — assign an issue and get an agent that runs inside its own Kata Containers VM (a dedicated guest kernel per sandbox, not just syscall interception), opens a draft MR, and keeps responding to follow-up comments on the same branch.
+- 💬 **Chat** — an interactive, GitLab-aware assistant with real tool access: GitLab data, a headless browser, its own review/chat history; sensitive tool calls pause for explicit human approval before running.
+- 🛡️ **Guardrails & quality control** — every drafted comment is screened before it posts; a run that misbehaves (repeats a call, loops, ends on a question, skips a check) gets caught and corrected mid-run — backed by persistent checkpoints, so a run resumes instead of restarting from scratch.
 
 Full breakdown: [Features](https://vrajpal-jhala.github.io/langgraph-harness/features) · [Architecture](https://vrajpal-jhala.github.io/langgraph-harness/architecture)
 
 ## Screenshots
 
 <div align="center">
-<img src="docs/public/screenshots/thread-detail.png" width="720" alt="Thread detail view showing a review run" />
+<img src="docs/public/screenshots/analytics-overview.png" width="720" alt="Real production analytics, Sept 2026 snapshot: 979 reviews, 64% comment acceptance rate over 30 days" />
+<img src="docs/public/screenshots/analytics-detail.png" width="720" alt="Real production analytics detail, Sept 2026 snapshot: reliability, efficiency, and guardrail health" />
 </div>
 
 More in the [screenshots gallery](https://vrajpal-jhala.github.io/langgraph-harness/screenshots).
@@ -47,7 +50,7 @@ More in the [screenshots gallery](https://vrajpal-jhala.github.io/langgraph-harn
 - **Backend** — Elysia API server running a LangGraph agent with persistent checkpoints
 - **Agent** — Multi-provider LLM (OpenRouter, Ollama, or sglang) with GitLab MCP tools and skill-based workflows
 - **Queue** — BullMQ; debounced re-reviews, capped concurrency, live queue state in the UI
-- **Memory** — durable, project-scoped facts learned across reviews; personal memory in Chat
+- **Memory** — context engineering for GitLab: durable, project-scoped facts learned across reviews; personal memory in Chat
 
 ## Quick Start
 

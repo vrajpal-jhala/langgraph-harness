@@ -2,8 +2,16 @@
   "name": "langgraph-harness",
   "version": "0.2.1",
   "author": "Vrajpal Jhala",
-  "description": "A shared engineering memory - it captures context across your GitLab projects and puts it to work through AI agents.",
-  "keywords": [],
+  "description": "Self-hosted AI coding agent platform for GitLab, built with LangGraph. Reviews merge requests, resolves issues autonomously, and chats with full project context.",
+  "keywords": [
+    "langgraph",
+    "gitlab",
+    "ai-agent",
+    "coding-agent",
+    "code-review",
+    "mcp",
+    "self-hosted"
+  ],
   "license": "MIT",
   "private": true,
   "scripts": {

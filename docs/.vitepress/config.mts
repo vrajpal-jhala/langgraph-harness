@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'langgraph-harness',
   description:
-    'The engineering context platform for GitLab — reviews merge requests, resolves issues autonomously, and chats with full project context.',
+    'Self-hosted AI coding agent platform for GitLab, built with LangGraph. Reviews merge requests, resolves issues autonomously, and chats with full project context.',
   base: '/langgraph-harness/',
   cleanUrls: true,
   lastUpdated: true,
@@ -19,13 +19,20 @@ export default defineConfig({
     // set before paint so landing sections can start hidden with no flash-of-visible-then-hidden
     ['script', {}, "document.documentElement.classList.add('has-js')"],
     ['meta', { property: 'og:type', content: 'website' }],
-    ['meta', { property: 'og:title', content: 'langgraph-harness' }],
+    [
+      'meta',
+      {
+        property: 'og:title',
+        content:
+          'langgraph-harness — Self-Hosted AI Coding Agent Platform for GitLab',
+      },
+    ],
     [
       'meta',
       {
         property: 'og:description',
         content:
-          'The engineering context platform for GitLab — reviews merge requests, resolves issues autonomously, and chats with full project context.',
+          'Self-hosted AI coding agent platform for GitLab, built with LangGraph. Reviews merge requests, resolves issues autonomously, and chats with full project context.',
       },
     ],
     [
@@ -44,13 +51,20 @@ export default defineConfig({
       },
     ],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
-    ['meta', { name: 'twitter:title', content: 'langgraph-harness' }],
+    [
+      'meta',
+      {
+        name: 'twitter:title',
+        content:
+          'langgraph-harness — Self-Hosted AI Coding Agent Platform for GitLab',
+      },
+    ],
     [
       'meta',
       {
         name: 'twitter:description',
         content:
-          'The engineering context platform for GitLab — reviews merge requests, resolves issues autonomously, and chats with full project context.',
+          'Self-hosted AI coding agent platform for GitLab, built with LangGraph. Reviews merge requests, resolves issues autonomously, and chats with full project context.',
       },
     ],
     [
@@ -151,7 +165,7 @@ export default defineConfig({
 
     footer: {
       message:
-        'Made with <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#e25555" style="display:inline-block;vertical-align:-0.1em"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> by <a href="https://linkedin.com/in/vrajpal-jhala" target="_blank" rel="noopener">Vrajpal Jhala</a>.<br/>Released under the MIT License.',
+        'Made with <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#e25555" style="display:inline-block;vertical-align:-0.1em"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> by <a href="https://linkedin.com/in/vrajpal-jhala" target="_blank" rel="noopener">Vrajpal Jhala</a>.<br/>Released under the MIT License.<br/>This site collects no analytics or cookies.',
     },
   },
 });

@@ -14,7 +14,7 @@ A closer look at the interface across every workflow.
 
 ![Threads](/screenshots/threads.png)
 
-## A real review, start to finish
+## How a review plays out, start to finish
 
 The agent fetches the diff, drafts and publishes comments, and posts a final summary — all visible in the run timeline.
 
@@ -39,6 +39,8 @@ The agent fetches the diff, drafts and publishes comments, and posts a final sum
 ![Memories](/screenshots/memories.png)
 
 ## Analytics
+
+Production dashboard, Sept 2026 snapshot.
 
 ![Analytics overview](/screenshots/analytics-overview.png)
 

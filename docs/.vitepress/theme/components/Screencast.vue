@@ -91,6 +91,7 @@ function formatTime(seconds: number) {
       v-show="started"
       ref="videoEl"
       :src="src"
+      :aria-label="alt ?? 'Screencast'"
       preload="none"
       class="screencast-media screencast-media--video"
       @click="togglePlay"

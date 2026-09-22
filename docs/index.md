@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: langgraph-harness
-  text: The engineering context platform for GitLab
-  tagline: Reviews merge requests, resolves issues autonomously, and chats with full project context — remembering what matters so every run builds on the last.
+  text: AI coding agent platform for GitLab
+  tagline: Self-hosted, built with LangGraph. Reviews merge requests, resolves issues autonomously, and chats with full project context — remembering what matters so every run builds on the last.
   image:
     src: /logo.svg
     alt: langgraph-harness
@@ -14,9 +14,6 @@ hero:
     - theme: brand
       text: Get Started
       link: /guide/getting-started
-    - theme: alt
-      text: Features
-      link: /features
     - theme: alt
       text: View on GitHub
       link: https://github.com/vrajpal-jhala/langgraph-harness
@@ -68,7 +65,7 @@ npm run dev
   </div>
   <div class="browser-frame">
     <div class="browser-frame-bar"><span></span><span></span><span></span></div>
-    <img :src="withBase('/screenshots/analytics-overview.png')" alt="Analytics overview dashboard" loading="lazy" />
+    <img :src="withBase('/screenshots/analytics-overview.png')" alt="Real production analytics dashboard, Sept 2026 snapshot" loading="lazy" />
   </div>
 </section>
 
@@ -117,16 +114,16 @@ npm run dev
     </div>
     <div class="landing-workflow-stage">
       <div class="landing-workflow-panel" id="landing-panel-review">
-        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/mr-review-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/mr-review-workflow-preview.webp" class="landing-workflow-video" autoplay loop muted playsinline></video>
+        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/mr-review-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/mr-review-workflow-preview.webp" class="landing-workflow-video" aria-label="Demo: MR Review workflow" autoplay loop muted playsinline></video>
       </div>
       <div class="landing-workflow-panel" id="landing-panel-issue">
-        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/issue-resolve-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/issue-resolve-workflow-preview.webp" class="landing-workflow-video" autoplay loop muted playsinline></video>
+        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/issue-resolve-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/issue-resolve-workflow-preview.webp" class="landing-workflow-video" aria-label="Demo: Issue Resolution workflow" autoplay loop muted playsinline></video>
       </div>
       <div class="landing-workflow-panel" id="landing-panel-task">
-        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow-preview.webp" class="landing-workflow-video" autoplay loop muted playsinline></video>
+        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow-preview.webp" class="landing-workflow-video" aria-label="Demo: Task Resolution workflow" autoplay loop muted playsinline></video>
       </div>
       <div class="landing-workflow-panel" id="landing-panel-chat">
-        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/chat-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/chat-workflow-preview.webp" class="landing-workflow-video" autoplay loop muted playsinline></video>
+        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/chat-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/chat-workflow-preview.webp" class="landing-workflow-video" aria-label="Demo: Chat workflow" autoplay loop muted playsinline></video>
       </div>
     </div>
   </div>
