@@ -12,24 +12,24 @@ Fires on webhook events — reads the diff, drafts comments, and publishes them,
   alt="MR review workflow demo"
 />
 
-## Issue Resolution
+## Work Item Resolve
 
 Assign an issue and the agent implements the fix in a sandboxed checkout, opens a draft MR, and keeps responding to follow-up comments.
 
 <Screencast
-  poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/issue-resolve-workflow.webp"
-  src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/issue-resolve-workflow.mp4"
-  alt="Issue resolution workflow demo"
+  poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/work-item-resolve-workflow.webp"
+  src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/work-item-resolve-workflow.mp4"
+  alt="Work item resolve workflow demo"
 />
 
-## Task Resolution
+## Task Resolve
 
 The same sandboxed loop, started from a free-text instruction instead of a GitLab issue — on demand or on a recurring schedule.
 
 <Screencast
   poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow.webp"
   src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow.mp4"
-  alt="Task resolution workflow demo"
+  alt="Task resolve workflow demo"
 />
 
 ## Chat

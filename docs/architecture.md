@@ -12,10 +12,10 @@ Four harnesses exist side by side, not one plugging into another:
 They share the Postgres checkpointer, the project/personal-memory store, and the React UI/analytics (which also carries retry/abort/delete actions, not just viewing) — but each harness's tool surface is structurally different:
 
 - **MR Review** — GitLab MCP tools against a bare worktree, no sandbox.
-- **Issue Resolve and Task Resolve** — sandbox shell + file access, a read+reply GitLab MCP allowlist (bot token), and a web-fetch tool (headless browser + Readability, SSRF-guarded).
+- **Work Item Resolve and Task Resolve** — sandbox shell + file access, a read+reply GitLab MCP allowlist (bot token), and a web-fetch tool (headless browser + Readability, SSRF-guarded).
 - **Chat** — the user's own GitLab token against the full MCP toolset, plus personal memory and its own web-fetch tools.
 
-So none of them is a variant of another's loop — though Issue Resolve and Task Resolve go further and share the exact same compiled agent (`agent.ts`: same middleware stack, same tool set), differing only in what triggers a run and what supplies the task.
+So none of them is a variant of another's loop — though Work Item Resolve and Task Resolve go further and share the exact same compiled agent (`agent.ts`: same middleware stack, same tool set), differing only in what triggers a run and what supplies the task.
 
 **Status legend**
 

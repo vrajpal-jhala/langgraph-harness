@@ -21,7 +21,7 @@ mr_review_instructions:
 
 # Same shape as above, fed to the work-item-resolve agent instead.
 work_item_resolve_instructions:
-  - path: docs/issue-resolution-guidelines.md
+  - path: docs/work-item-resolve-guidelines.md
 
 # Skip review entirely when an MR's source or target branch matches a glob.
 # Patterns use micromatch: `*` within one path segment, `**` across segments.

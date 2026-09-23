@@ -8,8 +8,8 @@ description: >
   the update-changelog skill after it scopes a change touching harness/memory/ops structure.
 ---
 
-Root `docs/architecture.md` is the source of truth for langgraph-harness's system architecture: three
-harnesses (MR Review, Issue Resolve, Chat), the Memory layer, and LLM Ops, rendered as a
+Root `docs/architecture.md` is the source of truth for langgraph-harness's system architecture: four
+harnesses (MR Review, Work Item Resolve, Task Resolve, Chat), the Memory layer, and LLM Ops, rendered as a
 mermaid diagram with 🟩 Built / 🟨 Partial / ⬜ Pipeline status classes, plus matching
 "Status breakdown" prose and a "Phasing note".
 

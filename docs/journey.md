@@ -20,7 +20,7 @@ Analytics landed right alongside it, and not as an afterthought — comment acce
 
 ## From commenting to acting
 
-The biggest architectural jump was giving the agent somewhere safe to actually make changes — not just comment on them. That meant sandboxed execution, which meant a real container-isolation story (this is where the Kata runtime work started, and where most of the operational war stories in the [deployment doc](/deployment) come from — a shared Docker socket, a bridge interface collision, an egress model that turned out not to fully work under a Docker backend and got documented as a known gap rather than quietly ignored). Issue-resolve — assign an issue, get a draft MR — came out of that sandboxing work, and task-resolve (a free-text instruction instead of a GitLab issue) followed shortly after, along with the ability to schedule either one to run on a recurring basis.
+The biggest architectural jump was giving the agent somewhere safe to actually make changes — not just comment on them. That meant sandboxed execution, which meant a real container-isolation story (this is where the Kata runtime work started, and where most of the operational war stories in the [deployment doc](/deployment) come from — a shared Docker socket, a bridge interface collision, an egress model that turned out not to fully work under a Docker backend and got documented as a known gap rather than quietly ignored). Work-item-resolve — assign an issue, get a draft MR — came out of that sandboxing work, and task-resolve (a free-text instruction instead of a GitLab issue) followed shortly after, along with the ability to schedule either one to run on a recurring basis.
 
 ## Guardrails, earned one at a time
 
@@ -28,4 +28,4 @@ None of the guardrails documented on the [Features page](/features) arrived as a
 
 ## Where it is now
 
-Four workflows (MR review, issue resolution, task resolution, chat), a durable memory system, a guardrail and quality-control layer earned through actual failures rather than designed up front, and enough operational scar tissue from running sandboxed execution in production to fill a deployment doc most projects wouldn't bother writing. That's what's here — and it's still being built.
+Four workflows (MR review, work item resolve, task resolve, chat), a durable memory system, a guardrail and quality-control layer earned through actual failures rather than designed up front, and enough operational scar tissue from running sandboxed execution in production to fill a deployment doc most projects wouldn't bother writing. That's what's here — and it's still being built.

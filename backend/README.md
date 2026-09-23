@@ -83,38 +83,47 @@ npm run migrate
 
 ## API
 
-| Method   | Path                                    | Description                                                                                 |
-| -------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `GET`    | `/api/models`                           | List available LLM models                                                                   |
-| `GET`    | `/api/threads`                          | List threads (paginated, filterable — see below)                                            |
-| `POST`   | `/api/threads`                          | Create a thread                                                                             |
-| `GET`    | `/api/threads/projects`                 | List distinct project names seen across threads                                             |
-| `GET`    | `/api/threads/:id`                      | Get a single thread with its latest run status                                              |
-| `GET`    | `/api/threads/:id/runs`                 | List runs for a thread                                                                      |
-| `POST`   | `/api/threads/:id/runs`                 | Create and start a run (immediate-start workflows only, e.g. Chat)                          |
-| `GET`    | `/api/threads/:id/runs/:runId`          | Get a single run                                                                            |
-| `POST`   | `/api/threads/:id/runs/:runId/retry`    | Retry a run from a checkpoint                                                               |
-| `POST`   | `/api/threads/:id/runs/:runId/decision` | Approve or reject a tool call an interruptible run is paused on                             |
-| `GET`    | `/api/threads/:id/runs/:runId/stream`   | SSE stream of run events                                                                    |
-| `POST`   | `/api/threads/:id/runs/:runId/abort`    | Abort a running run                                                                         |
-| `GET`    | `/api/workflows`                        | List workflows with live status and run stats                                               |
-| `GET`    | `/api/workflows/:id`                    | Get a single workflow's status and stats                                                    |
-| `GET`    | `/api/workflows/:id/graph`              | Get the workflow's compiled LangGraph as Mermaid syntax                                     |
-| `GET`    | `/api/analytics/overview`               | Reliability/efficiency/guardrail KPIs for one workflow kind, optionally since a date        |
-| `GET`    | `/api/analytics/by-repo`                | Per-repo review run/failure breakdown, paginated, optionally filtered to one project        |
-| `GET`    | `/api/analytics/usage`                  | Usage totals: users, threads by kind, memories by scope                                     |
-| `GET`    | `/api/analytics/trend`                  | Daily duration/volume/success-rate trend for one workflow kind, optionally since a date     |
-| `GET`    | `/api/users`                            | Active and total user counts                                                                |
-| `GET`    | `/api/monitoring/stack-containers`      | Admin-only: compose-stack container CPU/memory stats                                        |
-| `GET`    | `/api/monitoring/sandbox-fleet`         | Admin-only: sandbox fleet CPU/memory/reachability stats                                     |
-| `GET`    | `/api/monitoring/disk-usage`            | Admin-only: disk usage per data directory                                                   |
-| `GET`    | `/api/memories`                         | List a project's memories, or your own with scope=personal, optionally filtered by category |
-| `GET`    | `/api/memories/projects`                | List projects with a memory count each                                                      |
-| `GET`    | `/api/memories/personal`                | Your own personal memory count                                                              |
-| `DELETE` | `/api/memories/:id`                     | Delete a memory (admin: any; otherwise: your own personal memory only)                      |
-| `POST`   | `/api/uploads`                          | Upload a file (chat image attachment), returns a servable ref                               |
-| `GET`    | `/api/uploads/:filename`                | Serve a previously uploaded file                                                            |
-| `POST`   | `/webhooks/gitlab`                      | Receive GitLab MR webhook events                                                            |
+| Method   | Path                                    | Description                                                                                  |
+| -------- | --------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/models`                           | List available LLM models                                                                    |
+| `GET`    | `/api/threads`                          | List threads (paginated, filterable — see below)                                             |
+| `POST`   | `/api/threads`                          | Create a thread                                                                              |
+| `GET`    | `/api/threads/projects`                 | List distinct project names seen across threads                                              |
+| `GET`    | `/api/threads/:id`                      | Get a single thread with its latest run status                                               |
+| `GET`    | `/api/threads/:id/runs`                 | List runs for a thread                                                                       |
+| `POST`   | `/api/threads/:id/runs`                 | Create and start a run (immediate-start workflows only, e.g. Chat)                           |
+| `GET`    | `/api/threads/:id/runs/:runId`          | Get a single run                                                                             |
+| `POST`   | `/api/threads/:id/runs/:runId/retry`    | Retry a run from a checkpoint                                                                |
+| `POST`   | `/api/threads/:id/runs/:runId/decision` | Approve or reject a tool call an interruptible run is paused on                              |
+| `GET`    | `/api/threads/:id/runs/:runId/stream`   | SSE stream of run events                                                                     |
+| `POST`   | `/api/threads/:id/runs/:runId/abort`    | Abort a running run                                                                          |
+| `GET`    | `/api/workflows`                        | List workflows with live status and run stats                                                |
+| `GET`    | `/api/workflows/:id`                    | Get a single workflow's status and stats                                                     |
+| `GET`    | `/api/workflows/:id/graph`              | Get the workflow's compiled LangGraph as Mermaid syntax                                      |
+| `POST`   | `/api/task-resolve`                     | Admin-only: submit a free-text prompt + repo URL, opens a draft MR directly on the first run |
+| `GET`    | `/api/schedules`                        | List schedules                                                                               |
+| `GET`    | `/api/schedules/:id`                    | Get a single schedule with its run history                                                   |
+| `POST`   | `/api/schedules`                        | Admin-only: create a one-time or recurring Task Resolve schedule                             |
+| `PATCH`  | `/api/schedules/:id`                    | Admin-only: update a schedule                                                                |
+| `POST`   | `/api/schedules/:id/pause`              | Admin-only: pause a schedule                                                                 |
+| `POST`   | `/api/schedules/:id/resume`             | Admin-only: resume a paused schedule                                                         |
+| `POST`   | `/api/schedules/:id/cancel`             | Admin-only: cancel a schedule                                                                |
+| `POST`   | `/api/schedules/:id/run-now`            | Admin-only: fire a schedule immediately, outside its normal cadence                          |
+| `GET`    | `/api/analytics/overview`               | Reliability/efficiency/guardrail KPIs for one workflow kind, optionally since a date         |
+| `GET`    | `/api/analytics/by-repo`                | Per-repo review run/failure breakdown, paginated, optionally filtered to one project         |
+| `GET`    | `/api/analytics/usage`                  | Usage totals: users, threads by kind, memories by scope                                      |
+| `GET`    | `/api/analytics/trend`                  | Daily duration/volume/success-rate trend for one workflow kind, optionally since a date      |
+| `GET`    | `/api/users`                            | Active and total user counts                                                                 |
+| `GET`    | `/api/monitoring/stack-containers`      | Admin-only: compose-stack container CPU/memory stats                                         |
+| `GET`    | `/api/monitoring/sandbox-fleet`         | Admin-only: sandbox fleet CPU/memory/reachability stats                                      |
+| `GET`    | `/api/monitoring/disk-usage`            | Admin-only: disk usage per data directory                                                    |
+| `GET`    | `/api/memories`                         | List a project's memories, or your own with scope=personal, optionally filtered by category  |
+| `GET`    | `/api/memories/projects`                | List projects with a memory count each                                                       |
+| `GET`    | `/api/memories/personal`                | Your own personal memory count                                                               |
+| `DELETE` | `/api/memories/:id`                     | Delete a memory (admin: any; otherwise: your own personal memory only)                       |
+| `POST`   | `/api/uploads`                          | Upload a file (chat image attachment), returns a servable ref                                |
+| `GET`    | `/api/uploads/:filename`                | Serve a previously uploaded file                                                             |
+| `POST`   | `/webhooks/gitlab`                      | Receive GitLab MR webhook events                                                             |
 
 **List threads** (`GET /api/threads`) accepts `projects` (repeated), `statuses` (repeated), `title`, `limit` (default 25, max 100), and `offset` query params, and returns `{ data, total }`.
 
@@ -192,7 +201,7 @@ Incoming webhooks are filtered by project path (`mrReview.projectPathFilters` in
 
 A review thread untouched for `mrReview.archivalRetentionMs` (default: 30 days) is archived automatically: its checkpoint state is purged to bound storage growth, but the thread and its run history remain — only retrying it is blocked. A new push to the same MR still starts a fresh review as normal. Chat threads are archived the same way after `chat.retentionMs` of inactivity.
 
-## Automated Work Item Resolution
+## Automated Work Item Resolve
 
 Work-item-resolve is triggered by assigning the bot to a GitLab Issue or Task — no manual command needed.
 
@@ -215,6 +224,14 @@ Incoming webhooks are filtered by project path (`workItemResolve.projectPathFilt
 
 > **Sandbox network egress isn't enforced.** `Sandbox.create()` doesn't pass a `networkPolicy` — confirmed non-functional under this deployment's Docker backend (`opensandbox/sandbox.toml`'s `docker_runtime = "kata"`), not just untested. OpenSandbox's egress sidecar only intercepts a sandbox's traffic if both containers share one Kata guest VM, which requires Kubernetes' `RuntimeClass`-driven pod-sandbox grouping (a CRI-level mechanism); the Docker backend has no equivalent, so the sidecar and sandbox end up as two independent Kata VMs and the sidecar's policy never sees real sandbox traffic (see `docs/deployment.md#opensandbox`). `allowedEgressDomains` (`commonEgressDomains`/`PROJECT_EGRESS_DOMAINS`) has been removed entirely — the agent receives no network domain guidance at all. Lateral movement is still out of scope regardless: sandboxes run on Kata's own per-sandbox networking, routed through a dedicated `docker-kata` daemon and bridge (`172.20.0.0/16`), a separate daemon and network entirely from the compose stack's `harness_default` (`172.18.0.0/16`) where `docker-socket-proxy-kata`/`postgres`/`redis`/`backend` live — no route between them, so any exposure is bounded to arbitrary internet egress, not access to the rest of the infrastructure.
 
+## Task Resolve
+
+Task Resolve has no issue and no assignment webhook — an admin submits a free-text prompt plus a repo URL via `POST /api/task-resolve` (`isAdmin`-gated), which resolves the repo and opens a draft MR directly on that first run. The same prompt/repo pair can instead be saved as a schedule (`POST /api/schedules`, also `isAdmin`-gated) that fires later via BullMQ — one-time via a delayed job, or recurring (daily/weekly/monthly, in a chosen timezone) via a BullMQ job scheduler — each fire materializes a fresh Task Resolve thread/run identical to a direct API submission. Pause, resume, cancel, and run-now controls (`/api/schedules/:id/{pause,resume,cancel,run-now}`) act on the schedule directly.
+
+Follow-up MR comments on a Task Resolve MR reuse Work Item Resolve's existing note webhook path unchanged — a thread is matched by `{project, mrIid}`, not by workflow kind, so no separate trigger exists.
+
+Task Resolve runs on the exact same compiled agent as Work Item Resolve (`agent.ts`), with an identical middleware stack and sandbox tool surface — the only per-workflow difference is the system prompt's intro line and identifiers block.
+
 ## Repository Configuration
 
 A repository can opt into per-repo review behavior with a `.harness.yml` file at its **root on the default branch**. It's resolved once per review from the default branch; the MR's own branch cannot override it. Everything is optional — a missing, invalid, or unsupported-version file just means the MR is reviewed with defaults. A ready-to-copy example lives at [`docs/harness-config/v1.example.yml`](../docs/harness-config/v1.example.yml).
@@ -233,7 +250,7 @@ mr_review_instructions:
 
 # Same shape as above, fed to the work-item-resolve agent instead.
 work_item_resolve_instructions:
-  - path: docs/issue-resolution-guidelines.md
+  - path: docs/work-item-resolve-guidelines.md
 
 # Skip review when the source or target branch matches a glob.
 exclude_branches:

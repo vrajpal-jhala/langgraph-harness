@@ -4,9 +4,9 @@ The landing page covers the four workflows. This page goes into what actually ma
 
 ## Tool access
 
-- **GitLab** — MR metadata, diffs, discussions, draft notes, approvals, issues and work items, all via a GitLab MCP server. MR Review, Issue Resolution, and Task Resolution each get a narrow allowlist (write actions like posting comments or resolving threads kept separate from reads); Chat instead runs with the full GitLab toolset under the requesting user's own token, since it's answering open-ended questions rather than executing one fixed job.
+- **GitLab** — MR metadata, diffs, discussions, draft notes, approvals, issues and work items, all via a GitLab MCP server. MR Review, Work Item Resolve, and Task Resolve each get a narrow allowlist (write actions like posting comments or resolving threads kept separate from reads); Chat instead runs with the full GitLab toolset under the requesting user's own token, since it's answering open-ended questions rather than executing one fixed job.
 - **Local git** — changed-files, diff, and file-diff tools that read the actual worktree, not just GitLab's API view of it. On a revived retry (branch already deleted after a squash/fast-forward merge), local diffing can't recover the merge — the agent swaps to GitLab's `diff_refs`-based tools instead, which survive branch deletion regardless of merge strategy.
-- **Filesystem** — MR Review gets read-only access: grep, read one or many files, list a directory, scoped to the run's own sandboxed checkout. Issue Resolution and Task Resolution get read-write access instead — running shell commands (builds, tests, git) and writing or overwriting files in the sandbox — since making the actual code change is the point of those two workflows.
+- **Filesystem** — MR Review gets read-only access: grep, read one or many files, list a directory, scoped to the run's own sandboxed checkout. Work Item Resolve and Task Resolve get read-write access instead — running shell commands (builds, tests, git) and writing or overwriting files in the sandbox — since making the actual code change is the point of those two workflows.
 - **Web fetch** — a real headless browser (Lightpanda, via CDP), not a raw HTTP fetch, so JS-rendered pages resolve — with Readability-based content extraction and DNS/IP-range blocking against internal/private addresses before a fetch is allowed through.
 - **Self-introspection** ("server tools" in Chat) — query past reviews, past chat threads, a specific run's full event transcript, and project/personal memories. This is what lets Chat answer "why did the review on !142 time out?" from its own history instead of guessing.
 - **Cross-project issue search** (Chat) — semantic search over extracted facts from ingested GitLab issue and discussion history, backed by supermemory. Chat treats a match as a lead, not a verified answer — it's expected to follow up by fetching the full issue before asserting anything consequential from it.
@@ -23,7 +23,7 @@ Every guardrail is a _backstop_, not the primary correctness mechanism — the s
 | **Trailing Question Guard** | A run that closes on a question mark ("would you like me to...?") instead of just finishing — the system prompt's "never ask mid-task" rule doesn't obviously cover how a run should _end_. |
 | **No Tool Call Guard**      | A run that concludes by only restating an earlier turn's summary, without re-verifying current state via any tool call.                                                                     |
 | **Discussion Check Guard**  | A run that never checked for review feedback before concluding — matters most on a resumed run, where a new comment can land after the run is already underway.                             |
-| **Note Reply Tracking**     | The bot's own discussion replies getting mistaken for fresh human feedback on the next run — without this, it would loop on its own comment forever (Issue Resolution, Task Resolution).    |
+| **Note Reply Tracking**     | The bot's own discussion replies getting mistaken for fresh human feedback on the next run — without this, it would loop on its own comment forever (Work Item Resolve, Task Resolve).      |
 | **Human Approval**          | Pauses mid-run on a tool call that needs explicit sign-off before it proceeds (Chat).                                                                                                       |
 
 ## Quality control before anything posts
@@ -38,7 +38,7 @@ Context engineering for GitLab: as the agent works, it flags durable, project-sp
 
 ## Scheduling
 
-Issue Resolution and Task Resolution can both be set to run on a recurring schedule (daily, weekly, or monthly, in a chosen timezone) instead of firing once — useful for a standing instruction like "check the dependency lockfile for updates every Monday" rather than a one-off task.
+Work Item Resolve and Task Resolve can both be set to run on a recurring schedule (daily, weekly, or monthly, in a chosen timezone) instead of firing once — useful for a standing instruction like "check the dependency lockfile for updates every Monday" rather than a one-off task.
 
 ## Reliability and cost control
 

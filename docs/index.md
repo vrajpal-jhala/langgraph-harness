@@ -4,7 +4,7 @@ layout: home
 hero:
   name: langgraph-harness
   text: AI coding agent platform for GitLab
-  tagline: Self-hosted, built with LangGraph. Reviews merge requests, resolves issues autonomously, and chats with full project context — remembering what matters so every run builds on the last.
+  tagline: Self-hosted, built with LangGraph. Reviews merge requests, resolves work items and tasks autonomously, and chats with full project context — remembering what matters so every run builds on the last.
   image:
     src: /logo.svg
     alt: langgraph-harness
@@ -90,15 +90,15 @@ npm run dev
       <label class="landing-workflow-tab" for="landing-wf-issue">
         <span class="landing-workflow-tab-head">
           <span class="landing-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" /></svg></span>
-          <h3>Issue Resolution</h3>
-          <span class="landing-badge">Issue</span>
+          <h3>Work Item Resolve</h3>
+          <span class="landing-badge">Work Item</span>
         </span>
         <p>Assign an issue and the agent implements the fix in a sandboxed checkout, opens a draft MR, and keeps responding to follow-up comments.</p>
       </label>
       <label class="landing-workflow-tab" for="landing-wf-task">
         <span class="landing-workflow-tab-head">
           <span class="landing-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><path d="m7 11 2-2-2-2" /><path d="M11 13h4" /></svg></span>
-          <h3>Task Resolution</h3>
+          <h3>Task Resolve</h3>
           <span class="landing-badge">Scheduled</span>
         </span>
         <p>The same sandboxed loop, started from a free-text instruction instead of a GitLab issue — on demand or on a recurring schedule.</p>
@@ -117,10 +117,10 @@ npm run dev
         <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/mr-review-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/mr-review-workflow-preview.webp" class="landing-workflow-video" aria-label="Demo: MR Review workflow" autoplay loop muted playsinline></video>
       </div>
       <div class="landing-workflow-panel" id="landing-panel-issue">
-        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/issue-resolve-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/issue-resolve-workflow-preview.webp" class="landing-workflow-video" aria-label="Demo: Issue Resolution workflow" autoplay loop muted playsinline></video>
+        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/work-item-resolve-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/work-item-resolve-workflow-preview.webp" class="landing-workflow-video" aria-label="Demo: Work Item Resolve workflow" autoplay loop muted playsinline></video>
       </div>
       <div class="landing-workflow-panel" id="landing-panel-task">
-        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow-preview.webp" class="landing-workflow-video" aria-label="Demo: Task Resolution workflow" autoplay loop muted playsinline></video>
+        <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/task-resolve-workflow-preview.webp" class="landing-workflow-video" aria-label="Demo: Task Resolve workflow" autoplay loop muted playsinline></video>
       </div>
       <div class="landing-workflow-panel" id="landing-panel-chat">
         <video src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/chat-workflow-preview.mp4" poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/chat-workflow-preview.webp" class="landing-workflow-video" aria-label="Demo: Chat workflow" autoplay loop muted playsinline></video>
