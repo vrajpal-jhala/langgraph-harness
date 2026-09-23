@@ -31,6 +31,8 @@ export const LLMProvider = {
   OpenRouter: 'openrouter',
   Ollama: 'ollama',
   Sglang: 'sglang',
+  Gemini: 'gemini',
+  Groq: 'groq',
 } as const;
 
 export type LLMProvider = (typeof LLMProvider)[keyof typeof LLMProvider];
@@ -47,6 +49,9 @@ export const ModelName = {
   Qwen36Awq: 'QuantTrio/Qwen3.6-35B-A3B-AWQ',
   Qwen36_27BAwq: 'cyankiwi/Qwen3.6-27B-AWQ-INT4',
   Qwen38_27BFp8: 'Qwen/Qwen3.8-27B-FP8',
+  GeminiFlashLatest: 'gemini-flash-latest',
+  GeminiFlashLiteLatest: 'gemini-flash-lite-latest',
+  GroqGptOss120B: 'openai/gpt-oss-120b',
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];

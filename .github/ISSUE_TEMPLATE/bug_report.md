@@ -16,7 +16,7 @@ labels: bug
 
 - langgraph-harness version/commit:
 - Node version:
-- LLM provider (OpenRouter/Ollama/sglang):
+- LLM provider (OpenRouter/Gemini/Groq/Ollama/sglang):
 
 ## Logs
 

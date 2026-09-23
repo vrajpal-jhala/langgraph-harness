@@ -704,6 +704,8 @@ export const LLMProvider = {
   OpenRouter: 'openrouter',
   Ollama: 'ollama',
   Sglang: 'sglang',
+  Gemini: 'gemini',
+  Groq: 'groq',
 } as const;
 
 export type LLMProvider = (typeof LLMProvider)[keyof typeof LLMProvider];

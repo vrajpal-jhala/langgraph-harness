@@ -6,7 +6,7 @@
 - Docker (for PostgreSQL, Redis, and Lightpanda)
 - A GitLab personal access token with `api` scope
 - A GitLab OAuth application (for sign-in) — see below
-- An LLM backend: an OpenRouter API key, or a local Ollama/sglang instance
+- An LLM backend: an OpenRouter/Gemini/Groq API key, or a local Ollama/sglang instance
 
 ## 1. Clone and install
 
@@ -40,16 +40,16 @@ cp backend/.env.example backend/.env
 
 Fill in at minimum:
 
-| Variable                                                            | Where it comes from                                                          |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `GITLAB_PAT`                                                        | Step 2                                                                       |
-| `GITLAB_OAUTH_CLIENT_ID`                                            | Step 3                                                                       |
-| `GITLAB_OAUTH_CLIENT_SECRET`                                        | Step 3                                                                       |
-| `WEBHOOK_TOKENS`                                                    | Any secret string you choose — GitLab webhooks send it back for verification |
-| `SESSION_SECRET`                                                    | Any random string (`openssl rand -hex 32`)                                   |
-| `SECRETS_ENCRYPTION_KEY`                                            | Any random string, separate from `SESSION_SECRET`                            |
-| `ADMIN_GITLAB_USERNAMES`                                            | Your own GitLab `@handle`                                                    |
-| One of `OPENROUTER_API_KEY` / `OLLAMA_BASE_URL` / `SGLANG_BASE_URL` | Your LLM backend                                                             |
+| Variable                                                                                                | Where it comes from                                                          |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `GITLAB_PAT`                                                                                            | Step 2                                                                       |
+| `GITLAB_OAUTH_CLIENT_ID`                                                                                | Step 3                                                                       |
+| `GITLAB_OAUTH_CLIENT_SECRET`                                                                            | Step 3                                                                       |
+| `WEBHOOK_TOKENS`                                                                                        | Any secret string you choose — GitLab webhooks send it back for verification |
+| `SESSION_SECRET`                                                                                        | Any random string (`openssl rand -hex 32`)                                   |
+| `SECRETS_ENCRYPTION_KEY`                                                                                | Any random string, separate from `SESSION_SECRET`                            |
+| `ADMIN_GITLAB_USERNAMES`                                                                                | Your own GitLab `@handle`                                                    |
+| One of `OPENROUTER_API_KEY` / `GEMINI_API_KEY` / `GROQ_API_KEY` / `OLLAMA_BASE_URL` / `SGLANG_BASE_URL` | Your LLM backend                                                             |
 
 The full reference — every variable, what it defaults to, and why — is in [`backend/README.md`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/backend/README.md).
 
