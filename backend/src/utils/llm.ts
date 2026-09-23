@@ -7,6 +7,13 @@ import { type LLM, LLMProvider } from '#types.js';
 
 import { config } from '#utils/config.js';
 
+// Cloud providers reached through their own OpenAI-compatible endpoint — no self-hosted url/concurrency to configure.
+const OPENAI_COMPATIBLE_BASE_URL: Partial<Record<LLMProvider, string>> = {
+  [LLMProvider.Gemini]:
+    'https://generativelanguage.googleapis.com/v1beta/openai',
+  [LLMProvider.Groq]: 'https://api.groq.com/openai/v1',
+};
+
 export function buildChatModel(
   modelConfig: LLM,
   reasoning: boolean,
@@ -35,6 +42,18 @@ export function buildChatModel(
       modelKwargs: {
         chat_template_kwargs: { enable_thinking: reasoning },
       },
+    });
+  }
+
+  const compatibleBaseUrl = OPENAI_COMPATIBLE_BASE_URL[modelConfig.provider];
+  if (compatibleBaseUrl) {
+    return new ChatOpenAI({
+      model: modelConfig.model,
+      temperature: config.generation.temperature,
+      apiKey,
+      configuration: { baseURL: compatibleBaseUrl },
+      // Both Gemini and Groq's OpenAI-compatible endpoints read reasoning effort from this same field.
+      modelKwargs: { reasoning_effort: reasoning ? 'high' : 'low' },
     });
   }
 

@@ -118,6 +118,12 @@ export const config = {
         apiKey: process.env.SGLANG_API_KEY || '',
         concurrency: 4,
       },
+      [LLMProvider.Gemini]: {
+        apiKey: process.env.GEMINI_API_KEY || '',
+      },
+      [LLMProvider.Groq]: {
+        apiKey: process.env.GROQ_API_KEY || '',
+      },
     },
   },
   lightpanda: {
@@ -273,6 +279,24 @@ export const llms: LLM[] = [
     name: 'Gemma 4 (31B)',
     model: ModelName.Gemma431B,
     contextWindow: 262_144,
+  },
+  {
+    provider: LLMProvider.Gemini,
+    name: 'Gemini Flash',
+    model: ModelName.GeminiFlashLatest,
+    contextWindow: 1_048_576,
+  },
+  {
+    provider: LLMProvider.Gemini,
+    name: 'Gemini Flash Lite',
+    model: ModelName.GeminiFlashLiteLatest,
+    contextWindow: 1_048_576,
+  },
+  {
+    provider: LLMProvider.Groq,
+    name: 'GPT-OSS 120B',
+    model: ModelName.GroqGptOss120B,
+    contextWindow: 131_072,
   },
 ];
 

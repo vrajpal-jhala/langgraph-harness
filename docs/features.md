@@ -45,4 +45,4 @@ Work Item Resolve and Task Resolve can both be set to run on a recurring schedul
 - **Model Retry** — some models occasionally emit malformed tool-call syntax mid-call; this retries a few times and reports each attempt, rather than silently faking a final answer.
 - **Context Summarization** — trims older history by token budget (not a fixed message count, since a single diff can be 20-70K tokens on its own), preserving only the most recent call per tool so a long-running todo list doesn't get lost to summarization.
 - **Tool Output Cap** — a hard character ceiling on any single tool's raw output, a backstop against one oversized result blowing past the context budget on its own.
-- **LLM Backend Limiter** — per-provider concurrency limiting, so a burst of runs doesn't overwhelm whatever backend (OpenRouter, Ollama, sglang) is configured.
+- **LLM Backend Limiter** — per-provider concurrency limiting for self-hosted backends (Ollama, sglang), so a burst of runs doesn't overwhelm them; hosted providers (OpenRouter, Gemini, Groq) rely on their own rate limiting instead.

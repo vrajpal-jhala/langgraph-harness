@@ -52,6 +52,8 @@ cp .env.example .env
 | `OLLAMA_API_KEY`                | No             | —                           | Bearer token sent to Ollama, for authenticated/hosted Ollama endpoints                                                                                                 |
 | `SGLANG_BASE_URL`               | One of         | `http://localhost:30000`    | For local LLMs served via sglang                                                                                                                                       |
 | `SGLANG_API_KEY`                | No             | —                           | Bearer token sent to sglang, for authenticated/hosted sglang endpoints                                                                                                 |
+| `GEMINI_API_KEY`                | One of         | —                           | Free-tier Google AI Studio key, for MR review. Chat doesn't support this provider (see `OPENROUTER_API_KEY` above)                                                     |
+| `GROQ_API_KEY`                  | One of         | —                           | Free-tier Groq key, for MR review. Chat doesn't support this provider (see `OPENROUTER_API_KEY` above)                                                                 |
 | `DB_HOST`                       | No             | `localhost`                 | PostgreSQL host                                                                                                                                                        |
 | `DB_PORT`                       | No             | `5432`                      | PostgreSQL port                                                                                                                                                        |
 | `DB_USER`                       | No             | `postgres`                  | PostgreSQL user                                                                                                                                                        |
@@ -336,5 +338,7 @@ Personal memories share the same `memories` table and categories as project memo
 | OpenRouter     | Gemini 2.5 Flash Lite, GPT 5 Mini, Claude Haiku 4.5, Claude Sonnet 5 | `OPENROUTER_API_KEY` |
 | sglang (local) | Qwen 3.6 35B AWQ (default), Qwen 3.8 27B FP8, Qwen 3.6 27B AWQ       | `SGLANG_BASE_URL`    |
 | Ollama (local) | Qwen 3.6 35B, Qwen 3.6 27B, Qwen 3.5 9B, Gemma 4 31B                 | `OLLAMA_BASE_URL`    |
+| Gemini         | Gemini Flash, Gemini Flash Lite (both free-tier)                     | `GEMINI_API_KEY`     |
+| Groq           | GPT-OSS 120B (free-tier)                                             | `GROQ_API_KEY`       |
 
 The self-hosted backends (sglang, Ollama) cap concurrent in-flight calls (`provider.concurrency` in `config.ts`) since, unlike OpenRouter, they run on fixed local hardware — a call that arrives once the cap is hit queues behind a `p-limit` limiter instead of being sent immediately. Queued calls emit `llm_backend_wait_start`/`end` (see [Agent](#agent) above), and average wait time is tracked per-day in the analytics trend endpoint.

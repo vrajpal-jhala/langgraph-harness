@@ -206,6 +206,8 @@ declare const LLMProvider: {
 	readonly OpenRouter: "openrouter";
 	readonly Ollama: "ollama";
 	readonly Sglang: "sglang";
+	readonly Gemini: "gemini";
+	readonly Groq: "groq";
 };
 type LLMProvider = (typeof LLMProvider)[keyof typeof LLMProvider];
 declare const ModelName: {
@@ -220,6 +222,9 @@ declare const ModelName: {
 	readonly Qwen36Awq: "QuantTrio/Qwen3.6-35B-A3B-AWQ";
 	readonly Qwen36_27BAwq: "cyankiwi/Qwen3.6-27B-AWQ-INT4";
 	readonly Qwen38_27BFp8: "Qwen/Qwen3.8-27B-FP8";
+	readonly GeminiFlashLatest: "gemini-flash-latest";
+	readonly GeminiFlashLiteLatest: "gemini-flash-lite-latest";
+	readonly GroqGptOss120B: "openai/gpt-oss-120b";
 };
 type ModelName = (typeof ModelName)[keyof typeof ModelName];
 type LLM = {
@@ -1452,7 +1457,7 @@ export declare const app: Elysia<"", {
 							reasoning?: boolean | undefined;
 							images?: string[] | undefined;
 							message: string;
-							model: "openai/gpt-5-mini" | "google/gemini-2.5-flash-lite" | "anthropic/claude-haiku-4.5" | "anthropic/claude-sonnet-5" | "qwen3.6:latest" | "qwen3.6:27b" | "qwen3.5:latest" | "gemma4:31b" | "QuantTrio/Qwen3.6-35B-A3B-AWQ" | "cyankiwi/Qwen3.6-27B-AWQ-INT4" | "Qwen/Qwen3.8-27B-FP8";
+							model: "openai/gpt-5-mini" | "google/gemini-2.5-flash-lite" | "anthropic/claude-haiku-4.5" | "anthropic/claude-sonnet-5" | "qwen3.6:latest" | "qwen3.6:27b" | "qwen3.5:latest" | "gemma4:31b" | "QuantTrio/Qwen3.6-35B-A3B-AWQ" | "cyankiwi/Qwen3.6-27B-AWQ-INT4" | "Qwen/Qwen3.8-27B-FP8" | "gemini-flash-latest" | "gemini-flash-lite-latest" | "openai/gpt-oss-120b";
 							tools: {
 								gitlab: boolean;
 								server: boolean;

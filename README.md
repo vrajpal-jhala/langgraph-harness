@@ -50,19 +50,19 @@ More in the [screenshots gallery](https://vrajpal-jhala.github.io/langgraph-harn
 
 - **Frontend** — React admin UI (Dashboard, Threads, Chat, Workflows) for monitoring runs and chatting directly with the agent
 - **Backend** — Elysia API server running a LangGraph agent with persistent checkpoints
-- **Agent** — Multi-provider LLM (OpenRouter, Ollama, or sglang) with GitLab MCP tools and skill-based workflows
+- **Agent** — Multi-provider LLM (OpenRouter, Gemini, Groq, Ollama, or sglang) with GitLab MCP tools and skill-based workflows
 - **Queue** — BullMQ; debounced re-reviews, capped concurrency, live queue state in the UI
 - **Memory** — context engineering for GitLab: durable, project-scoped facts learned across reviews; personal memory in Chat
 
 ## Quick Start
 
-**Prerequisites:** Node.js 22+, Docker, a GitLab PAT (`api` scope), a GitLab OAuth app, and an OpenRouter key or a local Ollama/sglang instance.
+**Prerequisites:** Node.js 22+, Docker, a GitLab PAT (`api` scope), a GitLab OAuth app, and an OpenRouter/Gemini/Groq key or a local Ollama/sglang instance.
 
 ```bash
 npm install
 cp backend/.env.example backend/.env
 # fill in GITLAB_PAT, GITLAB_OAUTH_CLIENT_ID/SECRET, SESSION_SECRET, SECRETS_ENCRYPTION_KEY,
-# ADMIN_GITLAB_USERNAMES, and one of OPENROUTER_API_KEY / OLLAMA_BASE_URL / SGLANG_BASE_URL
+# ADMIN_GITLAB_USERNAMES, and one of OPENROUTER_API_KEY / GEMINI_API_KEY / GROQ_API_KEY / OLLAMA_BASE_URL / SGLANG_BASE_URL
 npm run dev
 ```
 
