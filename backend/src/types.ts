@@ -429,6 +429,16 @@ export type MessageEvent = {
   };
 };
 
+export type ReasoningStartEvent = {
+  event: 'reasoning_start';
+  data: { id: string; timestamp: number; subagentId?: string };
+};
+
+export type ReasoningEndEvent = {
+  event: 'reasoning_end';
+  data: { id: string; timestamp: number; subagentId?: string };
+};
+
 export type ToolInputEvent = {
   event: 'tool_input';
   data: {
@@ -704,7 +714,12 @@ export type ExtractProjectMemoryEndEvent = {
 export type RunStepEvent = RunStepStartEvent | RunStepEndEvent;
 
 export type LangGraphEvent =
-  MessageEvent | CheckpointEvent | ToolInputEvent | ToolOutputEvent;
+  | MessageEvent
+  | ReasoningStartEvent
+  | ReasoningEndEvent
+  | CheckpointEvent
+  | ToolInputEvent
+  | ToolOutputEvent;
 
 export type WriterEvent =
   // Also in LangGraphEvent: a short-circuited wrapToolCall skips LangGraph's own on_tool_start/on_tool_end, so these get emitted manually as writer events instead.
@@ -712,6 +727,8 @@ export type WriterEvent =
   | ToolOutputEvent
   // Native streamModes don't carry subagentId, so a sub-agent's own turns are emitted manually here instead.
   | MessageEvent
+  | ReasoningStartEvent
+  | ReasoningEndEvent
   | NodeEvent
   | AgentPromptEvent
   | SubagentErrorEvent

@@ -110,6 +110,14 @@ const RunTimeline = ({
   onCloseSubagent,
 }: IRunTimelineProps) => {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  // loading reflects the whole run, not the sub-agent in view — its own tool_output means it's done even if the run isn't.
+  const activeSubagentDone =
+    !!activeSubagent &&
+    runs.some((r) =>
+      r.events.some(
+        (e) => e.event === 'tool_output' && e.data.id === activeSubagent.id,
+      ),
+    );
   const resolvedToolCallIds = new Set(
     runs
       .filter((r) => r.resume_payload)
@@ -177,7 +185,26 @@ const RunTimeline = ({
             .map((e) => [e.data.node, e.data.payload]),
         );
 
+        const reasoningStartTs = new Map(
+          run.events
+            .filter((e) => e.event === 'reasoning_start')
+            .map((e) => [e.data.id, e.data.timestamp]),
+        );
+
+        const reasoningEndTs = new Map(
+          run.events
+            .filter((e) => e.event === 'reasoning_end')
+            .map((e) => [e.data.id, e.data.timestamp]),
+        );
+
         const hasCheckpoint = run.events.some((e) => e.event === 'checkpoint');
+
+        // A sub-agent erroring out doesn't change the parent run's status, so its own reasoning needs its own stop signal.
+        const erroredSubagentIds = new Set(
+          run.events
+            .filter((e) => e.event === 'subagent_error')
+            .map((e) => e.data.subagentId),
+        );
 
         const contextUsageEvents = run.events.filter(
           (
@@ -189,12 +216,13 @@ const RunTimeline = ({
         const precedingContextTotal = activeSubagent
           ? 0
           : (precedingContextTotalByRunId[run.id] ?? 0);
+        // promptTokens, not totalTokens — completion (reasoning) swings turn to turn and mostly isn't resent as history.
         const contextDeltas = new Map(
           contextUsageEvents.map((e, i) => [
             e,
-            e.data.totalTokens -
+            e.data.promptTokens -
               (i > 0
-                ? contextUsageEvents[i - 1].data.totalTokens
+                ? contextUsageEvents[i - 1].data.promptTokens
                 : precedingContextTotal),
           ]),
         );
@@ -253,7 +281,9 @@ const RunTimeline = ({
             e.event === 'comment_critic_end' ||
             e.event === 'reply_critic_end' ||
             e.event === 'corrective_nudge_end' ||
-            e.event === 'extract_project_memory_end'
+            e.event === 'extract_project_memory_end' ||
+            e.event === 'reasoning_start' ||
+            e.event === 'reasoning_end'
           ) {
             return acc;
           }
@@ -1157,6 +1187,13 @@ const RunTimeline = ({
 
               if (event.event === 'message') {
                 const eventId = event.data.id;
+                const reasoningStart = reasoningStartTs.get(eventId);
+                const reasoningEnd = reasoningEndTs.get(eventId);
+                const reasoningDuration =
+                  reasoningStart && reasoningEnd
+                    ? formatDuration(reasoningEnd - reasoningStart)
+                    : null;
+
                 return (
                   <div
                     key={eventId}
@@ -1176,6 +1213,29 @@ const RunTimeline = ({
                           <Icon as={IconChevronDown} />
                         )}
                         <Text>Thinking</Text>
+                        {reasoningStart && reasoningEnd ? (
+                          <Tooltip
+                            label={new Date(reasoningStart).toLocaleString()}
+                          >
+                            <Text component="span" size="sm" c="dimmed" ml={8}>
+                              {reasoningDuration}
+                            </Text>
+                          </Tooltip>
+                        ) : (
+                          reasoningStart &&
+                          run.status === 'running' &&
+                          !(
+                            event.data.subagentId &&
+                            erroredSubagentIds.has(event.data.subagentId)
+                          ) && (
+                            <Text component="span" size="sm" c="dimmed" ml={8}>
+                              <Counter
+                                mode="up"
+                                startedAt={new Date(reasoningStart)}
+                              />
+                            </Text>
+                          )
+                        )}
                       </div>
                     )}
                     {!collapsed.includes(eventId) && (
@@ -1183,7 +1243,9 @@ const RunTimeline = ({
                         <Markdown content={event.data.reasoningContent} />
                       </div>
                     )}
-                    <Markdown content={event.data.content} />
+                    {!!event.data.content.trim() && (
+                      <Markdown content={event.data.content} />
+                    )}
                   </div>
                 );
               }
@@ -1365,7 +1427,7 @@ const RunTimeline = ({
           </Fragment>
         );
       })}
-      {loading && <LoadingBubbles />}
+      {loading && !activeSubagentDone && <LoadingBubbles />}
       <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
   );

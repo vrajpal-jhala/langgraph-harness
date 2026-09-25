@@ -534,10 +534,13 @@ async function accumulateStream(
           !message.data.subagentId &&
           Date.now() - lastProgressAt >= IDLE_TOOL_CALL_MS
         ) {
-          const repeated = findRepeatedText(
-            message.data.content,
-            REPEATED_TEXT_THRESHOLD,
-          );
+          // A loop can play out entirely inside the reasoning stream, so both fields need the same scan.
+          const repeated =
+            findRepeatedText(message.data.content, REPEATED_TEXT_THRESHOLD) ??
+            findRepeatedText(
+              message.data.reasoningContent,
+              REPEATED_TEXT_THRESHOLD,
+            );
           if (repeated) {
             controller.abort(
               new DOMException(

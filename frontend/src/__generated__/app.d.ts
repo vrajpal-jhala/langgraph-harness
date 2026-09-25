@@ -526,6 +526,22 @@ type MessageEvent$1 = {
 		subagentId?: string;
 	};
 };
+type ReasoningStartEvent = {
+	event: "reasoning_start";
+	data: {
+		id: string;
+		timestamp: number;
+		subagentId?: string;
+	};
+};
+type ReasoningEndEvent = {
+	event: "reasoning_end";
+	data: {
+		id: string;
+		timestamp: number;
+		subagentId?: string;
+	};
+};
 type ToolInputEvent = {
 	event: "tool_input";
 	data: {
@@ -781,8 +797,8 @@ type ExtractProjectMemoryEndEvent = {
 	};
 };
 type RunStepEvent = RunStepStartEvent | RunStepEndEvent;
-type LangGraphEvent = MessageEvent$1 | CheckpointEvent | ToolInputEvent | ToolOutputEvent;
-type WriterEvent = ToolInputEvent | ToolOutputEvent | MessageEvent$1 | NodeEvent | AgentPromptEvent | SubagentErrorEvent | ModelRetryEvent | ContextUsageEvent | LlmBackendWaitStartEvent | LlmBackendWaitEndEvent | SummarizeContextStartEvent | SummarizeContextEndEvent | CommentCriticStartEvent | CommentCriticEndEvent | ReplyCriticStartEvent | ReplyCriticEndEvent | CorrectiveNudgeStartEvent | CorrectiveNudgeEndEvent | ExtractProjectMemoryStartEvent | ExtractProjectMemoryEndEvent | InterruptEvent;
+type LangGraphEvent = MessageEvent$1 | ReasoningStartEvent | ReasoningEndEvent | CheckpointEvent | ToolInputEvent | ToolOutputEvent;
+type WriterEvent = ToolInputEvent | ToolOutputEvent | MessageEvent$1 | ReasoningStartEvent | ReasoningEndEvent | NodeEvent | AgentPromptEvent | SubagentErrorEvent | ModelRetryEvent | ContextUsageEvent | LlmBackendWaitStartEvent | LlmBackendWaitEndEvent | SummarizeContextStartEvent | SummarizeContextEndEvent | CommentCriticStartEvent | CommentCriticEndEvent | ReplyCriticStartEvent | ReplyCriticEndEvent | CorrectiveNudgeStartEvent | CorrectiveNudgeEndEvent | ExtractProjectMemoryStartEvent | ExtractProjectMemoryEndEvent | InterruptEvent;
 type WorkflowEvent = LangGraphEvent | WriterEvent;
 type RunEvent = RunStepEvent | QueueWaitEvent | WorkflowEvent;
 declare const RunStatus: {

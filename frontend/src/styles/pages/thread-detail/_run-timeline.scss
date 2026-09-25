@@ -109,7 +109,6 @@
       }
 
       .run-timeline__reasoning {
-        margin-bottom: var(--mantine-spacing-md);
         display: inline-flex;
         align-items: center;
         gap: var(--mantine-spacing-xs);
@@ -121,8 +120,8 @@
           color: var(--mantine-color-text);
         }
 
-        &[data-collapsed='true'] {
-          margin-bottom: var(--mantine-spacing-md);
+        + .markdown {
+          margin-top: var(--mantine-spacing-md);
         }
       }
 
@@ -130,6 +129,10 @@
         color: var(--mantine-color-dimmed);
         font-size: var(--mantine-font-size-md);
         margin-bottom: var(--mantine-spacing-md);
+
+        .markdown {
+          margin-top: var(--mantine-spacing-md);
+        }
       }
     }
 

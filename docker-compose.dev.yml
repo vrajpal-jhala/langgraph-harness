@@ -37,18 +37,17 @@ services:
   lightpanda:
     image: lightpanda/browser:nightly
     container_name: harness_lightpanda
-    # advertise-host: the default response advertises --host (0.0.0.0), which
-    # puppeteer.connect() can't dial — advertise the address the host-run backend actually uses.
-    command:
-      [
+    command: [
         '/bin/lightpanda',
         'serve',
         '--host',
         '0.0.0.0',
         '--port',
         '9222',
+        # The default response advertises --host (0.0.0.0), which puppeteer.connect() can't dial.
         '--advertise-host',
-        'localhost',
+        # Must be a literal IP — Lightpanda's CDP websocket rejects a hostname, even "localhost".
+        '127.0.0.1',
       ]
     ports:
       - '9222:9222'

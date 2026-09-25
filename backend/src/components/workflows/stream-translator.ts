@@ -4,11 +4,15 @@ import { type RunEvent, type WriterEvent } from '#types.js';
 
 import { logger } from '#utils/logger.js';
 
-// Carries messageId across chunks for one stream's lifetime — a fresh state per translateRunStream/translateChunk-loop call, never shared across streams.
-export type TranslateState = { messageId: string | null };
+// Carries messageId and reasoning-phase flags across chunks for one stream's lifetime — a fresh state per translateRunStream/translateChunk-loop call, never shared across streams.
+export type TranslateState = {
+  messageId: string | null;
+  reasoningStarted: boolean;
+  reasoningEnded: boolean;
+};
 
 export function createTranslateState(): TranslateState {
-  return { messageId: null };
+  return { messageId: null, reasoningStarted: false, reasoningEnded: false };
 }
 
 // Shared by translateRunStream (main graph) and spawnSubagent's forwarding loop (nested agent stream) — 'checkpoints' is excluded since a nested stream never carries it.
@@ -22,22 +26,30 @@ export function translateChunk(
 ): RunEvent[] {
   const events: RunEvent[] = [];
 
+  const closeReasoning = (id: string) => {
+    state.reasoningEnded = true;
+    events.push({
+      event: 'reasoning_end',
+      data: { id, timestamp: Date.now(), ...(subagentId && { subagentId }) },
+    });
+  };
+
   if (mode === 'custom') {
     events.push(chunk as WriterEvent);
   }
 
   if (mode === 'messages') {
-    // deletion marker from summarizeContextMiddleware, not a real message
-    // synthetic summary message (dedicated SummarizeContextEndEvent)
-    // an internal middleware LLM call (summarization, comment critic, project memory extraction, ...), not a real conversation turn
     if (
       chunk[0].type === 'tool' ||
+      // deletion marker from summarizeContextMiddleware, not a real message
       chunk[0].id === REMOVE_ALL_MESSAGES ||
+      // synthetic summary message (dedicated SummarizeContextEndEvent)
       chunk[0].additional_kwargs?.lc_source
     ) {
       return events;
     }
 
+    // an internal middleware LLM call (summarization, comment critic, project memory extraction, ...), not an actual conversation turn
     if (chunk[1]?.lc_source) {
       if (!knownLcSources.has(chunk[1].lc_source as string)) {
         logger.warn(
@@ -52,19 +64,45 @@ export function translateChunk(
     if (!state.messageId) {
       state.messageId =
         (chunk[0].id as string | undefined) ?? crypto.randomUUID();
+      state.reasoningStarted = false;
+      state.reasoningEnded = false;
+    }
+
+    const content = chunk[0].content as string;
+    const reasoningContent =
+      (chunk[0].additional_kwargs.reasoning_content as string) || '';
+
+    if (reasoningContent && !state.reasoningStarted) {
+      state.reasoningStarted = true;
+      events.push({
+        event: 'reasoning_start',
+        data: {
+          id: state.messageId,
+          timestamp: Date.now(),
+          ...(subagentId && { subagentId }),
+        },
+      });
+    }
+
+    // Ends on the reasoning delta stopping, not on `content` appearing — a tool-call-only turn never gets non-empty content.
+    if (!reasoningContent && state.reasoningStarted && !state.reasoningEnded) {
+      closeReasoning(state.messageId);
     }
 
     events.push({
       event: 'message',
       data: {
         id: state.messageId,
-        content: chunk[0].content as string,
-        reasoningContent:
-          (chunk[0].additional_kwargs.reasoning_content as string) || '',
+        content,
+        reasoningContent,
         ...(subagentId && { subagentId }),
       },
     });
   } else {
+    // A turn can leave 'messages' (e.g. into 'tools') without ever sending a closing empty-reasoning_content delta — close the phase here instead of leaving it dangling.
+    if (state.reasoningStarted && !state.reasoningEnded && state.messageId) {
+      closeReasoning(state.messageId);
+    }
     state.messageId = null;
   }
 

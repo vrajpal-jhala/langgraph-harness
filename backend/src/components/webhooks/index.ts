@@ -546,7 +546,7 @@ export const webhook = new Elysia({ prefix: '/webhooks' })
       kind: RunKind.MrReview,
       query,
       model: defaultModel,
-      reasoning: false,
+      reasoning: config.generation.reasoning,
       config: harnessConfig,
     };
     const run = await runsService.create(thread.id, RunKind.MrReview, runInput);
