@@ -37,8 +37,7 @@ services:
   lightpanda:
     image: lightpanda/browser:nightly
     container_name: harness_lightpanda
-    command:
-      [
+    command: [
         '/bin/lightpanda',
         'serve',
         '--host',
