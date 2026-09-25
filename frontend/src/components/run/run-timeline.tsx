@@ -1183,7 +1183,9 @@ const RunTimeline = ({
                         <Markdown content={event.data.reasoningContent} />
                       </div>
                     )}
-                    <Markdown content={event.data.content} />
+                    {!!event.data.content.trim() && (
+                      <Markdown content={event.data.content} />
+                    )}
                   </div>
                 );
               }
