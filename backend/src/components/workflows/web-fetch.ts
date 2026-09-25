@@ -52,6 +52,23 @@ const FETCH_WEB_PAGE_MAX_CHARS = 20_000;
 const DESCRIPTION =
   "Render a URL in a headless browser and return the page's main article content (title + text), truncated if very long.";
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (
+    err &&
+    typeof err === 'object' &&
+    'message' in err &&
+    typeof err.message === 'string'
+  ) {
+    return err.message;
+  }
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
 // Neither Readability nor a raw textContent dump normalizes whitespace — both leave behind the whitespace-only text nodes between decorative wrapper elements (icons, buttons) that real pages are full of.
 function cleanWhitespace(text: string): string {
   return text
@@ -112,7 +129,7 @@ async function renderPage(url: string, page: Page) {
     };
   } catch (err) {
     return {
-      error: `Failed to fetch ${url}: ${err instanceof Error ? err.message : String(err)}`,
+      error: `Failed to fetch ${url}: ${errorMessage(err)}`,
     };
   }
 }
@@ -153,7 +170,7 @@ export const fetchWebPage = tool(
         return await renderPage(url, page);
       } catch (err) {
         return {
-          error: `Failed to fetch ${url}: ${err instanceof Error ? err.message : String(err)}`,
+          error: `Failed to fetch ${url}: ${errorMessage(err)}`,
         };
       } finally {
         // Our page, so we close it; disconnect() (not close()) on the browser itself, since that's Lightpanda's shared process, not ours to shut down.
