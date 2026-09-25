@@ -607,7 +607,10 @@ const spawnSubagent = tool(
       const translateState = createTranslateState();
       let lastState: { messages: BaseMessage[] } | undefined;
       // Local mirror of runs/service.ts's watchdog, scoped to just this call's messages.
-      const messageContents = new Map<string, string>();
+      const messageContents = new Map<
+        string,
+        { content: string; reasoningContent: string }
+      >();
       let lastProgressAt = Date.now();
       for await (const [mode, chunk] of stream) {
         if (mode === 'values') {
@@ -627,15 +630,25 @@ const spawnSubagent = tool(
           if (event.event === 'tool_input') lastProgressAt = Date.now();
 
           if (event.event === 'message') {
-            const content =
-              (messageContents.get(event.data.id) ?? '') + event.data.content;
-            messageContents.set(event.data.id, content);
+            const existing = messageContents.get(event.data.id) ?? {
+              content: '',
+              reasoningContent: '',
+            };
+            const updated = {
+              content: existing.content + event.data.content,
+              reasoningContent:
+                existing.reasoningContent + event.data.reasoningContent,
+            };
+            messageContents.set(event.data.id, updated);
 
             if (Date.now() - lastProgressAt >= IDLE_TOOL_CALL_MS) {
-              const repeated = findRepeatedText(
-                content,
-                REPEATED_TEXT_THRESHOLD,
-              );
+              // A loop can play out entirely inside the reasoning stream, so both fields need the same scan.
+              const repeated =
+                findRepeatedText(updated.content, REPEATED_TEXT_THRESHOLD) ??
+                findRepeatedText(
+                  updated.reasoningContent,
+                  REPEATED_TEXT_THRESHOLD,
+                );
               if (repeated) {
                 subagentController.abort(
                   new DOMException(
