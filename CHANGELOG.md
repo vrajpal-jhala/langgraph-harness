@@ -4,6 +4,30 @@ All notable changes to langgraph-harness are documented here.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-25
+
+### Features
+
+- **The run timeline now shows how long each "Thinking" step took** — previously there was no way to tell how much time the model spent reasoning before acting, for either the main agent or a per-file review sub-agent. Each reasoning step now shows a live-ticking counter while it's still thinking, and its final duration once it's done.
+
+### Fixes
+
+- **Fetching a web page during a review always failed with an unhelpful error** — a configuration issue in Lightpanda, the headless browser langgraph-harness uses to fetch pages, made every fetch fail immediately without a real explanation. Fetching now works, and any future failure will show what actually went wrong.
+- **A model stuck repeating itself while reasoning never triggered the safeguard that stops runaway runs** — that safeguard only checked the model's visible answer, so a model looping purely inside its own reasoning (before writing anything visible) could run unbounded instead of being caught, whether in the main agent or a review sub-agent. It now checks the model's reasoning too.
+- **An empty box could appear under a "Thinking" step with nothing in it** — a turn that produced only blank lines around a tool call still rendered its (invisible) content as a box, most noticeably on a review sub-agent's own turns. Blank turns no longer render anything.
+- **The context-usage number next to a step could show a confusing negative value** — it was computed from a number that also swings with how much the model reasoned on that particular step, rather than from how much the conversation itself actually grew. It's now based on the latter, so the number reliably increases as a review progresses.
+- **The loading indicator kept spinning in a finished sub-agent's view** — it tracked whether the review as a whole was still running rather than whether that specific sub-agent had finished, so its transcript looked like it was still working long after it had returned its findings.
+
+---
+
+## [0.3.0] - 2026-09-23
+
+### Features
+
+- **Two new free LLM providers for MR review** — reviews can now run on Google's Gemini or Groq's free-tier models, in addition to OpenRouter, Ollama, and sglang. This option is for MR review only; Chat doesn't support these providers yet.
+
+---
+
 ## [0.2.1] - 2026-09-21
 
 ### Fixes
