@@ -28,3 +28,49 @@ jobs:
       - run: npm --prefix frontend run typecheck
       - run: npm --prefix frontend run lint
       - run: npm run build
+
+  changelog-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Require a version bump + changelog entry for source changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          CHANGED=$(git diff --name-only "$BASE_SHA"...HEAD)
+
+          # Docs/meta-only PRs never need a version bump.
+          NEEDS_BUMP=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              docs/*|*.md|.github/*|demo-fixtures/*|deployment/*|scripts/*) ;;
+              *) NEEDS_BUMP=true ;;
+            esac
+          done <<< "$CHANGED"
+          if [ "$NEEDS_BUMP" = false ]; then
+            echo "Only docs/meta files changed — no version bump required."
+            exit 0
+          fi
+
+          # Manual escape hatch for a source change with no user-facing effect.
+          if gh pr view "$PR_NUMBER" --json labels -q '.labels[].name' | grep -qx "no-changelog-needed"; then
+            echo "Labeled no-changelog-needed — skipping."
+            exit 0
+          fi
+
+          BASE_VERSION=$(git show "$BASE_SHA:package.json" | node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(0,"utf8")).version)')
+          HEAD_VERSION=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(0,"utf8")).version)' < package.json)
+          CHANGELOG_TOUCHED=$(git diff --name-only "$BASE_SHA"...HEAD -- CHANGELOG.md)
+
+          if [ "$BASE_VERSION" = "$HEAD_VERSION" ] || [ -z "$CHANGELOG_TOUCHED" ]; then
+            echo "::error::This PR changes source files but doesn't bump package.json's version and update CHANGELOG.md. Run /update-changelog, or label this PR 'no-changelog-needed' if it has no user-facing effect."
+            exit 1
+          fi
+
+          echo "Version bumped $BASE_VERSION -> $HEAD_VERSION and CHANGELOG.md updated."

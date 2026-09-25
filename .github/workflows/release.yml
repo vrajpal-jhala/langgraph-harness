@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Check for a version bump
+        id: version
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          PREV=$(git show "$BEFORE_SHA:package.json" 2>/dev/null | node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(0,"utf8")).version)}catch{}' || echo "")
+          CURR=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(0,"utf8")).version)' < package.json)
+          echo "curr=$CURR" >> "$GITHUB_OUTPUT"
+          if [ -n "$PREV" ] && [ "$PREV" != "$CURR" ]; then
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Extract the matching changelog section
+        if: steps.version.outputs.bumped == 'true'
+        run: |
+          awk -v v="[${{ steps.version.outputs.curr }}]" '
+            /^## \[/ { if (capture) exit; if (index($0, v) > 0) capture=1; next }
+            capture && $0 != "---" { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+      - name: Create tag and release
+        if: steps.version.outputs.bumped == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.curr }}" \
+            --title "v${{ steps.version.outputs.curr }}" \
+            --notes-file /tmp/release-notes.md \
+            --target "${{ github.sha }}"
