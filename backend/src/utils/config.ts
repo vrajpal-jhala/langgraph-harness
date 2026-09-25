@@ -104,6 +104,7 @@ export const config = {
   },
   generation: {
     temperature: 0.1,
+    reasoning: false,
     provider: {
       [LLMProvider.OpenRouter]: {
         apiKey: process.env.OPENROUTER_API_KEY || '',
