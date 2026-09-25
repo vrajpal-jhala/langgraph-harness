@@ -189,12 +189,13 @@ const RunTimeline = ({
         const precedingContextTotal = activeSubagent
           ? 0
           : (precedingContextTotalByRunId[run.id] ?? 0);
+        // promptTokens, not totalTokens — completion (reasoning) swings turn to turn and mostly isn't resent as history.
         const contextDeltas = new Map(
           contextUsageEvents.map((e, i) => [
             e,
-            e.data.totalTokens -
+            e.data.promptTokens -
               (i > 0
-                ? contextUsageEvents[i - 1].data.totalTokens
+                ? contextUsageEvents[i - 1].data.promptTokens
                 : precedingContextTotal),
           ]),
         );
