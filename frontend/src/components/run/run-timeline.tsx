@@ -185,7 +185,26 @@ const RunTimeline = ({
             .map((e) => [e.data.node, e.data.payload]),
         );
 
+        const reasoningStartTs = new Map(
+          run.events
+            .filter((e) => e.event === 'reasoning_start')
+            .map((e) => [e.data.id, e.data.timestamp]),
+        );
+
+        const reasoningEndTs = new Map(
+          run.events
+            .filter((e) => e.event === 'reasoning_end')
+            .map((e) => [e.data.id, e.data.timestamp]),
+        );
+
         const hasCheckpoint = run.events.some((e) => e.event === 'checkpoint');
+
+        // A sub-agent erroring out doesn't change the parent run's status, so its own reasoning needs its own stop signal.
+        const erroredSubagentIds = new Set(
+          run.events
+            .filter((e) => e.event === 'subagent_error')
+            .map((e) => e.data.subagentId),
+        );
 
         const contextUsageEvents = run.events.filter(
           (
@@ -262,7 +281,9 @@ const RunTimeline = ({
             e.event === 'comment_critic_end' ||
             e.event === 'reply_critic_end' ||
             e.event === 'corrective_nudge_end' ||
-            e.event === 'extract_project_memory_end'
+            e.event === 'extract_project_memory_end' ||
+            e.event === 'reasoning_start' ||
+            e.event === 'reasoning_end'
           ) {
             return acc;
           }
@@ -1166,6 +1187,13 @@ const RunTimeline = ({
 
               if (event.event === 'message') {
                 const eventId = event.data.id;
+                const reasoningStart = reasoningStartTs.get(eventId);
+                const reasoningEnd = reasoningEndTs.get(eventId);
+                const reasoningDuration =
+                  reasoningStart && reasoningEnd
+                    ? formatDuration(reasoningEnd - reasoningStart)
+                    : null;
+
                 return (
                   <div
                     key={eventId}
@@ -1185,6 +1213,29 @@ const RunTimeline = ({
                           <Icon as={IconChevronDown} />
                         )}
                         <Text>Thinking</Text>
+                        {reasoningStart && reasoningEnd ? (
+                          <Tooltip
+                            label={new Date(reasoningStart).toLocaleString()}
+                          >
+                            <Text component="span" size="sm" c="dimmed" ml={8}>
+                              {reasoningDuration}
+                            </Text>
+                          </Tooltip>
+                        ) : (
+                          reasoningStart &&
+                          run.status === 'running' &&
+                          !(
+                            event.data.subagentId &&
+                            erroredSubagentIds.has(event.data.subagentId)
+                          ) && (
+                            <Text component="span" size="sm" c="dimmed" ml={8}>
+                              <Counter
+                                mode="up"
+                                startedAt={new Date(reasoningStart)}
+                              />
+                            </Text>
+                          )
+                        )}
                       </div>
                     )}
                     {!collapsed.includes(eventId) && (
