@@ -110,6 +110,14 @@ const RunTimeline = ({
   onCloseSubagent,
 }: IRunTimelineProps) => {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  // loading reflects the whole run, not the sub-agent in view — its own tool_output means it's done even if the run isn't.
+  const activeSubagentDone =
+    !!activeSubagent &&
+    runs.some((r) =>
+      r.events.some(
+        (e) => e.event === 'tool_output' && e.data.id === activeSubagent.id,
+      ),
+    );
   const resolvedToolCallIds = new Set(
     runs
       .filter((r) => r.resume_payload)
@@ -1368,7 +1376,7 @@ const RunTimeline = ({
           </Fragment>
         );
       })}
-      {loading && <LoadingBubbles />}
+      {loading && !activeSubagentDone && <LoadingBubbles />}
       <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
   );
