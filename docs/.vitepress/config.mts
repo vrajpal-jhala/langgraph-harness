@@ -113,14 +113,14 @@ export default defineConfig({
         ],
       },
       {
-        text: 'Gallery',
+        text: 'More',
         items: [
           { text: 'Screenshots', link: '/screenshots' },
           { text: 'Screencasts', link: '/screencasts' },
+          { text: 'Story', link: '/journey' },
+          { text: 'Changelog', link: '/changelog' },
         ],
       },
-      { text: 'Story', link: '/journey' },
-      { text: 'Changelog', link: '/changelog' },
     ],
 
     sidebar: [

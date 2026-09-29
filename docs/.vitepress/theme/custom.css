@@ -516,3 +516,12 @@ html.has-js .landing-section.is-visible {
   background-color: var(--vp-c-bg-mute);
   border-color: var(--vp-c-brand-1);
 }
+
+/* Six nav items + the full search pill overflow the navbar from the
+   768px hamburger breakpoint up to ~1200px, so collapse search to its icon. */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .VPNavBarSearch .DocSearch-Button-Placeholder,
+  .VPNavBarSearch .DocSearch-Button-Keys {
+    display: none;
+  }
+}
