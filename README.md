@@ -8,7 +8,7 @@
 
 Reviews merge requests, resolves work items and tasks autonomously, and chats with full project context — remembering what matters so every run builds on the last.
 
-In active production use since mid-2026 — 979 reviews, 64% comment acceptance rate (Sept 2026, [see snapshot](#screenshots)).
+Battle-tested in production since mid-2026 — **133 releases**, 1k+ reviews, 67% comment acceptance rate (Sept 29 2026, [see snapshot](#screenshots)). [Development history →](CHANGELOG.md) every failure and fix, documented.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-22%2B-339933?logo=node.js&logoColor=white)](package.json)
@@ -40,11 +40,24 @@ Full breakdown: [Features](https://vrajpal-jhala.github.io/langgraph-harness/fea
 ## Screenshots
 
 <div align="center">
-<img src="docs/public/screenshots/analytics-overview.png" width="720" alt="Real production analytics, Sept 2026 snapshot: 979 reviews, 64% comment acceptance rate over 30 days" />
-<img src="docs/public/screenshots/analytics-detail.png" width="720" alt="Real production analytics detail, Sept 2026 snapshot: reliability, efficiency, and guardrail health" />
+<img src="docs/public/screenshots/analytics-overview.png" width="720" alt="Real production analytics, Sept 29 2026 snapshot: 1k+ reviews, 67% comment acceptance rate" />
+<img src="docs/public/screenshots/analytics-detail.png" width="720" alt="Real production analytics detail, Sept 29 2026 snapshot: reliability, efficiency, and guardrail health" />
 </div>
 
 More in the [screenshots gallery](https://vrajpal-jhala.github.io/langgraph-harness/screenshots).
+
+## Roadmap
+
+- [x] Automatic MR reviews, issue-to-draft-MR, on-demand tasks, and a GitLab-aware chat
+- [x] Isolated sandbox for code-changing runs, with human approval before Chat takes sensitive actions
+- [x] Project memory that carries across reviews, and crashed runs that resume instead of restarting
+- [x] Recurring scheduled tasks
+- [ ] GitHub support: assign an issue to the bot, get a draft PR ([#35](https://github.com/vrajpal-jhala/langgraph-harness/issues/35))
+- [ ] Project memory that keeps itself up to date, with visibility into what it learned ([#2](https://github.com/vrajpal-jhala/langgraph-harness/issues/2))
+- [ ] A self-hosted memory engine that links related facts and retrieves them by relevance ([#1](https://github.com/vrajpal-jhala/langgraph-harness/issues/1))
+- [ ] Web search, so agents can look things up instead of only fetching a known page ([#24](https://github.com/vrajpal-jhala/langgraph-harness/issues/24))
+
+Everything else is tracked in [open issues](https://github.com/vrajpal-jhala/langgraph-harness/issues).
 
 ## Stack
 

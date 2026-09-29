@@ -4,6 +4,15 @@ All notable changes to langgraph-harness are documented here.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-29
+
+### Fixes
+
+- **A repository search for several alternatives at once found nothing** — the review agent's repo search treated `|`, `+`, `?` and parentheses as plain characters, so a pattern like `foo|bar` silently returned no matches. Searches now understand these as regular-expression syntax; searches explicitly marked as literal text are unaffected.
+- **Icons in the run timeline could get squashed** — the icon beside a tool call or retry row shrank when the row's text was long. It now keeps its size.
+
+---
+
 ## [0.4.0] - 2026-09-25
 
 ### Features

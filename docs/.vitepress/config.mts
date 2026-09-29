@@ -120,6 +120,7 @@ export default defineConfig({
         ],
       },
       { text: 'Story', link: '/journey' },
+      { text: 'Changelog', link: '/changelog' },
     ],
 
     sidebar: [
@@ -148,6 +149,7 @@ export default defineConfig({
           { text: 'Screenshots', link: '/screenshots' },
           { text: 'Screencasts', link: '/screencasts' },
           { text: 'The Story So Far', link: '/journey' },
+          { text: 'Changelog', link: '/changelog' },
         ],
       },
     ],

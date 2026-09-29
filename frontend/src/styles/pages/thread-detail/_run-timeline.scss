@@ -185,6 +185,10 @@
     gap: var(--mantine-spacing-xs);
     color: var(--mantine-color-dimmed);
 
+    > svg {
+      flex-shrink: 0;
+    }
+
     &:hover {
       color: var(--mantine-color-text);
     }
