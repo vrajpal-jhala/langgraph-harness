@@ -390,7 +390,7 @@ export const gitService = {
     fixedStrings?: boolean,
   ) => {
     if (pathspec) assertSafeRefArg(pathspec, 'pathspec');
-    const args = ['grep', '-n', '-I'];
+    const args = ['grep', '-n', '-I', '-E'];
     if (fixedStrings) args.push('--fixed-strings');
     args.push('-e', pattern);
     if (context) args.push('-C', String(context));
