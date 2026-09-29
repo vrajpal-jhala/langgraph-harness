@@ -460,7 +460,7 @@ const gitGrep = tool(
       pattern: z
         .string()
         .describe(
-          'Text or POSIX basic regex (BRE) to search for. In BRE, "(" and ")" are literal — do not escape parens to search for literal ones; "\\(" and "\\)" instead open/close a group. If unsure, or copying an exact snippet from source, set fixed: true instead of hand-escaping it.',
+          'Text or POSIX extended regex (ERE) to search for. In ERE, "(", ")", "|", "+", "?", "{" and "}" are special — escape them with a backslash to match them literally. If unsure, or copying an exact snippet from source, set fixed: true instead of hand-escaping it.',
         ),
       path: z
         .string()
