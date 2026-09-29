@@ -1,4 +1,10 @@
-import { RunKind, RunStatus, type Session, ThreadFilters } from '#types.js';
+import {
+  RunKind,
+  RunStatus,
+  type Session,
+  type Thread,
+  ThreadFilters,
+} from '#types.js';
 
 import { runsDal } from '#components/runs/dal.js';
 import { runsService } from '#components/runs/service.js';
@@ -87,6 +93,17 @@ export const threadsService = {
 
   assertCanMutate: (id: string, session: Session) =>
     checkThreadAccess(id, session, 'mutate'),
+
+  canMutate: (thread: Thread, session: Session) => {
+    try {
+      workflowsService
+        .forKind(thread.kind)
+        .checkAccess(thread, session, 'mutate');
+      return true;
+    } catch {
+      return false;
+    }
+  },
 
   list: (params: ThreadFilters) => threadsDal.list(params),
 

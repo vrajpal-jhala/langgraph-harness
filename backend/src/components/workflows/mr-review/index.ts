@@ -94,8 +94,11 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
   kind: RunKind.MrReview,
   name: WORKFLOW_NAME,
   description: WORKFLOW_DESCRIPTION,
-  checkAccess: (_thread, session, action) => {
-    if (action === 'mutate' && !isAdmin(session.username)) {
+  checkAccess: (thread, session, action) => {
+    // Empty-username guard: a session without a GitLab identity must never match an unset author.
+    const isAuthor =
+      !!session.username && thread.metadata?.mrAuthor === session.username;
+    if (action === 'mutate' && !isAdmin(session.username) && !isAuthor) {
       throw errors.runs.forbidden();
     }
   },

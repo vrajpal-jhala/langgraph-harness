@@ -14,6 +14,7 @@ import { enqueueWorkItemResolve } from '#components/workflows/work-item-resolve/
 
 import { webhookAuth } from '#utils/auth.js';
 import { config, isProjectInScope, llms } from '#utils/config.js';
+import { fetchMrAuthorUsername } from '#utils/gitlab.js';
 import { parseHarnessYml, shouldReviewBranch } from '#utils/harness-config.js';
 import { logger } from '#utils/logger.js';
 import { isAutomatedStatusNote } from '#utils/notes.js';
@@ -531,6 +532,18 @@ export const webhook = new Elysia({ prefix: '/webhooks' })
     // A push to a dormant MR reuses its archived thread — revive it so runsService.create doesn't reject the new review.
     if (thread.archived_at) {
       await threadsDal.update(thread.id, { archived_at: null });
+    }
+
+    // The MR payload only carries author_id, not the username session.username is compared against.
+    if (!thread.metadata?.mrAuthor) {
+      await fetchMrAuthorUsername(projectPath, String(mrIid))
+        .then((mrAuthor) => threadsDal.mergeMetadata(thread.id, { mrAuthor }))
+        .catch((err) =>
+          logger.error(
+            { err, threadId: thread.id },
+            '[webhook] MR author lookup failed',
+          ),
+        );
     }
 
     const query = {
