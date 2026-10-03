@@ -16,9 +16,7 @@ Battle-tested in production since mid-2026 — **133 releases**, 1k+ reviews, 67
 
 [Docs](https://vrajpal-jhala.github.io/langgraph-harness/) · [Getting Started](https://vrajpal-jhala.github.io/langgraph-harness/guide/getting-started) · [Features](https://vrajpal-jhala.github.io/langgraph-harness/features) · [Screenshots](https://vrajpal-jhala.github.io/langgraph-harness/screenshots) · [Screencasts](https://vrajpal-jhala.github.io/langgraph-harness/screencasts)
 
-<img src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/hero.gif" width="900" alt="Demo: agent resolving an issue end-to-end" />
-
-▶ [Watch the full demo (50s)](https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/launch-video.mp4)
+https://github.com/user-attachments/assets/5cb90928-054c-498e-bcfb-81d21a49f7f1
 
 </div>
 
