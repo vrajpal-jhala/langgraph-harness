@@ -169,6 +169,11 @@ html.has-js .landing-section.is-visible {
   margin: 0 auto;
 }
 
+.landing-video {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
 .landing-grid {
   display: grid;
   align-items: start;

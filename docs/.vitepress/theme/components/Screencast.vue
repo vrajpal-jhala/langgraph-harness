@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 
 const props = defineProps<{
   poster: string;
   src: string;
   label?: string;
   alt?: string;
+  aspect?: string;
+  autoplay?: boolean;
 }>();
 
+const rootEl = ref<HTMLElement | null>(null);
 const videoEl = ref<HTMLVideoElement | null>(null);
 const started = ref(false);
 const isPlaying = ref(false);
@@ -31,6 +34,43 @@ function start() {
   // wait for the video element to mount before calling play()
   requestAnimationFrame(() => videoEl.value?.play());
 }
+
+// Browsers only allow autoplay when muted; the mute button lets viewers turn sound on.
+function startMuted() {
+  started.value = true;
+  isMuted.value = true;
+  requestAnimationFrame(() => {
+    if (!videoEl.value) return;
+    videoEl.value.muted = true;
+    videoEl.value.play();
+  });
+}
+
+let observer: IntersectionObserver | undefined;
+// only resume on scroll-back if it was the observer that paused it, not the viewer
+let pausedOffscreen = false;
+
+onMounted(() => {
+  if (!props.autoplay || !rootEl.value) return;
+  // starts on scroll-in so the video is only downloaded by visitors who reach it
+  observer = new IntersectionObserver(
+    ([entry]) => {
+      const video = videoEl.value;
+      if (entry.isIntersecting) {
+        if (!started.value) startMuted();
+        else if (pausedOffscreen) video?.play();
+        pausedOffscreen = false;
+      } else if (video && !video.paused) {
+        video.pause();
+        pausedOffscreen = true;
+      }
+    },
+    { threshold: 0.5 },
+  );
+  observer.observe(rootEl.value);
+});
+
+onBeforeUnmount(() => observer?.disconnect());
 
 function togglePlay() {
   const video = videoEl.value;
@@ -80,7 +120,12 @@ function formatTime(seconds: number) {
 </script>
 
 <template>
-  <div class="screencast" @mousemove="started && showControls()">
+  <div
+    ref="rootEl"
+    class="screencast"
+    :style="aspect && { aspectRatio: aspect }"
+    @mousemove="started && showControls()"
+  >
     <img
       :src="poster"
       :alt="alt ?? 'Screencast preview'"
@@ -92,6 +137,8 @@ function formatTime(seconds: number) {
       ref="videoEl"
       :src="src"
       :aria-label="alt ?? 'Screencast'"
+      :loop="autoplay"
+      playsinline
       preload="none"
       class="screencast-media screencast-media--video"
       @click="togglePlay"

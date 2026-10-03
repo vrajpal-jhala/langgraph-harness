@@ -26,6 +26,22 @@ import { withBase } from 'vitepress'
 <div class="landing">
 
 <section class="landing-section landing-section--intro-center">
+  <p class="landing-eyebrow">See it in action</p>
+  <h2>Assign an issue. Get a merge request.</h2>
+
+  <div class="landing-video">
+    <Screencast
+      poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/launch-video.webp"
+      src="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/launch-video.mp4"
+      aspect="16 / 9"
+      autoplay
+      label="50s"
+      alt="langgraph-harness launch video"
+    />
+  </div>
+</section>
+
+<section class="landing-section landing-section--intro-center">
   <p class="landing-eyebrow">Get started</p>
   <h2>Clone it, configure it, run it</h2>
 
