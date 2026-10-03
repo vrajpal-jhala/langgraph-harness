@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.4.2] - 2026-10-03
+
+### Fixes
+
+- **The backend refused to start unless both Gemini and Groq API keys were set** — when Gemini and Groq support was added, their keys were left out of the optional list in the startup check, so it demanded them even when you only use one LLM provider. They're now optional, like the other provider keys.
+
+---
+
 ## [0.4.1] - 2026-09-29
 
 ### Fixes
