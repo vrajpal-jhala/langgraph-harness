@@ -40,7 +40,7 @@ export default defineConfig({
       {
         property: 'og:image',
         content:
-          'https://vrajpal-jhala.github.io/langgraph-harness/screenshots/analytics-overview.png',
+          'https://vrajpal-jhala.github.io/langgraph-harness/og-card.png',
       },
     ],
     [
@@ -72,7 +72,7 @@ export default defineConfig({
       {
         name: 'twitter:image',
         content:
-          'https://vrajpal-jhala.github.io/langgraph-harness/screenshots/analytics-overview.png',
+          'https://vrajpal-jhala.github.io/langgraph-harness/og-card.png',
       },
     ],
   ],
