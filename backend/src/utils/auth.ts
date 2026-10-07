@@ -38,7 +38,7 @@ export const getGitlabAccessToken = async (
       .execute();
     if (!acc) return undefined;
     const result = await auth.api.getAccessToken({
-      body: { accountId: acc.id },
+      body: { accountId: acc.id, userId },
     });
     return result.accessToken;
   } catch {
