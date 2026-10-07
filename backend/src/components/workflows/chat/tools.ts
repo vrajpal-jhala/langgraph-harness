@@ -6,7 +6,7 @@ import {
   tool,
   type ToolRuntime,
 } from '@langchain/core/tools';
-import { MultiServerMCPClient } from '@langchain/mcp-adapters';
+import { MCPAdapter } from '@langchain/mcp-adapters';
 import { z } from 'zod';
 
 import {
@@ -24,6 +24,7 @@ import { fetchWebPage } from '#components/workflows/web-fetch.js';
 import type { ChatToolContext } from './state.js';
 
 import { config, supermemoryProjects } from '#utils/config.js';
+import { throwOnToolError } from '#utils/helpers.js';
 import { logger } from '#utils/logger.js';
 
 const searchModeSchema = z
@@ -794,11 +795,11 @@ export const chatMcpServer = {
   },
 };
 
-// client.close() only tears down the local connection; without this the GitLab MCP server holds the session's dedicated Server instance in memory until its own idle timeout fires.
+// adapter.close() only tears down the local connection; without this the GitLab MCP server holds the session's dedicated Server instance in memory until its own idle timeout fires.
 async function terminateGitlabSession(
-  client: MultiServerMCPClient | null,
+  adapter: MCPAdapter | null,
 ): Promise<void> {
-  const transport = (await client?.getClient('gitlab'))?.transport;
+  const transport = (await adapter?.getClient('gitlab'))?.transport;
   if (transport && 'terminateSession' in transport) {
     await (transport as { terminateSession: () => Promise<void> })
       .terminateSession()
@@ -834,7 +835,7 @@ export async function buildChatTools({
     searchChatThreads,
     searchChatContent,
   ];
-  let client: MultiServerMCPClient | null = null;
+  let adapter: MCPAdapter | null = null;
 
   // Not configured everywhere (PoC) — skip rather than register tools that can only ever error.
   if (config.supermemory.apiKey && supermemoryProjects.length) {
@@ -853,21 +854,22 @@ export async function buildChatTools({
 
   // No token → no GitLab client at all, so we never open an unusable connection.
   if (gitlab && gitlabToken) {
-    client = new MultiServerMCPClient({
+    adapter = new MCPAdapter({
       prefixToolNameWithServerName: true,
-      useStandardContentBlocks: true,
-      mcpServers: {
+      servers: {
         gitlab: {
           transport: 'http',
+          mode: 'legacy',
+          // @zereight/mcp-gitlab is an SDK 1 server; a fallback would resend the Bearer token to a guessed /sse URL
+          automaticSSEFallback: false,
           url: gitlabMcpUrl,
           // secret: token rides only in this transport header, never as a tool arg
           headers: { Authorization: `Bearer ${gitlabToken}` },
-          automaticSSEFallback: false,
         },
       },
     });
 
-    tools.push(...(await client.getTools()));
+    tools.push(...throwOnToolError(await adapter.listTools()));
   }
 
   if (webSearch) {
@@ -878,8 +880,8 @@ export async function buildChatTools({
     tools,
     close: async () => {
       // Must terminate before close(): close() aborts the transport's request signal, which would cancel the DELETE terminateSession() sends.
-      await terminateGitlabSession(client);
-      await client?.close();
+      await terminateGitlabSession(adapter);
+      await adapter?.close();
     },
   };
 }

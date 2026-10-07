@@ -1,24 +1,24 @@
 import { createRequire } from 'node:module';
 import type { DynamicStructuredTool } from '@langchain/core/tools';
-import { MultiServerMCPClient } from '@langchain/mcp-adapters';
+import { MCPAdapter } from '@langchain/mcp-adapters';
 
 import { config } from '#utils/config.js';
+import { throwOnToolError } from '#utils/helpers.js';
 
 // resolve the locally installed binary instead of npx
 const gitlabMcpBin = createRequire(import.meta.url).resolve(
   '@zereight/mcp-gitlab/build/index.js',
 );
 
-let client: MultiServerMCPClient | null = null;
+let adapter: MCPAdapter | null = null;
 let toolsPromise: Promise<DynamicStructuredTool[]> | null = null;
 
 async function connect(): Promise<DynamicStructuredTool[]> {
-  client = new MultiServerMCPClient({
-    prefixToolNameWithServerName: true,
-    useStandardContentBlocks: true,
-    mcpServers: {
+  adapter = new MCPAdapter({
+    servers: {
       gitlab: {
         transport: 'stdio',
+        mode: 'legacy',
         command: 'node',
         args: [gitlabMcpBin],
         env: {
@@ -32,7 +32,7 @@ async function connect(): Promise<DynamicStructuredTool[]> {
     },
   });
 
-  return client.getTools();
+  return throwOnToolError(await adapter.listTools());
 }
 
 export const gitlabMcp = {
@@ -43,9 +43,9 @@ export const gitlabMcp = {
   },
   // Idempotent — so more than one workflow can call this concurrently at shutdown.
   close: async (): Promise<void> => {
-    if (!client) return;
-    const toClose = client;
-    client = null;
+    if (!adapter) return;
+    const toClose = adapter;
+    adapter = null;
     toolsPromise = null;
     await toClose.close();
   },

@@ -1,4 +1,4 @@
-import type { AIMessage, ToolMessage } from '@langchain/core/messages';
+import { type AIMessage, ToolMessage } from '@langchain/core/messages';
 import { DynamicStructuredTool } from 'langchain';
 
 const mcpPrefixSeparator = '__';
@@ -9,6 +9,28 @@ export const mcpToolName = (prefix: 'gitlab', name: string) =>
 export const mcpToolFilter =
   (allowList: Set<string>, prefix: 'gitlab') => (tool: DynamicStructuredTool) =>
     allowList.has(tool.name.replace(`${prefix}${mcpPrefixSeparator}`, ''));
+
+// mcp-adapters 2.0 returns server-reported errors as a ToolMessage instead of throwing; callers that rely on a throw (direct .invoke() bookkeeping, the {error} JSON the frontend keys on) need the 1.x behavior back.
+export function throwOnToolError(
+  tools: DynamicStructuredTool[],
+): DynamicStructuredTool[] {
+  for (const tool of tools) {
+    const call = tool.func.bind(tool);
+
+    tool.func = async (...args) => {
+      const out: unknown = await call(...args);
+      const message = Array.isArray(out) ? (out[0] as unknown) : out;
+
+      if (ToolMessage.isInstance(message) && message.status === 'error') {
+        throw new Error(messageContent(message.content));
+      }
+
+      return out;
+    };
+  }
+
+  return tools;
+}
 
 // Retries `fn` with exponential backoff (±25% jitter), calling `onAttemptFailed` on every failed attempt (including the last) before rethrowing on exhaustion.
 export async function retryWithBackoff<T>(
@@ -65,26 +87,7 @@ export function wasTruncatedByLength(message: AIMessage): boolean {
 }
 
 export function messageContent(content: ToolMessage['content']): string {
-  const raw =
-    typeof content === 'string'
-      ? content
-      : content.map((block) => ('text' in block ? block.text : '')).join('');
-
-  // @langchain/mcp-adapters (useStandardContentBlocks: true) wraps every MCP
-  // server's structured result as a stringified content block
-  // (`{ type: 'text', text: <json>, structuredContent: {...} }`) rather than
-  // the tool's actual payload — unwrap to the real JSON text underneath so
-  // callers parsing the result don't destructure fields off the envelope.
-  // Currently only exercised via the gitlab MCP server (the only one wired
-  // up in tools.ts), but the wrapping — and this unwrap — isn't gitlab-specific.
-  try {
-    const parsed = JSON.parse(raw) as { type?: string; text?: string };
-    if (parsed?.type === 'text' && typeof parsed.text === 'string') {
-      return parsed.text;
-    }
-  } catch {
-    // raw isn't JSON (or isn't the envelope) — return as-is
-  }
-
-  return raw;
+  return typeof content === 'string'
+    ? content
+    : content.map((block) => ('text' in block ? block.text : '')).join('');
 }
