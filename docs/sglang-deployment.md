@@ -44,9 +44,9 @@ Group write access is deliberately split by risk, mirroring how langgraph-harnes
 
 | Service  | Image                     | Purpose                                           |
 | -------- | ------------------------- | ------------------------------------------------- |
-| `sglang` | `lmsysorg/sglang:v0.5.16` | Model server, OpenAI-compatible API, port `30000` |
+| `sglang` | `lmsysorg/sglang:v0.5.21` | Model server, OpenAI-compatible API, port `30000` |
 
-Single-service stack — no database, no queue, no frontend. Pinned to `v0.5.16` explicitly, not `:latest` — an upgrade should be a deliberate, tested change (new FlashInfer/CUDA-toolkit combinations have been the source of most issues here; see below), not something that silently drifts on a routine restart.
+Single-service stack — no database, no queue, no frontend. Pinned to `v0.5.21` explicitly, not `:latest` — an upgrade should be a deliberate, tested change (new FlashInfer/CUDA-toolkit combinations have been the source of most issues here; see below), not something that silently drifts on a routine restart.
 
 ### Required launch flags, and why each exists
 
@@ -127,7 +127,7 @@ bash /opt/sglang/benchmark.sh            # throughput
 ## Known issues and history
 
 - **CUDA toolkit/driver mismatch**: the system-wide `/usr/bin/nvcc` is CUDA 12.0 (old Ubuntu package); SGLang's dependencies expect CUDA 13.x. Resolved by installing a pip-packaged CUDA 13.3 compiler (`nvidia-cuda-nvcc`) self-contained inside the venv/container, rather than touching the system-wide toolkit (a shared-box risk, avoided deliberately).
-- **`flashinfer` / `flashinfer-jit-cache` version drift**: both packages must be pinned to matching versions (`0.6.14` at time of writing) or SGLang refuses to start with a version-mismatch error.
+- **`flashinfer` / `flashinfer-jit-cache` version drift**: both packages must be pinned to matching versions (`0.6.18` at time of writing, with `lmsysorg/sglang:v0.5.21`) or SGLang refuses to start with a version-mismatch error.
 - **MoE tuning script bugs**: `benchmark/kernels/fused_moe_triton/tuning_fused_moe_triton.py` has real, unfixed bugs for `--dtype int4_w4a16` (wrong `block_shape` assumption; a follow-on dtype mismatch requiring dequantization logic the script doesn't implement). **Moot for this deployment anyway** — confirmed via source trace that AWQ MoE layers route through a separate Marlin-based kernel path that never touches the code this tuning script targets. The "Using default MoE kernel config" warning in server logs is expected and does not reflect real performance for this model+quant combination.
 - **P2P/NVLink**: not present on RTX 4090 by design (NVIDIA driver restriction, confirmed by NVIDIA engineering, not a hardware limitation) — see the `--disable-custom-all-reduce` row above. A driver patch to unlock this has been demonstrated elsewhere (~10-30% throughput gain on similar hardware) but we haven't attempted it, given the risk of modifying a production driver.
 
