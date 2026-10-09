@@ -2,6 +2,10 @@
 
 <!-- What does this change and why. -->
 
+## Related issue
+
+<!-- The issue this addresses, written as `Refs #N`. That only links it — issues here are closed manually, so don't use `Closes`/`Fixes`. Delete this section if there isn't one. -->
+
 ## How was this verified
 
 <!-- There's no test suite yet (#15) — describe what you ran / clicked through. -->
