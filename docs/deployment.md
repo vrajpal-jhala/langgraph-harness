@@ -126,6 +126,35 @@ sudo systemctl restart docker
 
 **`docker compose build` can fail DNS lookups that `docker compose up` never would.** BuildKit's build-step containers don't get the same automatic "loopback nameserver detected, substitute a public default" handling that regular container creation applies — so on a host using `systemd-resolved`'s stub (`nameserver 127.0.0.53` in `/etc/resolv.conf`), a `RUN npm ci`-style step can fail with `EAI_AGAIN` on every real registry fetch while `docker compose up`'s containers resolve DNS fine. Confirm the host's own resolution is healthy first (`resolvectl status`, `getent hosts <registry>`) before assuming this is the cause — if the host itself can't resolve, that's a different, bigger problem. Fixed by setting explicit resolvers in the main daemon's `/etc/docker/daemon.json`: `"dns": ["8.8.8.8", "1.1.1.1"]`.
 
+## Resource usage
+
+Measured on a running instance used by a small team across about 40–50 repositories (10–20 of them very active), handling about 800 runs a month, almost all of them MR reviews (a review runs again on each push to the MR), with a few thousand documents indexed in Supermemory and no sandboxes running. A review run averages about 26 LLM calls, roughly 2.4 million tokens. Use it as a sizing reference, not a requirement.
+
+| Container     | CPU (idle)                         | Memory                                          |
+| ------------- | ---------------------------------- | ----------------------------------------------- |
+| `backend`     | 0.3%                               | 400 MB after a restart, over 1 GB within a week |
+| `supermemory` | 0.2–1%, 115% seen during ingestion | 3.2 GB idle, 4.7 GB peak                        |
+| `postgres`    | 0.0%                               | 173 MB                                          |
+| `opensandbox` | 0.0%                               | 89 MB                                           |
+| `redis`       | 0.1%                               | 13 MB                                           |
+| `lightpanda`  | 0.0%                               | 3 MB                                            |
+
+| Disk                            | Size    |
+| ------------------------------- | ------- |
+| Postgres (data + database size) | 13.0 GB |
+| App (repositories + worktrees)  | 9.4 GB  |
+| Supermemory                     | 1.1 GB  |
+| Redis                           | 1.4 MB  |
+| OpenSandbox                     | 32 KB   |
+
+Postgres is almost all LangGraph checkpoint state (about 12 of the 13 GB). Cleanup jobs bound that and the repositories + worktrees figure: checkpoint state of chat and MR review threads is purged after 30 days, and released worktrees are removed after 7 days. Thread, run and event rows and the repository clones are kept, so both grow slowly. See `backend/README.md` for what is and isn't cleaned up.
+
+CPU figures are idle readings and rise with load. The `backend`'s memory depends on uptime: it starts around 400 MB and passes 1 GB within about a week, then resets on the next restart or deploy, so size for the larger figure.
+
+Running sandboxes come on top of this. Each one is a Kata VM, and the admin Monitoring page's Sandbox fleet card shows their combined CPU and memory.
+
+Supermemory runs its embeddings locally on CPU, so bulk ingestion is what drives its CPU and memory up. Its memory is bounded by `SUPERMEMORY_EMBEDDING_RAM_LIMIT` (`6gb` in `services/supermemory/.env.example`), and `SUPERMEMORY_INGEST_CONCURRENCY` (`8`) controls how many documents it processes at once.
+
 ## OpenSandbox
 
 `opensandbox` creates sibling containers (sandboxes) via the Docker API for the dev-agent workflow's sandboxed command/file execution — access to that API is otherwise equivalent to root on the host, so several mitigations are in place.
