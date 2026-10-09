@@ -1251,6 +1251,7 @@ export declare const app: Elysia<"", {
 					headers: {};
 					response: {
 						200: {
+							canMutate: boolean;
 							title: string;
 							kind: RunKind;
 							id: string;

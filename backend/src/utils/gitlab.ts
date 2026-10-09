@@ -89,6 +89,17 @@ export async function fetchMrDiscussions(
   return JSON.stringify({ items });
 }
 
+export async function fetchMrAuthorUsername(
+  projectId: string,
+  mrIid: string,
+): Promise<string> {
+  const encoded = encodeURIComponent(projectId);
+  const url = `${config.gitlab.apiUrl}/projects/${encoded}/merge_requests/${mrIid}`;
+  const res = await gitlabFetch(url);
+  const data = (await res.json()) as { author: { username: string } };
+  return data.author.username;
+}
+
 export async function fetchIssue(
   projectId: string,
   issueIid: string,

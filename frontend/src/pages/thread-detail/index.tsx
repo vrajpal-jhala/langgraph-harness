@@ -34,7 +34,6 @@ import {
 } from '@tabler/icons-react';
 
 import type { ContextUsageBreakdown, RunEvent, Thread, Todo } from '@/types';
-import { Role } from '@/types';
 
 import Icon from '@/components/icon';
 import RunList from '@/components/run/run-list';
@@ -47,7 +46,6 @@ import TodoList from './components/todo-list';
 import { api, ws } from '@/api';
 import { config } from '@/config';
 import { Context } from '@/contexts';
-import { useAuth } from '@/hooks/useAuth';
 import { useConfirmAction } from '@/hooks/useConfirmAction';
 import { useRunStream } from '@/hooks/useRunStream';
 import { useStickToBottom } from '@/hooks/useStickToBottom';
@@ -93,11 +91,14 @@ const ThreadDetailPage = () => {
     useMediaQuery(`(max-width: ${theme.breakpoints.md})`) ?? false;
   const { handleError } = use(Context);
   const { startTour, registerPageDrawer } = useTour();
-  const [thread, setThread] = useState<Omit<
-    Thread,
-    // missing from API
-    'run_count' | 'failure_count'
-  > | null>(null);
+  const [thread, setThread] = useState<
+    | (Omit<
+        Thread,
+        // missing from API
+        'run_count' | 'failure_count'
+      > & { canMutate: boolean })
+    | null
+  >(null);
   const [loadedThreadId, setLoadedThreadId] = useState(threadId);
   const {
     runs,
@@ -123,8 +124,7 @@ const ThreadDetailPage = () => {
     Record<string, number>
   >({});
   const abortRef = useRef<AbortController | null>(null);
-  const { user } = useAuth();
-  const isAdmin = user?.role === Role.Admin;
+  const canMutate = !!thread?.canMutate;
   const retryRun = useConfirmAction({
     title: 'Retry run',
     message: 'Retry this run from this checkpoint?',
@@ -352,7 +352,7 @@ const ThreadDetailPage = () => {
   }, [threadId, doStreamRun, handleError, setRuns, streamingForRef]);
 
   const requestRetry = (runId: string, checkpointId?: string) => {
-    if (!threadId || anyRunActive || !isAdmin) return;
+    if (!threadId || anyRunActive || !canMutate) return;
     retryRun.request(async () => {
       const controller = new AbortController();
       abortRef.current = controller;
@@ -402,7 +402,7 @@ const ThreadDetailPage = () => {
   };
 
   const requestAbort = () => {
-    if (!threadId || !selectedRunId || !isAdmin) return;
+    if (!threadId || !selectedRunId || !canMutate) return;
     abortRun.request(async () => {
       const { error } = await api
         .threads({ id: threadId })
@@ -629,7 +629,7 @@ const ThreadDetailPage = () => {
           </Tooltip>
         )}
       </Group>
-      {selectedRun?.status === 'running' && isAdmin && (
+      {selectedRun?.status === 'running' && canMutate && (
         <>
           <Button
             color="red"
@@ -810,7 +810,7 @@ const ThreadDetailPage = () => {
                 loading={anyRunActive}
                 onCollapse={handleCollapse}
                 onRetry={
-                  isAdmin && !thread?.archived_at ? requestRetry : undefined
+                  canMutate && !thread?.archived_at ? requestRetry : undefined
                 }
                 onDecision={() => {}}
                 precedingContextTotalByRunId={precedingContextTotalByRunId}
