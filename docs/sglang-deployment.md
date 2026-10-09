@@ -78,6 +78,8 @@ Two models are kept in `hf-cache/hub`, both validated end-to-end (tool-calling c
 | `QuantTrio/Qwen3.6-35B-A3B-AWQ` | QuantTrio | **Production**                     | ✅ Passes tool-calling test; ~985 tok/s aggregate at 8 concurrent |
 | `cyankiwi/Qwen3.6-27B-AWQ-INT4` | cyankiwi  | Quality-comparison (dense vs. MoE) | ✅ Passes tool-calling test; ~452 tok/s aggregate at 8 concurrent |
 
+End to end on this setup (two RTX 4090s, the production model above), a typical MR review run takes about 1.5 minutes, with a 95th percentile under 4 minutes. Task (code implementation) runs depend on the task: as one example, a dependency-update task that bumps minor and patch versions took about 4 minutes on average, with a 95th percentile around 7 minutes (9 runs). Run time follows the model backend, so expect different timings on other hardware or a hosted provider.
+
 Known-broken quants for this model family — **kept out of the cache deliberately, do not re-download without re-validating**:
 
 | Model                               | Quantizer | Failure mode                                                                                                                         |
