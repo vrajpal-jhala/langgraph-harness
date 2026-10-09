@@ -105,6 +105,8 @@ jobs:
           while IFS= read -r f; do
             [ -z "$f" ] && continue
             case "$f" in
+              # Markdown under src is runtime content (e.g. the review agent's skill prompts), not docs.
+              backend/src/*|frontend/src/*) NEEDS_BUMP=true ;;
               docs/*|*.md|.github/*|demo-fixtures/*|deployment/*|scripts/*) ;;
               *) NEEDS_BUMP=true ;;
             esac
