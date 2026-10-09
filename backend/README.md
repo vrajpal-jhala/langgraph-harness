@@ -203,6 +203,8 @@ Incoming webhooks are filtered by project path (`mrReview.projectPathFilters` in
 
 A review thread untouched for `mrReview.archivalRetentionMs` (default: 30 days) is archived automatically: its checkpoint state is purged to bound storage growth, but the thread and its run history remain — only retrying it is blocked. A new push to the same MR still starts a fresh review as normal. Chat threads are archived the same way after `chat.retentionMs` of inactivity.
 
+Archival runs as an hourly sweep. Work Item Resolve and Task Resolve threads aren't swept, so their checkpoint state is kept until the thread is deleted. Released git worktrees are removed after `repositories.worktreeRetentionMs` (default: 7 days) by an hourly maintenance pass; the repository clones themselves are kept.
+
 ## Automated Work Item Resolve
 
 Work-item-resolve is triggered by assigning the bot to a GitLab Issue or Task — no manual command needed.
