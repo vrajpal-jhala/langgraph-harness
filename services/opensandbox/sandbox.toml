@@ -10,7 +10,7 @@ level = "INFO"
 
 [runtime]
 type = "docker"
-execd_image = "opensandbox/execd:v1.0.21"
+execd_image = "opensandbox/execd:release-1.1.1"
 
 [secure_runtime]
 type = "kata"
@@ -45,7 +45,7 @@ seccomp_profile = ""
 mode = "direct"
 
 [egress]
-image = "opensandbox/egress:v1.1.4"
+image = "opensandbox/egress:release-1.1.1"
 # Inert — no sandbox request sets networkPolicy, so the egress sidecar never attaches.
 mode = "dns+nft"
 
