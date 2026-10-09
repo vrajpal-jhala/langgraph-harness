@@ -23,7 +23,7 @@ CI runs the same checks. There is no test suite yet ([#15](https://github.com/vr
 ## PRs
 
 - Keep PRs scoped to one change; unrelated cleanup goes in its own PR.
-- Update `CHANGELOG.md` under `[Unreleased]` for any user-facing change.
+- A PR that changes source files needs a version bump in `package.json` and a matching `CHANGELOG.md` entry, or CI's `changelog-check` fails. `/update-changelog` drafts both; otherwise follow the existing entries by hand. Docs and meta-only PRs are exempt, and if your change has no user-facing effect, ask a maintainer to skip the check.
 - Disclose AI assistance (the PR template has a checkbox for this) — we allow it, we just want to know the context.
 
 ## Branch names
