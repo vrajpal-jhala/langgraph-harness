@@ -21,6 +21,7 @@ export type Role = (typeof Role)[keyof typeof Role];
 export type Session = {
   id: string;
   username: string;
+  gitlabId: number | null;
   name: string;
   avatarUrl: string | null;
 };

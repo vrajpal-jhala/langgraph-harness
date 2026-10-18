@@ -143,9 +143,7 @@ export const runsService = {
     if (!thread) throw errors.threads.notFound();
     if (thread.archived_at) throw errors.threads.archived();
 
-    const originalRun = await runsDal.findById(runId);
-
-    if (!originalRun) throw errors.runs.notFound();
+    const originalRun = await runsService.getById(runId, id);
 
     if (!llms.some((l) => l.model === originalRun.input.model)) {
       throw errors.runs.unknownModel(originalRun.input.model);
@@ -242,8 +240,7 @@ export const runsService = {
     if (!thread) throw errors.threads.notFound();
     if (thread.archived_at) throw errors.threads.archived();
 
-    const originalRun = await runsDal.findById(runId);
-    if (!originalRun) throw errors.runs.notFound();
+    const originalRun = await runsService.getById(runId, id);
 
     const workflow = workflowsService.forKind(originalRun.kind);
     if (

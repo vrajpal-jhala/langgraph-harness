@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.5.0] - 2026-10-15
+
+### Features
+
+- **The author of a merge request can now abort or retry its review** — previously only admins could stop a running review or start it again, so an author waiting on a stuck or failed review of their own MR had to ask an admin. The Abort and Retry controls now also appear for the MR's author on that review's page, and work for them. Reviews of MRs that already existed pick up their author the next time the MR is pushed to or reopened; until then they stay admin-only. Deleting a review is still admin-only.
+
+---
+
 ## [0.4.3] - 2026-10-07
 
 ### Fixes

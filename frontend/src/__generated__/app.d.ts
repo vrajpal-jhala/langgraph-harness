@@ -87,6 +87,7 @@ declare const auth: import("better-auth").Auth<{
 					handler: import("better-auth").Middleware<import("better-auth").MiddlewareOptions, (inputContext: import("better-auth").MiddlewareInputContext<import("better-auth").MiddlewareOptions>) => Promise<{
 						id: string;
 						username: string;
+						gitlabId: number | null;
 						name: string;
 						avatarUrl: string | null;
 						role: "admin" | "viewer";
@@ -126,6 +127,7 @@ declare const auth: import("better-auth").Auth<{
 				}, {
 					id: string;
 					username: string;
+					gitlabId: number | null;
 					name: string;
 					avatarUrl: string | null;
 					role: "admin" | "viewer";
@@ -135,6 +137,7 @@ declare const auth: import("better-auth").Auth<{
 				Session: {
 					id: string;
 					username: string;
+					gitlabId: number | null;
 					name: string;
 					avatarUrl: string | null;
 					role: "admin" | "viewer";
@@ -199,6 +202,7 @@ declare const harnessConfigSchema: z.ZodObject<{
 type Session = {
 	id: string;
 	username: string;
+	gitlabId: number | null;
 	name: string;
 	avatarUrl: string | null;
 };

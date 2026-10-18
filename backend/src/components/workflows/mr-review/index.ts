@@ -94,8 +94,11 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
   kind: RunKind.MrReview,
   name: WORKFLOW_NAME,
   description: WORKFLOW_DESCRIPTION,
-  checkAccess: (_thread, session, action) => {
-    if (action === 'mutate' && !isAdmin(session.username)) {
+  checkAccess: (thread, session, action) => {
+    const isAuthor =
+      session.gitlabId != null &&
+      thread.metadata?.mrAuthorId === session.gitlabId;
+    if (action === 'mutate' && !isAdmin(session.username) && !isAuthor) {
       throw errors.runs.forbidden();
     }
   },

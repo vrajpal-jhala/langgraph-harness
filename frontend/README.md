@@ -19,7 +19,7 @@ React admin UI for monitoring langgraph-harness agent runs, and for chatting dir
 **UI highlights:**
 
 - Guided product tour — first-time walkthrough of the app, replayable anytime from the help button
-- GitLab sign-in — required to use the app; destructive actions (abort, delete) are restricted to specific GitLab accounts
+- GitLab sign-in — required to use the app; destructive actions (abort, delete) are restricted to specific GitLab accounts, except that an MR's author can also abort or retry the review of their own MR
 - Confirmation popup — shown before a destructive action goes through
 - Errored tool calls highlighted — visually distinct from successful ones
 - Crash recovery screen — a friendly fallback with a reload button and a one-click crash report copy, instead of a blank page, if something goes wrong

@@ -95,6 +95,10 @@ export const api = new Elysia({ prefix: '/api' })
           )
           .delete('/', async ({ params, session, set }) => {
             await threadsService.assertCanMutate(params.id, session);
+            // An MR's author may abort or retry its review, but only an admin can delete it.
+            const thread = await threadsDal.findById(params.id);
+            if (thread?.kind === RunKind.MrReview && !isAdmin(session.username))
+              throw errors.runs.forbidden();
             await threadsService.delete(params.id);
             set.status = 204;
           }),

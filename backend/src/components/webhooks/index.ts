@@ -533,6 +533,12 @@ export const webhook = new Elysia({ prefix: '/webhooks' })
       await threadsDal.update(thread.id, { archived_at: null });
     }
 
+    // Remember who opened the MR so they can abort or retry its review. Not the top-level `user`, which is whoever triggered this event.
+    const authorId = object_attributes?.author_id;
+    if (typeof authorId === 'number' && thread.metadata?.mrAuthorId == null) {
+      await threadsDal.mergeMetadata(thread.id, { mrAuthorId: authorId });
+    }
+
     const query = {
       note: `Perform a code review of MR !${mrIid} in project "${projectPath}".`,
       projectId: projectPath,

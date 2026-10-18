@@ -124,7 +124,10 @@ const ThreadDetailPage = () => {
   >({});
   const abortRef = useRef<AbortController | null>(null);
   const { user } = useAuth();
-  const isAdmin = user?.role === Role.Admin;
+  // Only hides the buttons; the server still checks every abort and retry.
+  const canMutate =
+    user?.role === Role.Admin ||
+    (user?.gitlabId != null && thread?.metadata?.mrAuthorId === user.gitlabId);
   const retryRun = useConfirmAction({
     title: 'Retry run',
     message: 'Retry this run from this checkpoint?',
@@ -352,7 +355,7 @@ const ThreadDetailPage = () => {
   }, [threadId, doStreamRun, handleError, setRuns, streamingForRef]);
 
   const requestRetry = (runId: string, checkpointId?: string) => {
-    if (!threadId || anyRunActive || !isAdmin) return;
+    if (!threadId || anyRunActive || !canMutate) return;
     retryRun.request(async () => {
       const controller = new AbortController();
       abortRef.current = controller;
@@ -402,7 +405,7 @@ const ThreadDetailPage = () => {
   };
 
   const requestAbort = () => {
-    if (!threadId || !selectedRunId || !isAdmin) return;
+    if (!threadId || !selectedRunId || !canMutate) return;
     abortRun.request(async () => {
       const { error } = await api
         .threads({ id: threadId })
@@ -629,7 +632,7 @@ const ThreadDetailPage = () => {
           </Tooltip>
         )}
       </Group>
-      {selectedRun?.status === 'running' && isAdmin && (
+      {selectedRun?.status === 'running' && canMutate && (
         <>
           <Button
             color="red"
@@ -810,7 +813,7 @@ const ThreadDetailPage = () => {
                 loading={anyRunActive}
                 onCollapse={handleCollapse}
                 onRetry={
-                  isAdmin && !thread?.archived_at ? requestRetry : undefined
+                  canMutate && !thread?.archived_at ? requestRetry : undefined
                 }
                 onDecision={() => {}}
                 precedingContextTotalByRunId={precedingContextTotalByRunId}

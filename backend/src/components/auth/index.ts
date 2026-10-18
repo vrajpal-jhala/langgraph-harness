@@ -86,10 +86,16 @@ export const auth = betterAuth({
       const gitlabUsername =
         (user as typeof user & { gitlabUsername?: string }).gitlabUsername ??
         '';
+      // better-auth saves the GitLab user ID as text when the user signs in; MR webhooks send the same ID as a number.
+      const { rows } = await pool.query<{ accountId: string }>(
+        `SELECT "accountId" FROM account WHERE "userId" = $1 AND "providerId" = 'gitlab' LIMIT 1`,
+        [user.id],
+      );
 
       return {
         id: user.id,
         username: gitlabUsername,
+        gitlabId: rows[0] ? Number(rows[0].accountId) : null,
         name: user.name,
         avatarUrl: user.image ?? null,
         role: config.auth.adminGitlabUsernames.includes(gitlabUsername)
