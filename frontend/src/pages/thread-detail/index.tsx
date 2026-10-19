@@ -1,5 +1,10 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import {
   ActionIcon,
   Badge,
@@ -87,6 +92,8 @@ const CONTEXT_BREAKDOWN_ORDER: (keyof ContextUsageBreakdown)[] = [
 const ThreadDetailPage = () => {
   const { threadId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const backTo: string = location.state?.from ?? '/threads';
   const [searchParams, setSearchParams] = useSearchParams();
   const theme = useMantineTheme();
   const isTablet =
@@ -170,10 +177,10 @@ const ThreadDetailPage = () => {
           next.set('run', id);
           return next;
         },
-        { replace: true },
+        { replace: true, state: location.state },
       );
     },
-    [setSearchParams],
+    [setSearchParams, location.state],
   );
 
   // Only sets a default when the selection doesn't resolve to a real run — never overrides a deliberately-opened one.
@@ -598,8 +605,8 @@ const ThreadDetailPage = () => {
         <ActionIcon
           variant="subtle"
           color="gray"
-          onClick={() => navigate('/threads')}
-          aria-label="Back to sessions"
+          onClick={() => navigate(backTo)}
+          aria-label="Back"
         >
           <Icon as={IconArrowLeft} />
         </ActionIcon>

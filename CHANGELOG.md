@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.5.1] - 2026-10-19
+
+### Fixes
+
+- **The back arrow on a thread always went to the Sessions list** — opening a thread from the dashboard queue or from a schedule's run history, then pressing back, dropped you on Sessions instead of the page you came from. It now returns you to the dashboard or the schedules page; threads opened from anywhere else still go back to Sessions.
+
+---
+
 ## [0.5.0] - 2026-10-15
 
 ### Features

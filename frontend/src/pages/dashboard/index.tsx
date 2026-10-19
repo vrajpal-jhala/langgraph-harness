@@ -97,6 +97,7 @@ const QueueCard = ({
                   <Anchor
                     component={Link}
                     to={`/threads/${job.threadId}`}
+                    state={{ from: '/dashboard' }}
                     size="sm"
                     truncate
                   >
