@@ -1,30 +1,15 @@
 diff --git a/node_modules/@langchain/core/dist/runnables/base.js b/node_modules/@langchain/core/dist/runnables/base.js
-index 655c9eb..c1d3bbb 100644
+index 655c9eb..120b564 100644
 --- a/node_modules/@langchain/core/dist/runnables/base.js
 +++ b/node_modules/@langchain/core/dist/runnables/base.js
-@@ -353,6 +353,7 @@ var Runnable = class extends Serializable {
- 					await logStreamCallbackHandler.writer.write(patch);
- 				}
- 			} finally {
-+				config.signal?.removeEventListener("abort", onParentAbort);
- 				await logStreamCallbackHandler.writer.close();
- 			}
+@@ -389,25 +389,18 @@ var Runnable = class extends Serializable {
  		}
-@@ -360,6 +361,7 @@ var Runnable = class extends Serializable {
- 		try {
- 			for await (const log of logStreamCallbackHandler) yield log;
- 		} finally {
-+			config.signal?.removeEventListener("abort", onParentAbort);
- 			await runnableStreamConsumePromise;
- 		}
- 	}
-@@ -390,24 +392,17 @@ var Runnable = class extends Serializable {
  		const abortController = new AbortController();
  		const outerThis = this;
++		const onParentAbort = () => abortController.abort(config.signal.reason);
++		config.signal?.addEventListener("abort", onParentAbort, { once: true });
  		async function consumeRunnableStream() {
 -			let signal;
-+			const onParentAbort = () => abortController.abort(config.signal.reason);
-+			config.signal?.addEventListener("abort", onParentAbort, { once: true });
  			try {
 -				if (config.signal) {
 -					if ("any" in AbortSignal) signal = AbortSignal.any([abortController.signal, config.signal]);
@@ -47,7 +32,7 @@ index 655c9eb..c1d3bbb 100644
  				await eventStreamer.finish();
  			}
  		}
-@@ -429,6 +424,7 @@ var Runnable = class extends Serializable {
+@@ -429,6 +422,7 @@ var Runnable = class extends Serializable {
  				yield event;
  			}
  		} finally {
