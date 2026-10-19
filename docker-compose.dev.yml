@@ -21,7 +21,7 @@ services:
       start_period: 5s
 
   redis:
-    image: redis:8.8.3-alpine
+    image: redis:8.10.2-alpine
     container_name: harness_redis
     ports:
       - '6379:6379'
@@ -35,7 +35,7 @@ services:
       retries: 15
 
   lightpanda:
-    image: lightpanda/browser:1.0.0
+    image: lightpanda/browser:1.0.1
     container_name: harness_lightpanda
     command: [
         '/bin/lightpanda',
