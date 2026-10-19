@@ -215,7 +215,18 @@ sudo ufw route allow in on docker-kata0 out on <your-uplink-interface>
 
 Find your uplink interface with `ip route show default` (the `dev` field on the default route) — ours was `enp36s0f0`, yours will likely be named differently.
 
-Symptom: sandboxes create successfully (creation only needs the Docker API via `docker-socket-proxy-kata`, on `harness_default`) but every outbound connection from inside one — including the egress sidecar's own upstream DNS — hangs until timeout. Diagnose with `sudo iptables -L DOCKER-BRIDGE -n -v` (no entry for `docker-kata0`) or a live capture on `docker-kata0` vs. the physical uplink to see where packets stop.
+That only opens forwarding. `docker-kata`'s `iptables: false` also means it installs no NAT, and the main daemon masquerades only the networks it owns, so `docker-kata0` (`172.20.0.0/16`) needs a masquerade rule of its own — without one, packets leave the host with their private source address and no reply can return. Same standing-rule approach, as a `*nat` block above `*filter` in `/etc/ufw/before.rules` (loaded by UFW at boot), not a raw `iptables` rule:
+
+```
+*nat
+:POSTROUTING ACCEPT [0:0]
+-A POSTROUTING -s 172.20.0.0/16 ! -o docker-kata0 -j MASQUERADE
+COMMIT
+```
+
+Apply with `sudo ufw reload`, with no sandbox running.
+
+Symptom (either rule missing): sandboxes create successfully (creation only needs the Docker API via `docker-socket-proxy-kata`, on `harness_default`) but every outbound connection from inside one — including the egress sidecar's own upstream DNS, and so any `npm install` — hangs until timeout. Diagnose with `sudo iptables -L DOCKER-BRIDGE -n -v` (no entry for `docker-kata0`), `sudo iptables -t nat -S POSTROUTING | grep 172.20` (no masquerade line), or a live capture on `docker-kata0` vs. the physical uplink to see where packets stop. Neither check is implied by a successful sandbox create, so after a reboot or host update confirm outbound traffic directly: a `curl` to `https://registry.npmjs.org/-/ping` from `docker -H unix:///run/docker-kata/docker.sock run --rm --runtime kata node:22-bookworm` should return `200`.
 
 **Audit log.** Every sandbox lifecycle call the dev-agent workflow makes is captured as a `RunEvent`: `Sandbox.create`/teardown as explicit `run_step_start`/`run_step_end` pairs (`work-item-resolve/index.ts`), and `commands.run`/`files.writeFiles` automatically via LangGraph's tool-call instrumentation (`stream-translator.ts`), output capped at 40k chars per call.
 
