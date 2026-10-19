@@ -41,7 +41,9 @@ a real, signed-in session cookie:
   `<host>`, go to Application/Storage → Cookies, and copy the value of
   whichever cookie name contains `session_token` (better-auth names it
   `better-auth.session_token`, or `__Secure-better-auth.session_token`
-  under HTTPS).
+  when `useSecureCookies` is on — it's off whenever any trusted origin is
+  http, even if the user reaches the app over https, and the `__Secure-`
+  variant 401s there).
 - Only ever ask for that already-issued cookie value — never a password or
   GitLab credential. It grants no more than the user can already do signed
   in via the browser, and expires/rotates like any other session.
