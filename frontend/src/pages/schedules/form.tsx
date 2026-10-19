@@ -96,7 +96,9 @@ export const ScheduleForm = ({ schedule }: { schedule?: TaskSchedule }) => {
       });
       setSubmitting(false);
       if (error) return handleError(error.value, 'Failed to start task');
-      return navigate(`/threads/${data.thread.id}`);
+      return navigate(`/threads/${data.thread.id}`, {
+        state: { from: '/schedules' },
+      });
     }
 
     const body =

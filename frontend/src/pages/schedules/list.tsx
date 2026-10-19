@@ -94,6 +94,7 @@ const RunHistory = ({ scheduleId }: { scheduleId: string }) => {
               <Text
                 component={Link}
                 to={`/threads/${run.id}`}
+                state={{ from: '/schedules' }}
                 size="sm"
                 className="schedule-run-link"
               >
