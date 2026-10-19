@@ -13,7 +13,7 @@ ENV SUPERMEMORY_NO_START=1
 # Don't prompt (no TTY during docker build)
 ENV SUPERMEMORY_NO_PROMPT=1
 
-RUN curl -fsSL https://github.com/supermemoryai/supermemory/releases/download/server-v0.0.8/install.sh | bash -s -- 0.0.8
+RUN curl -fsSL https://github.com/supermemoryai/supermemory/releases/download/server-v0.0.9/install.sh | bash -s -- 0.0.9
 
 EXPOSE 6767
 

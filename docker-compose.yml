@@ -23,14 +23,14 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:8.8.3-alpine
+    image: redis:8.10.2-alpine
     container_name: harness_redis
     volumes:
       - ${DATA_PATH}/redis:/data
     restart: unless-stopped
 
   lightpanda:
-    image: lightpanda/browser:1.0.0
+    image: lightpanda/browser:1.0.1
     container_name: harness_lightpanda
     # advertise-host: the default response advertises --host (0.0.0.0), which
     # puppeteer.connect() can't dial — advertise the docker-network service name backend uses.
