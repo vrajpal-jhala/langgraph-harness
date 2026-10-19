@@ -177,10 +177,10 @@ const ThreadDetailPage = () => {
           next.set('run', id);
           return next;
         },
-        { replace: true },
+        { replace: true, state: location.state },
       );
     },
-    [setSearchParams],
+    [setSearchParams, location.state],
   );
 
   // Only sets a default when the selection doesn't resolve to a real run — never overrides a deliberately-opened one.
