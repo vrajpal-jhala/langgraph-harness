@@ -24,7 +24,11 @@ import { fetchWebPage } from '#components/workflows/web-fetch.js';
 import type { ChatToolContext } from './state.js';
 
 import { config, supermemoryProjects } from '#utils/config.js';
-import { throwOnToolError } from '#utils/helpers.js';
+import {
+  assertMcpToolNames,
+  mcpToolNameOptions,
+  throwOnToolError,
+} from '#utils/helpers.js';
 import { logger } from '#utils/logger.js';
 
 const searchModeSchema = z
@@ -837,6 +841,12 @@ export async function buildChatTools({
   ];
   let adapter: MCPAdapter | null = null;
 
+  const close = async () => {
+    // Must terminate before close(): close() aborts the transport's request signal, which would cancel the DELETE terminateSession() sends.
+    await terminateGitlabSession(adapter);
+    await adapter?.close();
+  };
+
   // Not configured everywhere (PoC) — skip rather than register tools that can only ever error.
   if (config.supermemory.apiKey && supermemoryProjects.length) {
     tools.push(listProjects, searchProjectHistory, getProjectIssue);
@@ -855,7 +865,7 @@ export async function buildChatTools({
   // No token → no GitLab client at all, so we never open an unusable connection.
   if (gitlab && gitlabToken) {
     adapter = new MCPAdapter({
-      prefixToolNameWithServerName: true,
+      ...mcpToolNameOptions('gitlab'),
       servers: {
         gitlab: {
           transport: 'http',
@@ -869,19 +879,20 @@ export async function buildChatTools({
       },
     });
 
-    tools.push(...throwOnToolError(await adapter.listTools()));
+    try {
+      const gitlabTools = await adapter.listTools();
+      assertMcpToolNames(gitlabTools, 'gitlab');
+      tools.push(...throwOnToolError(gitlabTools));
+    } catch (err) {
+      // buildChatTools throws before returning close(), so the caller can't release this session
+      await close();
+      throw err;
+    }
   }
 
   if (webSearch) {
     tools.push(fetchWebPage);
   }
 
-  return {
-    tools,
-    close: async () => {
-      // Must terminate before close(): close() aborts the transport's request signal, which would cancel the DELETE terminateSession() sends.
-      await terminateGitlabSession(adapter);
-      await adapter?.close();
-    },
-  };
+  return { tools, close };
 }

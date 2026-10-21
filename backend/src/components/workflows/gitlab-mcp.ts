@@ -3,7 +3,11 @@ import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { MCPAdapter } from '@langchain/mcp-adapters';
 
 import { config } from '#utils/config.js';
-import { throwOnToolError } from '#utils/helpers.js';
+import {
+  assertMcpToolNames,
+  mcpToolNameOptions,
+  throwOnToolError,
+} from '#utils/helpers.js';
 
 // resolve the locally installed binary instead of npx
 const gitlabMcpBin = createRequire(import.meta.url).resolve(
@@ -15,6 +19,7 @@ let toolsPromise: Promise<DynamicStructuredTool[]> | null = null;
 
 async function connect(): Promise<DynamicStructuredTool[]> {
   adapter = new MCPAdapter({
+    ...mcpToolNameOptions('gitlab'),
     servers: {
       gitlab: {
         transport: 'stdio',
@@ -32,7 +37,9 @@ async function connect(): Promise<DynamicStructuredTool[]> {
     },
   });
 
-  return throwOnToolError(await adapter.listTools());
+  return throwOnToolError(
+    assertMcpToolNames(await adapter.listTools(), 'gitlab'),
+  );
 }
 
 export const gitlabMcp = {
