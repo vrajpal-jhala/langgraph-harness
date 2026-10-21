@@ -177,13 +177,14 @@ export const workItemResolveNote = {
     mrUrl: string,
     summary: string,
     threadId?: string,
+    mrName = 'merge request',
   ) =>
     buildWorkItemResolveNoteBody(
       modelId,
       {
         type: 'tip',
         title: 'Done',
-        body: `${summary} See the [merge request](${mrUrl}) for the change.`,
+        body: `${summary} See the [${mrName}](${mrUrl}) for the change.`,
       },
       status,
       threadId,
@@ -194,13 +195,14 @@ export const workItemResolveNote = {
     status: InstructionStatus,
     summary: string,
     threadId?: string,
+    mrName = 'merge request',
   ) =>
     buildWorkItemResolveNoteBody(
       modelId,
       {
         type: 'tip',
         title: 'No Changes Needed',
-        body: `${summary} No changes were made, so no merge request was opened.`,
+        body: `${summary} No changes were made, so no ${mrName} was opened.`,
       },
       status,
       threadId,
@@ -211,13 +213,14 @@ export const workItemResolveNote = {
     mrUrl: string,
     summary: string,
     threadId?: string,
+    mrName = 'merge request',
   ) =>
     buildWorkItemResolveNoteBody(
       modelId,
       {
         type: 'caution',
         title: 'Partially Done',
-        body: `${summary} See the [merge request](${mrUrl}) for what's there so far.`,
+        body: `${summary} See the [${mrName}](${mrUrl}) for what's there so far.`,
       },
       status,
       threadId,
@@ -228,13 +231,14 @@ export const workItemResolveNote = {
     mrUrl: string,
     summary: string,
     threadId?: string,
+    mrName = 'merge request',
   ) =>
     buildWorkItemResolveNoteBody(
       modelId,
       {
         type: 'warning',
         title: 'Blocked',
-        body: `${summary} See the [merge request](${mrUrl}) for what was attempted.`,
+        body: `${summary} See the [${mrName}](${mrUrl}) for what was attempted.`,
       },
       status,
       threadId,

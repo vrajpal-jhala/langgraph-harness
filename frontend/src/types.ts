@@ -69,6 +69,8 @@ export type ChatRunInput = {
 
 export type WorkItemResolveRunInput = {
   kind: 'work_item_resolve';
+  // Absent on runs created before GitHub support — those are all GitLab.
+  provider?: 'gitlab' | 'github';
   projectPath: string;
   issueIid: string;
   defaultBranch: string;

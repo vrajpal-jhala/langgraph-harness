@@ -6,7 +6,8 @@ import { auth } from './components/auth/index.js';
 import { api } from './components/index.js';
 import { repositoriesManager } from './components/repositories/manager.js';
 import { runsService } from './components/runs/service.js';
-import { webhook } from './components/webhooks/index.js';
+import { githubWebhook } from './components/webhooks/github.js';
+import { gitlabWebhook } from './components/webhooks/gitlab.js';
 import {
   mrReviewQueue,
   mrReviewWorker,
@@ -55,7 +56,8 @@ export const app = new Elysia({ adapter: nodeAdapter })
     if (code === 'AppError') return error.toResponse();
   })
   .use(api)
-  .use(webhook)
+  .use(gitlabWebhook)
+  .use(githubWebhook)
   .use(ws)
   .mount(auth.handler)
   .listen(PORT, () => {

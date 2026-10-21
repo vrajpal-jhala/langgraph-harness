@@ -2,18 +2,18 @@ import { HumanMessage } from '@langchain/core/messages';
 import { createMiddleware } from 'langchain';
 
 import {
+  describeToolCall,
+  describeToolCalls,
+  discussionToolsFor,
+  matchesToolCall,
+} from '#components/workflows/discussion-tools.js';
+import {
   emitCorrectiveNudgeEndEvent,
   emitCorrectiveNudgeStartEvent,
 } from '#components/workflows/emit.js';
 import type { SandboxAgentRuntime } from '#components/workflows/state.js';
 
-import { mcpToolName, wasTruncatedByLength } from '#utils/helpers.js';
-
-const LIST_ISSUE_DISCUSSIONS_TOOL = mcpToolName(
-  'gitlab',
-  'list_issue_discussions',
-);
-const MR_DISCUSSIONS_TOOL = mcpToolName('gitlab', 'mr_discussions');
+import { wasTruncatedByLength } from '#utils/helpers.js';
 
 // Backstop for a run that never checks for review/comment feedback before concluding — the system prompt asks for this up front, but a run resumed mid-review can miss a comment that lands after it's already underway, so this checks right before the run's last response instead of only at the start.
 export function discussionCheckGuardMiddleware() {
@@ -22,12 +22,13 @@ export function discussionCheckGuardMiddleware() {
     wrapToolCall: async (request, handler) => {
       const configurable = (request.runtime as SandboxAgentRuntime)
         .configurable;
-      const requiredTool = configurable?.mrIid
-        ? MR_DISCUSSIONS_TOOL
-        : LIST_ISSUE_DISCUSSIONS_TOOL;
+      const tools = discussionToolsFor(configurable?.provider);
+      const requiredCalls = configurable?.mrIid
+        ? tools.mrFeedback
+        : [tools.issueComments];
 
       if (
-        request.toolCall.name === requiredTool &&
+        requiredCalls.some((spec) => matchesToolCall(spec, request.toolCall)) &&
         configurable?.discussionCheckNudged
       ) {
         configurable.discussionCheckNudged.nudged = true;
@@ -45,9 +46,10 @@ export function discussionCheckGuardMiddleware() {
         .configurable;
       if (configurable?.discussionCheckNudged?.nudged) return result;
 
+      const tools = discussionToolsFor(configurable?.provider);
       const message = configurable?.mrIid
-        ? `Before concluding, call \`${MR_DISCUSSIONS_TOOL}\` to check for any merge request feedback that arrived during this run — someone may have commented while you were working. Address anything unaddressed before finishing.`
-        : `Before concluding, call \`${LIST_ISSUE_DISCUSSIONS_TOOL}\` to check for any issue comments that arrived during this run before finishing.`;
+        ? `Before concluding, call ${describeToolCalls(tools.mrFeedback)} to check for any feedback that arrived during this run — someone may have commented while you were working. Address anything unaddressed before finishing.`
+        : `Before concluding, call ${describeToolCall(tools.issueComments)} to check for any issue comments that arrived during this run before finishing.`;
 
       if (configurable?.discussionCheckNudged) {
         configurable.discussionCheckNudged.nudged = true;

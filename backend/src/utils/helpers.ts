@@ -1,13 +1,16 @@
 import { type AIMessage, ToolMessage } from '@langchain/core/messages';
 import { DynamicStructuredTool } from 'langchain';
 
+import type { GitProvider } from '#types.js';
+
 const mcpPrefixSeparator = '__';
 
-export const mcpToolName = (prefix: 'gitlab', name: string) =>
+export const mcpToolName = (prefix: GitProvider, name: string) =>
   `${prefix}${mcpPrefixSeparator}${name}`;
 
 export const mcpToolFilter =
-  (allowList: Set<string>, prefix: 'gitlab') => (tool: DynamicStructuredTool) =>
+  (allowList: Set<string>, prefix: GitProvider) =>
+  (tool: DynamicStructuredTool) =>
     allowList.has(tool.name.replace(`${prefix}${mcpPrefixSeparator}`, ''));
 
 // mcp-adapters 2.0 returns server-reported errors as a ToolMessage instead of throwing; callers that rely on a throw (direct .invoke() bookkeeping, the {error} JSON the frontend keys on) need the 1.x behavior back.

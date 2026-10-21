@@ -4,7 +4,7 @@ import { resolveInstructionDocs } from '#components/workflows/instructions.js';
 import { createLoadInstructionsNode } from '#components/workflows/nodes/load_instructions_node.js';
 import type { WorkflowState } from '#components/workflows/work-item-resolve/state.js';
 
-import { upsertIssueNote } from '#utils/gitlab.js';
+import { forgeFor } from '#utils/forge.js';
 import { workItemResolveNote } from '#utils/notes.js';
 
 export const loadInstructionsNode = createLoadInstructionsNode<WorkflowState>({
@@ -25,9 +25,9 @@ export const loadInstructionsNode = createLoadInstructionsNode<WorkflowState>({
   },
 
   postNote: async (state, config, status) => {
-    const { projectPath, issueIid, model, noteId } = state;
+    const { provider, projectPath, issueIid, model, noteId } = state;
     const threadId = config.configurable?.thread_id as string | undefined;
-    await upsertIssueNote(
+    await forgeFor(provider).upsertIssueNote(
       projectPath,
       issueIid,
       workItemResolveNote.working(model, status, threadId),

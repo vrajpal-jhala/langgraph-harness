@@ -375,8 +375,16 @@ export type ChatRunInput = {
   tools: { server: boolean; gitlab: boolean; webSearch: boolean };
 };
 
+export const GitProvider = {
+  GitLab: 'gitlab',
+  GitHub: 'github',
+} as const;
+export type GitProvider = (typeof GitProvider)[keyof typeof GitProvider];
+
 export type WorkItemResolveRunInput = {
   kind: typeof RunKind.WorkItemResolve;
+  // Absent on runs created before GitHub support — those are all GitLab.
+  provider?: GitProvider;
   projectPath: string;
   issueIid: string;
   defaultBranch: string;

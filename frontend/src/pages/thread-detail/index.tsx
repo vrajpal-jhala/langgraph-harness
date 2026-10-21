@@ -581,10 +581,15 @@ const ThreadDetailPage = () => {
           label: 'Open merge request',
         }
       : firstInput && isWorkItemResolveRunInput(firstInput)
-        ? {
-            url: `${config.gitlabUrl}/${firstInput.projectPath}/-/work_items/${firstInput.issueIid}`,
-            label: 'Open work item',
-          }
+        ? firstInput.provider === 'github'
+          ? {
+              url: `${config.githubUrl}/${firstInput.projectPath}/issues/${firstInput.issueIid}`,
+              label: 'Open issue',
+            }
+          : {
+              url: `${config.gitlabUrl}/${firstInput.projectPath}/-/work_items/${firstInput.issueIid}`,
+              label: 'Open work item',
+            }
         : // No issue behind a task — the MR it opened is the only thing to link to, and only once it exists.
           firstInput &&
             isTaskResolveRunInput(firstInput) &&

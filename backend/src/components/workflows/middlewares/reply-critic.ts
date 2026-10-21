@@ -5,24 +5,18 @@ import { z } from 'zod';
 
 import type { LLMProvider } from '#types.js';
 
+import { discussionToolsFor } from '#components/workflows/discussion-tools.js';
 import {
   emitReplyCriticEndEvent,
   emitReplyCriticStartEvent,
 } from '#components/workflows/emit.js';
 import { withBackendLimit } from '#components/workflows/middlewares/llm-backend-limiter.js';
+import type { SandboxAgentRuntime } from '#components/workflows/state.js';
 
-import {
-  mcpToolName,
-  messageContent,
-  retryWithBackoff,
-} from '#utils/helpers.js';
+import { forgeFor } from '#utils/forge.js';
+import { messageContent, retryWithBackoff } from '#utils/helpers.js';
 
 const MAX_CRITIC_RETRIES = 2;
-
-const CREATE_DISCUSSION_NOTE_TOOL = mcpToolName(
-  'gitlab',
-  'create_merge_request_discussion_note',
-);
 
 const VerdictSchema = z.object({
   drop: z
@@ -31,9 +25,9 @@ const VerdictSchema = z.object({
   reason: z.string().describe('One sentence explaining the verdict'),
 });
 
-const CRITIC_PROMPT =
+const criticPrompt = (mrName: string) =>
   `You are a skeptical senior engineer screening a reply before it's posted ` +
-  `publicly on a merge request. Drop it if it's non-actionable filler: bare ` +
+  `publicly on a ${mrName}. Drop it if it's non-actionable filler: bare ` +
   `acknowledgment ("noted", "working on it", "thanks for the feedback", ` +
   `"will look into this") with no actual content, a restatement of what the ` +
   `reviewer already said, or a vague promise with nothing concrete attached. ` +
@@ -58,17 +52,22 @@ export function replyCriticMiddleware({
   return createMiddleware({
     name: 'ReplyCritic',
     wrapToolCall: async (request, handler) => {
-      if (request.toolCall.name !== CREATE_DISCUSSION_NOTE_TOOL) {
+      const gitProvider = (request.runtime as SandboxAgentRuntime).configurable
+        ?.provider;
+      if (
+        !discussionToolsFor(gitProvider).replies.includes(request.toolCall.name)
+      ) {
         return handler(request);
       }
 
       const { body } = (request.toolCall.args ?? {}) as { body?: string };
       if (!body) return handler(request);
 
+      const prompt = criticPrompt(forgeFor(gitProvider).mrName);
       const eventId = crypto.randomUUID();
       emitReplyCriticStartEvent(request.runtime, {
         id: eventId,
-        prompt: CRITIC_PROMPT,
+        prompt,
       });
 
       let verdict: { drop: boolean; reason: string };
@@ -85,7 +84,7 @@ export function replyCriticMiddleware({
               () =>
                 critic.invoke(
                   [
-                    ['system', CRITIC_PROMPT],
+                    ['system', prompt],
                     ['human', body],
                   ],
                   // Tags this call so index.ts's message stream filter excludes it — an internal verdict call, not a user-facing turn.

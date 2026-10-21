@@ -9,6 +9,7 @@ import {
 
 const redisUrl = new URL(process.env.REDIS_URL || 'redis://localhost:6379');
 const gitlabApiUrl = process.env.GITLAB_API_URL || 'https://gitlab.com/api/v4';
+const githubApiUrl = process.env.GITHUB_API_URL || 'https://api.github.com';
 
 // Comma-separated list of GitLab project-path substrings to restrict workflows to (e.g. "/project-a/,/project-b/")
 const workflowProjectPathFilters = (
@@ -41,7 +42,11 @@ export const config = {
   hostDataPath,
   auth: {
     sessionSecret: process.env.SESSION_SECRET || '',
-    webhookTokens: (process.env.WEBHOOK_TOKENS || '')
+    gitlabWebhookTokens: (process.env.WEBHOOK_TOKENS || '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean),
+    githubWebhookTokens: (process.env.GITHUB_WEBHOOK_TOKENS || '')
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean),
@@ -90,6 +95,21 @@ export const config = {
         .filter(Boolean),
       clientId: process.env.GITLAB_OAUTH_CLIENT_ID || '',
       clientSecret: process.env.GITLAB_OAUTH_CLIENT_SECRET || '',
+    },
+  },
+  github: {
+    pat: process.env.GITHUB_PAT || '',
+    apiUrl: githubApiUrl,
+    // github.com serves its API from a separate host; GitHub Enterprise serves it under /api/v3 on the web host.
+    webUrl:
+      new URL(githubApiUrl).host === 'api.github.com'
+        ? 'https://github.com'
+        : new URL(githubApiUrl).origin,
+    mcpUrl: process.env.GITHUB_MCP_URL || 'https://api.githubcopilot.com/mcp/',
+    username: process.env.GITHUB_BOT_USERNAME || '',
+    commitIdentity: {
+      name: process.env.GITHUB_BOT_NAME || 'langgraph-harness',
+      email: process.env.GITHUB_BOT_EMAIL || 'bot@example.com',
     },
   },
   supermemory: {

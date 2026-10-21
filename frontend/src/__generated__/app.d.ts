@@ -496,8 +496,14 @@ type ChatRunInput = {
 		webSearch: boolean;
 	};
 };
+declare const GitProvider: {
+	readonly GitLab: "gitlab";
+	readonly GitHub: "github";
+};
+type GitProvider = (typeof GitProvider)[keyof typeof GitProvider];
 type WorkItemResolveRunInput = {
 	kind: typeof RunKind.WorkItemResolve;
+	provider?: GitProvider;
 	projectPath: string;
 	issueIid: string;
 	defaultBranch: string;
@@ -2699,6 +2705,31 @@ export declare const app: Elysia<"", {
 } & {
 	webhooks: {
 		gitlab: {
+			post: {
+				body: unknown;
+				params: {};
+				query: unknown;
+				headers: unknown;
+				response: {
+					200: {
+						received: boolean;
+						status: string;
+						reason: string;
+						detail?: undefined;
+					} | {
+						received: boolean;
+						status: string;
+						detail: string;
+						reason?: undefined;
+					};
+					401: "Unauthorized";
+				};
+			};
+		};
+	};
+} & {
+	webhooks: {
+		github: {
 			post: {
 				body: unknown;
 				params: {};

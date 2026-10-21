@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import {
   CompletionStatus,
+  GitProvider,
   InstructionStatus,
   type ParsedHarnessConfig,
 } from '#types.js';
@@ -16,6 +17,8 @@ import { config, llms } from '#utils/config.js';
 const repoInstructionsSchema = z.string().max(config.instructions.maxChars);
 
 const workflowStateSchema = z.object({
+  // Checkpoints from before GitHub support have no provider — those are all GitLab.
+  provider: z.enum(GitProvider).optional().default(GitProvider.GitLab),
   projectPath: z.string(),
   issueIid: z.string(),
   issueTitle: z.string(),

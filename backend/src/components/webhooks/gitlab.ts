@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia';
 
 import type { TaskResolveRunInput, WorkItemResolveRunInput } from '#types.js';
-import { RunKind } from '#types.js';
+import { GitProvider, RunKind } from '#types.js';
 
 import { analyticsService } from '#components/analytics/service.js';
 import { repositoriesManager } from '#components/repositories/manager.js';
@@ -11,8 +11,9 @@ import { threadsDal } from '#components/threads/dal.js';
 import { enqueueMrReview } from '#components/workflows/mr-review/queue.js';
 import { enqueueTaskResolve } from '#components/workflows/task-resolve/queue.js';
 import { enqueueWorkItemResolve } from '#components/workflows/work-item-resolve/queue.js';
+import { startWorkItemResolveRun } from './work-item.js';
 
-import { webhookAuth } from '#utils/auth.js';
+import { gitlabWebhookAuth } from '#utils/auth.js';
 import { config, isProjectInScope, llms } from '#utils/config.js';
 import { parseHarnessYml, shouldReviewBranch } from '#utils/harness-config.js';
 import { logger } from '#utils/logger.js';
@@ -62,7 +63,7 @@ async function handleIssueAssignmentEvent(
     };
 
   const issueMetadata = {
-    source: 'gitlab',
+    source: GitProvider.GitLab,
     type: issueKind,
     project: projectPath,
     iid: issueIid,
@@ -123,61 +124,22 @@ async function handleIssueAssignmentEvent(
       };
   }
 
-  const thread =
-    (await threadsDal.findByMetadata(issueMetadata)) ??
-    (await threadsDal.insert({
-      title: `${projectPath}#${issueIid}`,
-      kind: RunKind.WorkItemResolve,
-      metadata: issueMetadata,
-    }));
-
-  if (
-    (await runsService.countByThread(thread.id)) >=
-    config.workItemResolve.runCap
-  ) {
-    return { received: true, status: 'skipped', reason: 'run_cap_reached' };
-  }
-
-  // Resolved once so a retry replays against the same config the original attempt saw, not whatever's on the default branch by then.
-  const harnessConfig = await parseHarnessYml(projectPath);
-
-  const workItemResolveInput = {
-    kind: RunKind.WorkItemResolve,
+  return startWorkItemResolveRun({
+    provider: GitProvider.GitLab,
     projectPath,
     issueIid: String(issueIid),
+    issueKind,
     defaultBranch: project?.default_branch ?? '',
     assignedBy: user?.username ?? '',
-    model: defaultModel,
-    config: harnessConfig,
-    issueKind,
-  };
-  const run = await runsService.create(
-    thread.id,
-    RunKind.WorkItemResolve,
-    workItemResolveInput,
-  );
-
-  const enqueueResult = await enqueueWorkItemResolve({
-    threadId: thread.id,
-    runId: run.id,
-    ...workItemResolveInput,
+    issueMetadata,
   });
-
-  return {
-    received: true,
-    status: 'accepted',
-    detail:
-      enqueueResult === 'fresh'
-        ? 'issue_enqueued'
-        : 'issue_enqueued_pending_rerun',
-  };
 }
 
 // Epics/Incidents/Test Cases/Requirements/OKRs aren't "write code and open an MR" units of work.
 const SUPPORTED_WORK_ITEM_TYPES = new Set(['Task']);
 
-export const webhook = new Elysia({ prefix: '/webhooks' })
-  .use(webhookAuth)
+export const gitlabWebhook = new Elysia({ prefix: '/webhooks' })
+  .use(gitlabWebhookAuth)
   // GitLab webhook payload is an untyped external boundary — no request schema, hence `any`.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   .post('/gitlab', async ({ body, set }: { body: any; set: any }) => {
@@ -252,7 +214,8 @@ export const webhook = new Elysia({ prefix: '/webhooks' })
         project: projectPath,
         mrIid: String(mrIid),
       });
-      if (!thread)
+      // The same owner/repo path can also exist on GitHub, whose threads carry the same project/mrIid keys.
+      if (!thread || thread.metadata?.source === GitProvider.GitHub)
         return {
           received: true,
           status: 'skipped',
@@ -394,7 +357,7 @@ export const webhook = new Elysia({ prefix: '/webhooks' })
       };
 
     const mrMetadata = {
-      source: 'gitlab',
+      source: GitProvider.GitLab,
       type: 'mr',
       project: projectPath,
       iid: mrIid,
@@ -410,6 +373,7 @@ export const webhook = new Elysia({ prefix: '/webhooks' })
 
       // Merging/closing never closes the issue (no closing keyword, deliberately) — this is the worktree's only cleanup trigger in the common case.
       const workItemResolveThread = await threadsDal.findByMetadata({
+        source: GitProvider.GitLab,
         project: projectPath,
         mrIid: String(mrIid),
       });

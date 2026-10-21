@@ -12,6 +12,16 @@ export default defineConfig(({ mode }) => {
     process.env.GITLAB_API_URL ||
     ''
   ).replace('/api/v4', '');
+  const githubApiUrl = new URL(
+    backendEnv.GITHUB_API_URL ||
+      process.env.GITHUB_API_URL ||
+      'https://api.github.com',
+  );
+  // github.com serves its API from a separate host; GitHub Enterprise serves it under /api/v3 on the web host.
+  const githubUrl =
+    githubApiUrl.host === 'api.github.com'
+      ? 'https://github.com'
+      : githubApiUrl.origin;
   const serverPort = backendEnv.SERVER_PORT;
 
   return {
@@ -21,6 +31,7 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_API_URL': 'location.origin',
       'import.meta.env.VITE_GITLAB_URL': JSON.stringify(gitlabUrl),
+      'import.meta.env.VITE_GITHUB_URL': JSON.stringify(githubUrl),
     },
     plugins: [
       react(),

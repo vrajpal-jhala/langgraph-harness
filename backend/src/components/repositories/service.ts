@@ -3,13 +3,13 @@ import { join } from 'node:path';
 import { execa } from 'execa';
 
 import { config } from '#utils/config.js';
+import { forgeFor, parseRepoKey } from '#utils/forge.js';
 import { logger } from '#utils/logger.js';
 
-// repo is always "organization/repository" (GitLab's project path_with_namespace).
+// repo is a repoKey(), not a bare project path.
 function remoteUrl(repo: string): string {
-  const apiUrl = new URL(config.gitlab.apiUrl);
-
-  return `https://oauth2:${config.gitlab.pat}@${apiUrl.host}/${repo}.git`;
+  const { provider, projectPath } = parseRepoKey(repo);
+  return forgeFor(provider).remoteUrl(projectPath);
 }
 
 // Refs are caller-supplied and passed as bare git argv — a leading "-" could be parsed as an option (e.g. --upload-pack=...), so reject that shape.
@@ -21,7 +21,9 @@ function assertSafeRefArg(value: string, label: string): void {
 
 // The clone URL embeds the PAT — execa echoes the full argv into err.message/command, so strip it before that error is logged or ever reaches a user-facing field.
 function redact(value: string): string {
-  return config.gitlab.pat ? value.split(config.gitlab.pat).join('***') : value;
+  return [config.gitlab.pat, config.github.pat]
+    .filter(Boolean)
+    .reduce((acc, token) => acc.split(token).join('***'), value);
 }
 
 function redactError(err: unknown): unknown {

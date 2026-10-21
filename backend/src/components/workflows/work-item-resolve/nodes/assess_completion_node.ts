@@ -6,11 +6,13 @@ import { assessCompletion } from '#components/workflows/completion-assessor.js';
 import { emitNodeLifecycleEvents } from '#components/workflows/emit.js';
 import { workflowState } from '#components/workflows/work-item-resolve/state.js';
 
+import { forgeFor } from '#utils/forge.js';
+
 export const assessCompletionNode: GraphNode<typeof workflowState> = async (
   state,
   config,
 ) => {
-  const { messages, model, config: workflowConfig } = state;
+  const { provider, messages, model, config: workflowConfig } = state;
   const repoInstructions = workflowConfig.instructions.content;
 
   emitNodeLifecycleEvents(config, {
@@ -37,8 +39,7 @@ export const assessCompletionNode: GraphNode<typeof workflowState> = async (
     error = err instanceof Error ? err.message : String(err);
     // The agent's work must not be lost just because this classifier call failed.
     status = CompletionStatus.Partial;
-    summary =
-      'Automated completion assessment failed after retries — review the merge request directly.';
+    summary = `Automated completion assessment failed after retries — review the ${forgeFor(provider).mrName} directly.`;
   } finally {
     emitNodeLifecycleEvents(config, {
       event: 'node_end',

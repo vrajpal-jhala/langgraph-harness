@@ -8,7 +8,11 @@ import {
   todoListMiddleware,
 } from 'langchain';
 
-import { MEMORY_CATEGORIES, type MemoryCategoryEntryMap } from '#types.js';
+import {
+  GitProvider,
+  MEMORY_CATEGORIES,
+  type MemoryCategoryEntryMap,
+} from '#types.js';
 
 import { memoriesService } from '#components/memories/service.js';
 import { emitAgentPromptEvent } from '#components/workflows/emit.js';
@@ -27,6 +31,7 @@ import {
   trailingQuestionGuardMiddleware,
 } from '#components/workflows/middlewares/index.js';
 import type { BRANCH_TYPES } from './branch-naming.js';
+import { describeToolCalls, discussionToolsFor } from './discussion-tools.js';
 import {
   type SandboxAgentConfigurable,
   type SandboxAgentToolContext,
@@ -35,14 +40,19 @@ import {
 import { tools } from './tools.js';
 
 import { llms } from '#utils/config.js';
-import { mcpToolName } from '#utils/helpers.js';
+import { forgeFor } from '#utils/forge.js';
 import { buildChatModel } from '#utils/llm.js';
 
-const MR_DISCUSSIONS_TOOL = mcpToolName('gitlab', 'mr_discussions');
-const CREATE_DISCUSSION_NOTE_TOOL = mcpToolName(
-  'gitlab',
-  'create_merge_request_discussion_note',
-);
+const MR_IDENTIFIER: Record<GitProvider, (mrIid: string) => string> = {
+  [GitProvider.GitLab]: (mrIid) => `merge_request_iid ${mrIid}`,
+  [GitProvider.GitHub]: (mrIid) => `pullNumber ${mrIid}`,
+};
+
+const resumeOnMrBlock = (provider: GitProvider) => {
+  const { name, mrName } = forgeFor(provider);
+  const reads = describeToolCalls(discussionToolsFor(provider).mrFeedback);
+  return `You're resuming on work that already has an open ${mrName} — you may have been resumed because someone (or the review bot) left new feedback on it. Call ${reads} to read all current ${name} feedback before doing anything else. For anything you're not going to act on, ${discussionToolsFor(provider).replyGuidance} to explain why instead of silently ignoring it — a reviewer waiting for a response with neither a fix nor a reply is the failure mode to avoid.`;
+};
 
 const TASK_VERB: Record<(typeof BRANCH_TYPES)[number], string> = {
   feat: 'Implement this feature',
@@ -55,10 +65,10 @@ const TASK_VERB: Record<(typeof BRANCH_TYPES)[number], string> = {
   test: 'Add or fix tests',
 };
 
-const baseSystemPrompt = (taskSource: string) =>
+const baseSystemPrompt = (taskSource: string, provider: GitProvider) =>
   `You are langgraph-harness, ${taskSource} in an isolated sandbox. You have shell and file-write access to a checkout of the repository.\n\n` +
   `You run unattended — there is no one on the other end to answer a question. Never ask for confirmation, clarification, or permission mid-task, and never stop short to hand a decision back. Use your best judgment and carry the task through to completion.\n\n` +
-  `You do not push or open a merge request yourself — a separate process handles that once you're done, since the sandbox never holds GitLab credentials. Focus entirely on making the code change correct and complete.\n\n` +
+  `You do not push or open a ${forgeFor(provider).mrName} yourself — a separate process handles that once you're done, since the sandbox never holds ${forgeFor(provider).name} credentials. Focus entirely on making the code change correct and complete.\n\n` +
   `The sandbox has known, fixed limits — expect them rather than treating a failure against one as a bug to work around: there is no database access, and CPU/memory are capped at what a normal build-and-test run needs, not something to negotiate for more of.\n\n` +
   `- For any multi-step task, use the \`write_todos\` tool to maintain the authoritative record of remaining work. Create todos before starting, keep them up to date, and consult them before beginning a new major step instead of relying on conversational memory.\n` +
   `- Commit locally after each meaningful, working change (\`git add\` + \`git commit\`) rather than one commit at the very end — later steps may need to build on a clean checkpoint, and a granular history is easier to review.\n` +
@@ -112,6 +122,7 @@ const MEMORY_REFLECT_PROMPT =
   `up, continue as you were.`;
 
 function buildSystemPrompt(params: {
+  provider: GitProvider;
   taskTitle: string;
   taskDescription: string;
   taskType: (typeof BRANCH_TYPES)[number];
@@ -122,6 +133,7 @@ function buildSystemPrompt(params: {
   projectMemories?: MemoryCategoryEntryMap;
 }): string {
   const {
+    provider,
     taskTitle,
     taskDescription,
     taskType,
@@ -131,10 +143,11 @@ function buildSystemPrompt(params: {
     extraBlocks,
     projectMemories,
   } = params;
+  const forgeName = forgeFor(provider).name;
 
   const blocks = [
-    baseSystemPrompt(taskSource),
-    `GitLab identifiers for this run — pass these verbatim on every GitLab tool call: ${identifiers}.`,
+    baseSystemPrompt(taskSource, provider),
+    `${forgeName} identifiers for this run — pass these verbatim on every ${forgeName} tool call: ${identifiers}.`,
     WEB_RESEARCH_GUIDANCE,
     ...extraBlocks,
   ];
@@ -194,7 +207,7 @@ type CompiledAgent = ReturnType<typeof createAgent>;
 // Bounded by config.llms — no eviction needed.
 const agentCache = new Map<string, CompiledAgent>();
 
-function buildAgent(model: string): CompiledAgent {
+function buildAgent(model: string, provider: GitProvider): CompiledAgent {
   const modelConfig = llms.find((m) => m.model === model);
 
   if (!modelConfig) {
@@ -211,7 +224,7 @@ function buildAgent(model: string): CompiledAgent {
     ),
     todoListMiddleware(),
     duplicateCallGuardMiddleware({
-      readToolNames: new Set(tools.getReadNames()),
+      readToolNames: new Set(tools.getReadNames(provider)),
     }),
     extractProjectMemoryMiddleware({
       llm,
@@ -244,17 +257,18 @@ function buildAgent(model: string): CompiledAgent {
 
   return createAgent({
     model: llm,
-    tools: tools.getAll(),
+    tools: tools.getAll(provider),
     middleware,
     contextSchema: sandboxAgentToolContextSchema,
   });
 }
 
-function getAgent(model: string): CompiledAgent {
-  let agent = agentCache.get(model);
+function getAgent(model: string, provider: GitProvider): CompiledAgent {
+  const key = `${provider}:${model}`;
+  let agent = agentCache.get(key);
   if (!agent) {
-    agent = buildAgent(model);
-    agentCache.set(model, agent);
+    agent = buildAgent(model, provider);
+    agentCache.set(key, agent);
   }
   return agent;
 }
@@ -263,6 +277,7 @@ export const agent = {
   invoke: async function (
     messages: BaseMessage[],
     params: {
+      provider?: GitProvider;
       taskTitle: string;
       taskDescription: string;
       taskType: (typeof BRANCH_TYPES)[number];
@@ -285,6 +300,7 @@ export const agent = {
     graphConfig: LangGraphRunnableConfig,
   ) {
     const {
+      provider = GitProvider.GitLab,
       taskTitle,
       taskDescription,
       taskType,
@@ -304,7 +320,7 @@ export const agent = {
       recursionLimit,
       signal,
     } = params;
-    const sandboxAgent = getAgent(model);
+    const sandboxAgent = getAgent(model, provider);
     // Full title/description live in the system prompt's <task> block, re-sent on every model call — no need to repeat them here.
     const humanMessage = `${TASK_VERB[taskType]}. See the <task> block in your system prompt for the full task title and description.`;
     const userMessage = new HumanMessage(humanMessage);
@@ -312,6 +328,7 @@ export const agent = {
       ? messages.concat(userMessage)
       : [userMessage];
     const systemPrompt = buildSystemPrompt({
+      provider,
       taskTitle,
       taskDescription,
       taskType,
@@ -319,16 +336,12 @@ export const agent = {
       taskSource,
       identifiers: [
         identifiers,
-        ...(mrIid ? [`merge_request_iid ${mrIid}`] : []),
+        ...(mrIid ? [MR_IDENTIFIER[provider](mrIid)] : []),
       ].join(', '),
       // Resuming on an MR is symmetric across both workflows, unlike the issue-specific pieces above
       extraBlocks: [
         ...(extraBlocks ?? []),
-        ...(mrIid
-          ? [
-              `You're resuming on work that already has an open merge request — you may have been resumed because someone (or the review bot) left new feedback on it. Call \`${MR_DISCUSSIONS_TOOL}\` to read the current full thread before doing anything else. For anything you're not going to act on, call \`${CREATE_DISCUSSION_NOTE_TOOL}\` with that discussion's id to explain why instead of silently ignoring it — a reviewer waiting for a response with neither a fix nor a reply is the failure mode to avoid.`,
-            ]
-          : []),
+        ...(mrIid ? [resumeOnMrBlock(provider)] : []),
       ],
       projectMemories: await memoriesService.listForProject(projectId),
     });
@@ -338,6 +351,7 @@ export const agent = {
       humanMessage,
     });
     const baseConfigurable = {
+      provider,
       sandbox,
       workingDirectory,
       worktreePath,

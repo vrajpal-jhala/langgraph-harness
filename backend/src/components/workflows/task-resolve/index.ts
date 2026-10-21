@@ -46,7 +46,7 @@ import { isAdmin } from '#utils/auth.js';
 import { config, toHostDataPath } from '#utils/config.js';
 import { checkpointer } from '#utils/db.js';
 import { errors } from '#utils/errors.js';
-import { resolveGitlabUserId, upsertMrNote } from '#utils/gitlab.js';
+import { upsertMrNote } from '#utils/gitlab.js';
 import { logger } from '#utils/logger.js';
 import { taskResolveDescription, taskResolveNote } from '#utils/notes.js';
 
@@ -368,11 +368,6 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
           signal,
         });
 
-        const reviewerId =
-          !existingMrIid && submittedBy
-            ? await resolveGitlabUserId(submittedBy, signal)
-            : null;
-
         let mrUrl: string;
         ({ mrIid, mrUrl } = yield* createDraftMr({
           projectId: projectPath,
@@ -380,10 +375,11 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
           targetBranch: defaultBranch,
           title,
           description: taskResolveDescription(prompt),
-          reviewerId,
+          reviewerUsername: existingMrIid ? null : submittedBy || null,
           existingMrIid,
           existingMrUrl,
           mockIid: `mock-mr-iid-${threadId.slice(0, 8)}`,
+          signal,
         }));
 
         if (!existingMrIid) {

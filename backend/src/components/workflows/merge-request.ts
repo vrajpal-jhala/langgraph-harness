@@ -1,31 +1,35 @@
-import type { CompletionStatus, RunEvent } from '#types.js';
+import type { CompletionStatus, GitProvider, RunEvent } from '#types.js';
 import { RunStep } from '#types.js';
 
 import { config } from '#utils/config.js';
-import { createDraftMergeRequest, updateMergeRequest } from '#utils/gitlab.js';
+import { forgeFor } from '#utils/forge.js';
 
 export async function* createDraftMr(params: {
+  provider?: GitProvider;
   projectId: string;
   sourceBranch: string;
   targetBranch: string;
   title: string;
   description: string;
-  reviewerId: number | null;
-  // GitLab rejects a second open MR for the same branch pair, so a thread that already has one reuses it instead of creating.
+  reviewerUsername: string | null;
+  // A second open MR for the same branch pair is rejected on both providers, so a thread that already has one reuses it instead of creating.
   existingMrIid?: string;
   existingMrUrl?: string;
   mockIid: string;
+  signal?: AbortSignal;
 }): AsyncGenerator<RunEvent, { mrIid: string; mrUrl: string }> {
   const {
+    provider,
     projectId,
     sourceBranch,
     targetBranch,
     title,
     description,
-    reviewerId,
+    reviewerUsername,
     existingMrIid,
     existingMrUrl,
     mockIid,
+    signal,
   } = params;
 
   const stepId = crypto.randomUUID();
@@ -46,16 +50,15 @@ export async function* createDraftMr(params: {
   try {
     if (!config.mock.workflow) {
       if (!existingMrIid) {
-        const mr = await createDraftMergeRequest({
-          projectId,
+        ({ mrIid, mrUrl } = await forgeFor(provider).createDraftMr({
+          projectPath: projectId,
           sourceBranch,
           targetBranch,
           title,
           description,
-          reviewerId,
-        });
-        mrIid = String(mr.iid);
-        mrUrl = mr.webUrl;
+          reviewerUsername,
+          signal,
+        }));
       }
     } else if (!existingMrIid) {
       mrIid = mockIid;
@@ -82,6 +85,7 @@ export async function* createDraftMr(params: {
 }
 
 export async function* updateMr(params: {
+  provider?: GitProvider;
   projectId: string;
   mrIid: string;
   description: string;
@@ -90,6 +94,7 @@ export async function* updateMr(params: {
   completionSummary: string;
 }): AsyncGenerator<RunEvent, void> {
   const {
+    provider,
     projectId,
     mrIid,
     description,
@@ -111,8 +116,8 @@ export async function* updateMr(params: {
   };
   try {
     if (!config.mock.workflow) {
-      await updateMergeRequest({
-        projectId,
+      await forgeFor(provider).updateMr({
+        projectPath: projectId,
         mrIid,
         description,
         ...(draft !== undefined && { draft }),

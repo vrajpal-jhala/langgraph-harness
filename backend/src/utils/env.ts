@@ -15,6 +15,14 @@ const OPTIONAL = new Set([
   'GITLAB_BOT_NAME',
   'GITLAB_BOT_EMAIL',
   'ISSUE_TRACKER_URL',
+  // GitHub support is opt-in — a GitLab-only deployment leaves all of these empty.
+  'GITHUB_WEBHOOK_TOKENS',
+  'GITHUB_API_URL',
+  'GITHUB_PAT',
+  'GITHUB_BOT_USERNAME',
+  'GITHUB_BOT_NAME',
+  'GITHUB_BOT_EMAIL',
+  'GITHUB_MCP_URL',
 ]);
 
 export function validateEnv() {
