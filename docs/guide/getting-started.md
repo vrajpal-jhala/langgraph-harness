@@ -4,8 +4,7 @@
 
 - Node.js 22+
 - Docker (for PostgreSQL, Redis, and Lightpanda)
-- A GitLab personal access token with `api` scope
-- A GitLab OAuth application (for sign-in) — see below
+- A GitLab or GitHub account for the bot to act as (or one of each) — see [step 2](#_2-pick-gitlab-github-or-both)
 - An LLM backend: an OpenRouter/Gemini/Groq API key, or a local Ollama/sglang instance
 
 ## 1. Clone and install
@@ -18,25 +17,80 @@ npm install
 
 `postinstall` also installs `backend/` and `frontend/` dependencies.
 
-## 2. Create a GitLab personal access token
+## 2. Pick GitLab, GitHub, or both
 
-On gitlab.com (or your self-hosted instance): **User Settings → Access Tokens**, scope `api`. This is the identity the bot acts as — the account whose avatar shows up on review comments and draft MRs.
+A deployment needs at least one git provider fully configured. You can set up GitLab, GitHub, or both; whichever you leave out is switched off entirely — no sign-in button, no webhook route, no workflows that depend on it. Setting only some of a provider's variables is an error: the backend refuses to start and names the ones still missing.
 
-## 3. Create a GitLab OAuth application
+Not every feature exists on both yet:
 
-Sign-in (and per-user GitLab actions taken on your behalf) go through GitLab OAuth, separate from the bot's PAT above.
+| Feature                                                      | GitLab | GitHub |
+| ------------------------------------------------------------ | ------ | ------ |
+| Sign-in                                                      | ✓      | ✓      |
+| Issue resolve — assign an issue to the bot, get a draft back | ✓      | ✓      |
+| Merge request review                                         | ✓      | —      |
+| Task resolve — ad-hoc tasks and schedules from the UI        | ✓      | —      |
+| Chat's GitLab tools (acting on GitLab as the signed-in user) | ✓      | —      |
+
+Chat itself works with either provider; only its GitLab tools need GitLab. On a GitHub-only deployment, the Schedules page and the GitLab tools toggle in Chat are hidden.
+
+## 3a. GitLab setup
+
+**Bot account and token.** Use a dedicated GitLab account for the bot — it's the account whose avatar shows up on review comments and draft merge requests. On gitlab.com (or your self-hosted instance): **User Settings → Access Tokens**, scope `api`. Give the account at least Developer access on the projects it should work in.
+
+**OAuth application (sign-in).** Sign-in, and per-user GitLab actions taken on your behalf from Chat, go through GitLab OAuth, separate from the bot's token.
 
 1. **User Settings → Applications** (or **Admin Area → Applications** for an instance-wide app).
 2. Name it anything (e.g. `langgraph-harness`).
-3. Redirect URI: `http://localhost:5173/auth/callback/gitlab` for local dev — this must match `APP_URL` in your `.env` plus `/auth/callback/gitlab`. For a deployed instance, use that instance's own URL instead.
-4. Scope: `api` (the same scope as the bot's PAT — OAuth login also stores a per-user token used for on-behalf-of actions).
+3. Redirect URI: `http://localhost:5173/auth/callback/gitlab` for local dev — `APP_URL` from your `.env` plus `/auth/callback/gitlab`. For a deployed instance, use that instance's own URL instead.
+4. Scope: `api` (OAuth login also stores a per-user token used for on-behalf-of actions).
 5. Save, and copy the generated **Application ID** and **Secret**.
 
-### Optional: GitHub sign-in
+**Webhook.** On each project (**Settings → Webhooks**), point a webhook at `<your-instance>/webhooks/gitlab` with a secret token of your choosing, triggered on merge request, comment, and issue events.
 
-To also offer **Sign in with GitHub**, register a GitHub OAuth app (**Settings → Developer settings → OAuth Apps → New OAuth App**) with the callback URL `http://localhost:5173/auth/callback/github` (again `APP_URL` plus `/auth/callback/github`), then set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET`. Leave them empty and the button doesn't appear. Only github.com is supported; GitHub Enterprise isn't.
+| Variable                     | Value                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| `GITLAB_PAT`                 | The bot's access token                                                         |
+| `GITLAB_BOT_USERNAME`        | The bot account's username                                                     |
+| `GITLAB_OAUTH_CLIENT_ID`     | The OAuth application's ID                                                     |
+| `GITLAB_OAUTH_CLIENT_SECRET` | The OAuth application's secret                                                 |
+| `GITLAB_WEBHOOK_TOKENS`      | The webhook secret; comma-separate several if your webhooks use different ones |
+| `ADMIN_GITLAB_USERNAMES`     | GitLab `@handle`s that get admin rights — at least your own                    |
 
-A GitHub-only user can use chat but has no GitLab identity, so GitLab-backed features need them to connect GitLab from **Settings** (the two accounts can use different emails). If their GitHub and GitLab accounts share a verified email, signing in with either one lands in the same account. Admin rights for GitHub users come from `ADMIN_GITHUB_USERNAMES`.
+Self-hosted GitLab: also set `GITLAB_API_URL` (defaults to `https://gitlab.com/api/v4`).
+
+## 3b. GitHub setup
+
+**Bot account and token.** Use a dedicated GitHub account for the bot, added to the repositories (or organization) it should work in with write access — it's the account that comments on issues and opens draft pull requests. Create a token for it under **Settings → Developer settings → Personal access tokens**:
+
+- Classic token: `repo` scope.
+- Fine-grained token: repository access to the repos it works in, with **Contents**, **Issues**, and **Pull requests** set to read and write (**Metadata** read comes with them).
+
+Either way, add workflow write access (`workflow` scope, or **Workflows** read and write) if the bot should be able to change GitHub Actions files.
+
+**OAuth app (sign-in).** **Settings → Developer settings → OAuth Apps → New OAuth App**, with the callback URL `http://localhost:5173/auth/callback/github` (again `APP_URL` plus `/auth/callback/github`). Copy the **Client ID** and generate a **Client secret**. Sign-in supports github.com only, not GitHub Enterprise.
+
+**Webhook.** On each repository (**Settings → Webhooks**) or once on the organization, add a webhook pointing at `<your-instance>/webhooks/github`, content type `application/json`, with a secret of your choosing, sending **Issues** and **Pull requests** events.
+
+For local dev, GitHub can't reach `localhost`, so forward events instead with the [`gh webhook`](https://github.com/cli/gh-webhook) extension:
+
+```bash
+gh extension install cli/gh-webhook
+gh webhook forward --repo=<owner>/<repo> --events=issues,pull_request \
+  --url=http://localhost:3698/webhooks/github --secret=<your GITHUB_WEBHOOK_TOKENS value>
+```
+
+| Variable                     | Value                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| `GITHUB_PAT`                 | The bot's token                                                                |
+| `GITHUB_BOT_USERNAME`        | The bot account's login                                                        |
+| `GITHUB_OAUTH_CLIENT_ID`     | The OAuth app's client ID                                                      |
+| `GITHUB_OAUTH_CLIENT_SECRET` | The OAuth app's client secret                                                  |
+| `GITHUB_WEBHOOK_TOKENS`      | The webhook secret; comma-separate several if your webhooks use different ones |
+| `ADMIN_GITHUB_USERNAMES`     | GitHub logins that get admin rights — at least your own                        |
+
+### Signing in with both
+
+When both providers are configured, a person whose GitHub and GitLab accounts share a verified email lands in the same account whichever button they use. Otherwise they can connect the other provider from **Settings** — the emails don't have to match there. Admin rights are checked per provider: a GitHub login only grants admin through `ADMIN_GITHUB_USERNAMES`, a GitLab username only through `ADMIN_GITLAB_USERNAMES`.
 
 ## 4. Configure the backend
 
@@ -44,18 +98,13 @@ A GitHub-only user can use chat but has no GitLab identity, so GitLab-backed fea
 cp backend/.env.example backend/.env
 ```
 
-Fill in at minimum:
+Fill in the variables for the provider(s) you picked in step 3, plus these shared ones:
 
-| Variable                                                                                                | Where it comes from                                                          |
-| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `GITLAB_PAT`                                                                                            | Step 2                                                                       |
-| `GITLAB_OAUTH_CLIENT_ID`                                                                                | Step 3                                                                       |
-| `GITLAB_OAUTH_CLIENT_SECRET`                                                                            | Step 3                                                                       |
-| `GITLAB_WEBHOOK_TOKENS`                                                                                 | Any secret string you choose — GitLab webhooks send it back for verification |
-| `SESSION_SECRET`                                                                                        | Any random string (`openssl rand -hex 32`)                                   |
-| `SECRETS_ENCRYPTION_KEY`                                                                                | Any random string, separate from `SESSION_SECRET`                            |
-| `ADMIN_GITLAB_USERNAMES`                                                                                | Your own GitLab `@handle`                                                    |
-| One of `OPENROUTER_API_KEY` / `GEMINI_API_KEY` / `GROQ_API_KEY` / `OLLAMA_BASE_URL` / `SGLANG_BASE_URL` | Your LLM backend                                                             |
+| Variable                                                                                                | Where it comes from                               |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `SESSION_SECRET`                                                                                        | Any random string (`openssl rand -hex 32`)        |
+| `SECRETS_ENCRYPTION_KEY`                                                                                | Any random string, separate from `SESSION_SECRET` |
+| One of `OPENROUTER_API_KEY` / `GEMINI_API_KEY` / `GROQ_API_KEY` / `OLLAMA_BASE_URL` / `SGLANG_BASE_URL` | Your LLM backend                                  |
 
 The full reference — every variable, what it defaults to, and why — is in [`backend/README.md`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/backend/README.md).
 
@@ -65,10 +114,13 @@ The full reference — every variable, what it defaults to, and why — is in [`
 npm run dev
 ```
 
-This brings up Postgres/Redis/the auxiliary services via Docker Compose, runs pending migrations, and starts both the backend (`:3698`) and frontend (`:5173`). Open `http://localhost:5173` and sign in with GitLab.
+This brings up Postgres/Redis/the auxiliary services via Docker Compose, runs pending migrations, and starts both the backend (`:3698`) and frontend (`:5173`). Open `http://localhost:5173` and sign in with whichever provider you configured.
 
-## 6. Trigger a review
+## 6. Trigger a run
 
-In production, reviews fire automatically: add a webhook on your GitLab project (**Settings → Webhooks**) pointing at `<your-instance>/webhooks/gitlab`, secret matching `GITLAB_WEBHOOK_TOKENS`, triggered on merge request and note events.
+- **GitLab:** with the webhook from step 3a in place, opening or updating a merge request triggers a review, and assigning an issue to the bot account starts an issue-resolve run that ends in a draft merge request.
+- **GitHub:** with the webhook (or `gh webhook forward`) from step 3b running, assigning an issue to the bot account starts an issue-resolve run that ends in a draft pull request.
 
-For local testing without a real webhook, [`scripts/test.sh`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/scripts/test.sh) posts synthetic GitLab webhook payloads straight at your local backend — useful for exercising the routing/filter logic, though the agent still calls the real GitLab API to fetch context, so it needs a real project/MR to point at.
+For local testing without a real GitLab webhook, [`scripts/test.sh`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/scripts/test.sh) posts synthetic GitLab webhook payloads straight at your local backend — useful for exercising the routing/filter logic, though the agent still calls the real GitLab API to fetch context, so it needs a real project and merge request to point at.
+
+The demo fixtures in [`demo-fixtures/`](https://github.com/vrajpal-jhala/langgraph-harness/tree/main/demo-fixtures), and its `seed-demo.mjs` script, only seed a GitLab project for now.

@@ -166,7 +166,7 @@ declare const auth: import("better-auth").Auth<{
 				githubUsername: string;
 			};
 		} | undefined;
-		gitlab: {
+		gitlab?: {
 			clientId: string;
 			clientSecret: string;
 			scope: string[];
@@ -176,7 +176,7 @@ declare const auth: import("better-auth").Auth<{
 				emailVerified: true;
 				gitlabUsername: string;
 			};
-		};
+		} | undefined;
 	};
 }>;
 declare class AppError extends Error {
@@ -1126,6 +1126,23 @@ export declare const app: Elysia<"", {
 	};
 } & {
 	api: {};
+} & {
+	api: {
+		providers: {
+			get: {
+				body: {};
+				params: {};
+				query: {};
+				headers: {};
+				response: {
+					200: {
+						gitlab: boolean;
+						github: boolean;
+					};
+				};
+			};
+		};
+	};
 } & {
 	api: {
 		uploads: {
@@ -2737,6 +2754,7 @@ export declare const app: Elysia<"", {
 				query: unknown;
 				headers: unknown;
 				response: {
+					404: "Not Found";
 					200: {
 						received: boolean;
 						status: string;
@@ -2762,6 +2780,7 @@ export declare const app: Elysia<"", {
 				query: unknown;
 				headers: unknown;
 				response: {
+					404: "Not Found";
 					200: {
 						received: boolean;
 						status: string;

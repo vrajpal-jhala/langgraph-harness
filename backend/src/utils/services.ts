@@ -44,7 +44,11 @@ export const services = {
     const byThread = new Map<string, (typeof interruptedRuns)[0]>();
     for (const run of [...interruptedRuns, ...orphanedRuns]) {
       // Only workflows defining recoverOrphanedRun participate — a dead chat run just stays failed, never re-run.
-      if (!workflowsService.forKind(run.kind).recoverOrphanedRun) continue;
+      if (
+        !workflowsService.isEnabled(run.kind) ||
+        !workflowsService.forKind(run.kind).recoverOrphanedRun
+      )
+        continue;
       // Dedupe by thread: mr-review threads are 1:1 with an MR, so keep only the more recent of an orphaned/interrupted pair to avoid two concurrent reviews.
       const existing = byThread.get(run.thread_id);
       if (!existing || run.created_at > existing.created_at) {

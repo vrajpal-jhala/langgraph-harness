@@ -8,6 +8,7 @@ import type {
 } from '#types.js';
 import {
   CompletionStatus,
+  GitProvider,
   InstructionStatus,
   RunKind,
   RunStep,
@@ -103,6 +104,7 @@ async function getCompletionContext(threadId: string) {
 export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
   id: 'task-resolve',
   kind: RunKind.TaskResolve,
+  requiresProvider: GitProvider.GitLab,
   name: WORKFLOW_NAME,
   description: WORKFLOW_DESCRIPTION,
   checkAccess: (_thread, session, action) => {

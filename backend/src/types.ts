@@ -769,6 +769,8 @@ export type Workflow<TInput, TSecrets = undefined> = {
   kind: RunKind;
   name: string;
   description: string;
+  // Not initialized, listed or started when that provider isn't configured; existing threads stay readable.
+  requiresProvider?: GitProvider;
   init: () => Promise<void>;
   cleanup: () => void | Promise<void>;
   getGraphMermaid: () => Promise<string>;

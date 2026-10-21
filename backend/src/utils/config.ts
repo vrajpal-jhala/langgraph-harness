@@ -7,9 +7,14 @@ import {
   type SupermemoryProject,
 } from '#types.js';
 
+import { PROVIDER_ENV_VARS } from './env.js';
+
 const redisUrl = new URL(process.env.REDIS_URL || 'redis://localhost:6379');
 const gitlabApiUrl = process.env.GITLAB_API_URL || 'https://gitlab.com/api/v4';
 const githubApiUrl = process.env.GITHUB_API_URL || 'https://api.github.com';
+
+const isProviderEnabled = (vars: readonly string[]) =>
+  vars.every((key) => process.env[key]);
 
 // Comma-separated list of GitLab project-path substrings to restrict workflows to (e.g. "/project-a/,/project-b/")
 const workflowProjectPathFilters = (
@@ -89,6 +94,7 @@ export const config = {
     database: process.env.DB_NAME || 'harness',
   },
   gitlab: {
+    enabled: isProviderEnabled(PROVIDER_ENV_VARS.gitlab),
     pat: process.env.GITLAB_PAT || '',
     apiUrl: gitlabApiUrl,
     username: process.env.GITLAB_BOT_USERNAME || '',
@@ -102,6 +108,7 @@ export const config = {
     },
   },
   github: {
+    enabled: isProviderEnabled(PROVIDER_ENV_VARS.github),
     pat: process.env.GITHUB_PAT || '',
     apiUrl: githubApiUrl,
     // github.com serves its API from a separate host; GitHub Enterprise serves it under /api/v3 on the web host.

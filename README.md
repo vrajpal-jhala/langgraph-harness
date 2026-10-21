@@ -69,19 +69,20 @@ Everything else is tracked in [open issues](https://github.com/vrajpal-jhala/lan
 
 ## Quick Start
 
-**Prerequisites:** Node.js 22+, Docker, a GitLab PAT (`api` scope), a GitLab OAuth app, and an OpenRouter/Gemini/Groq key or a local Ollama/sglang instance.
+**Prerequisites:** Node.js 22+, Docker, a bot account and OAuth app on GitLab, GitHub, or both, and an OpenRouter/Gemini/Groq key or a local Ollama/sglang instance. Merge request review, task resolve and Chat's GitLab tools are GitLab-only for now; issue resolve works on both.
 
 ```bash
 npm install
 cp backend/.env.example backend/.env
-# fill in GITLAB_PAT, GITLAB_OAUTH_CLIENT_ID/SECRET, SESSION_SECRET, SECRETS_ENCRYPTION_KEY,
-# ADMIN_GITLAB_USERNAMES, and one of OPENROUTER_API_KEY / GEMINI_API_KEY / GROQ_API_KEY / OLLAMA_BASE_URL / SGLANG_BASE_URL
+# fill in SESSION_SECRET, SECRETS_ENCRYPTION_KEY, one of OPENROUTER_API_KEY / GEMINI_API_KEY /
+# GROQ_API_KEY / OLLAMA_BASE_URL / SGLANG_BASE_URL, and every GITLAB_* or GITHUB_* variable
+# the .env.example comments list as required for the provider(s) you use
 npm run dev
 ```
 
 Frontend at `http://localhost:5173`, API at `http://localhost:3698`.
 
-Full walkthrough — GitLab OAuth app setup, webhook config, per-repo `.harness.yml`: [Getting Started](https://vrajpal-jhala.github.io/langgraph-harness/guide/getting-started).
+Full walkthrough — choosing GitLab or GitHub, bot tokens, OAuth apps, webhooks, per-repo `.harness.yml`: [Getting Started](https://vrajpal-jhala.github.io/langgraph-harness/guide/getting-started).
 
 ## Deployment & CI/CD
 
