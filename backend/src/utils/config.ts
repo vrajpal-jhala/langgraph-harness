@@ -42,7 +42,7 @@ export const config = {
   hostDataPath,
   auth: {
     sessionSecret: process.env.SESSION_SECRET || '',
-    gitlabWebhookTokens: (process.env.WEBHOOK_TOKENS || '')
+    gitlabWebhookTokens: (process.env.GITLAB_WEBHOOK_TOKENS || '')
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean),
@@ -53,6 +53,15 @@ export const config = {
     adminGitlabUsernames: (process.env.ADMIN_GITLAB_USERNAMES || '')
       .split(',')
       .map((u) => u.trim())
+      .filter(Boolean),
+    adminGithubUsernames: (process.env.ADMIN_GITHUB_USERNAMES || '')
+      .split(',')
+      .map((u) => u.trim())
+      .filter(Boolean),
+    // Empty means no restriction — every email domain can sign in.
+    allowedEmailDomains: (process.env.AUTH_ALLOWED_EMAIL_DOMAINS || '')
+      .split(',')
+      .map((d) => d.trim())
       .filter(Boolean),
     trustedOrigins: (process.env.AUTH_TRUSTED_ORIGINS || '')
       .split(',')
@@ -88,11 +97,6 @@ export const config = {
       email: process.env.GITLAB_BOT_EMAIL || 'bot@example.com',
     },
     oauth: {
-      // Empty means no restriction — every GitLab email domain can sign in.
-      allowedEmailDomains: (process.env.AUTH_ALLOWED_EMAIL_DOMAINS || '')
-        .split(',')
-        .map((d) => d.trim())
-        .filter(Boolean),
       clientId: process.env.GITLAB_OAUTH_CLIENT_ID || '',
       clientSecret: process.env.GITLAB_OAUTH_CLIENT_SECRET || '',
     },
@@ -110,6 +114,10 @@ export const config = {
     commitIdentity: {
       name: process.env.GITHUB_BOT_NAME || 'langgraph-harness',
       email: process.env.GITHUB_BOT_EMAIL || 'bot@example.com',
+    },
+    oauth: {
+      clientId: process.env.GITHUB_OAUTH_CLIENT_ID || '',
+      clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET || '',
     },
   },
   supermemory: {

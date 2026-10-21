@@ -27,6 +27,10 @@ declare const auth: import("better-auth").Auth<{
 	disabledPaths: string[];
 	account: {
 		encryptOAuthTokens: true;
+		accountLinking: {
+			updateUserInfoOnLink: true;
+			allowDifferentEmails: true;
+		};
 	};
 	user: {
 		validateUserInfo: ({ user, source }: {
@@ -38,6 +42,10 @@ declare const auth: import("better-auth").Auth<{
 		} | undefined;
 		additionalFields: {
 			gitlabUsername: {
+				type: "string";
+				required: false;
+			};
+			githubUsername: {
 				type: "string";
 				required: false;
 			};
@@ -86,7 +94,8 @@ declare const auth: import("better-auth").Auth<{
 					matcher: (ctx: import("better-auth").HookEndpointContext) => boolean;
 					handler: import("better-auth").Middleware<import("better-auth").MiddlewareOptions, (inputContext: import("better-auth").MiddlewareInputContext<import("better-auth").MiddlewareOptions>) => Promise<{
 						id: string;
-						username: string;
+						gitlabUsername: string;
+						githubUsername: string;
 						gitlabId: number | null;
 						name: string;
 						avatarUrl: string | null;
@@ -126,7 +135,8 @@ declare const auth: import("better-auth").Auth<{
 					requireHeaders: true;
 				}, {
 					id: string;
-					username: string;
+					gitlabUsername: string;
+					githubUsername: string;
 					gitlabId: number | null;
 					name: string;
 					avatarUrl: string | null;
@@ -136,7 +146,8 @@ declare const auth: import("better-auth").Auth<{
 			$Infer: {
 				Session: {
 					id: string;
-					username: string;
+					gitlabUsername: string;
+					githubUsername: string;
 					gitlabId: number | null;
 					name: string;
 					avatarUrl: string | null;
@@ -147,6 +158,14 @@ declare const auth: import("better-auth").Auth<{
 		}
 	];
 	socialProviders: {
+		github?: {
+			clientId: string;
+			clientSecret: string;
+			overrideUserInfoOnSignIn: true;
+			mapProfileToUser: (profile: import("better-auth").GithubProfile) => {
+				githubUsername: string;
+			};
+		} | undefined;
 		gitlab: {
 			clientId: string;
 			clientSecret: string;
@@ -199,12 +218,19 @@ declare const harnessConfigSchema: z.ZodObject<{
 	}, z.core.$strip>>>;
 	mr_review_requires_harness_reviewer: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
 }, z.core.$strip>;
+declare const Role: {
+	readonly Admin: "admin";
+	readonly Viewer: "viewer";
+};
+type Role = (typeof Role)[keyof typeof Role];
 type Session = {
 	id: string;
-	username: string;
+	gitlabUsername: string;
+	githubUsername: string;
 	gitlabId: number | null;
 	name: string;
 	avatarUrl: string | null;
+	role: Role;
 };
 declare const LLMProvider: {
 	readonly OpenRouter: "openrouter";

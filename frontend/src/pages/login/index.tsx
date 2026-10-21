@@ -1,12 +1,21 @@
 import { use, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { Button, Center, Loader, Stack, Text, Title } from '@mantine/core';
-import { IconBrandGitlab } from '@tabler/icons-react';
+import {
+  Button,
+  Center,
+  Group,
+  Loader,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
+import { IconBrandGithub, IconBrandGitlab } from '@tabler/icons-react';
 
 import Icon from '@/components/icon';
 
 import { authClient } from '@/api';
 import logo from '@/assets/logo.svg';
+import { config } from '@/config';
 import { Context } from '@/contexts';
 import { useAuth } from '@/hooks/useAuth';
 import { useOAuthError } from '@/hooks/useOAuthError';
@@ -18,12 +27,14 @@ const CAPABILITIES = [
 ];
 
 const LoginPage = () => {
-  const [loading, setLoading] = useState(false);
+  const [pendingProvider, setPendingProvider] = useState<
+    'gitlab' | 'github' | null
+  >(null);
   const { handleError } = use(Context);
   const { user, loading: authLoading } = useAuth();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
-  useOAuthError('Failed to sign in with GitLab');
+  useOAuthError('Failed to sign in');
 
   if (authLoading) {
     return (
@@ -37,15 +48,15 @@ const LoginPage = () => {
     return <Navigate to={from ?? '/'} replace />;
   }
 
-  const handleLogin = async () => {
-    setLoading(true);
+  const handleLogin = async (provider: 'gitlab' | 'github') => {
+    setPendingProvider(provider);
     const { error } = await authClient.signIn.social({
-      provider: 'gitlab',
+      provider,
       callbackURL: `${window.location.origin}${from ?? '/'}`,
       errorCallbackURL: `${window.location.origin}/login`,
     });
     if (error) handleError(error, 'Failed to sign in');
-    setLoading(false);
+    setPendingProvider(null);
   };
 
   return (
@@ -72,14 +83,29 @@ const LoginPage = () => {
             everywhere it operates.
           </Text>
         </Stack>
-        <Button
-          onClick={handleLogin}
-          loading={loading}
-          leftSection={<Icon as={IconBrandGitlab} />}
-          size="md"
-        >
-          Sign in with GitLab
-        </Button>
+        <Group justify="center">
+          <Button
+            onClick={() => handleLogin('gitlab')}
+            loading={pendingProvider === 'gitlab'}
+            disabled={pendingProvider === 'github'}
+            leftSection={<Icon as={IconBrandGitlab} />}
+            size="md"
+          >
+            Sign in with GitLab
+          </Button>
+          {config.githubSignIn && (
+            <Button
+              onClick={() => handleLogin('github')}
+              loading={pendingProvider === 'github'}
+              disabled={pendingProvider === 'gitlab'}
+              leftSection={<Icon as={IconBrandGithub} />}
+              size="md"
+              variant="default"
+            >
+              Sign in with GitHub
+            </Button>
+          )}
+        </Group>
         <Text size="xs" c="dimmed" className="login-page__capabilities">
           {CAPABILITIES.join(' · ')}
         </Text>

@@ -32,6 +32,12 @@ Sign-in (and per-user GitLab actions taken on your behalf) go through GitLab OAu
 4. Scope: `api` (the same scope as the bot's PAT — OAuth login also stores a per-user token used for on-behalf-of actions).
 5. Save, and copy the generated **Application ID** and **Secret**.
 
+### Optional: GitHub sign-in
+
+To also offer **Sign in with GitHub**, register a GitHub OAuth app (**Settings → Developer settings → OAuth Apps → New OAuth App**) with the callback URL `http://localhost:5173/auth/callback/github` (again `APP_URL` plus `/auth/callback/github`), then set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET`. Leave them empty and the button doesn't appear. Only github.com is supported; GitHub Enterprise isn't.
+
+A GitHub-only user can use chat but has no GitLab identity, so GitLab-backed features need them to connect GitLab from **Settings** (the two accounts can use different emails). If their GitHub and GitLab accounts share a verified email, signing in with either one lands in the same account. Admin rights for GitHub users come from `ADMIN_GITHUB_USERNAMES`.
+
 ## 4. Configure the backend
 
 ```bash
@@ -45,7 +51,7 @@ Fill in at minimum:
 | `GITLAB_PAT`                                                                                            | Step 2                                                                       |
 | `GITLAB_OAUTH_CLIENT_ID`                                                                                | Step 3                                                                       |
 | `GITLAB_OAUTH_CLIENT_SECRET`                                                                            | Step 3                                                                       |
-| `WEBHOOK_TOKENS`                                                                                        | Any secret string you choose — GitLab webhooks send it back for verification |
+| `GITLAB_WEBHOOK_TOKENS`                                                                                 | Any secret string you choose — GitLab webhooks send it back for verification |
 | `SESSION_SECRET`                                                                                        | Any random string (`openssl rand -hex 32`)                                   |
 | `SECRETS_ENCRYPTION_KEY`                                                                                | Any random string, separate from `SESSION_SECRET`                            |
 | `ADMIN_GITLAB_USERNAMES`                                                                                | Your own GitLab `@handle`                                                    |
@@ -63,6 +69,6 @@ This brings up Postgres/Redis/the auxiliary services via Docker Compose, runs pe
 
 ## 6. Trigger a review
 
-In production, reviews fire automatically: add a webhook on your GitLab project (**Settings → Webhooks**) pointing at `<your-instance>/webhooks/gitlab`, secret matching `WEBHOOK_TOKENS`, triggered on merge request and note events.
+In production, reviews fire automatically: add a webhook on your GitLab project (**Settings → Webhooks**) pointing at `<your-instance>/webhooks/gitlab`, secret matching `GITLAB_WEBHOOK_TOKENS`, triggered on merge request and note events.
 
 For local testing without a real webhook, [`scripts/test.sh`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/scripts/test.sh) posts synthetic GitLab webhook payloads straight at your local backend — useful for exercising the routing/filter logic, though the agent still calls the real GitLab API to fetch context, so it needs a real project/MR to point at.

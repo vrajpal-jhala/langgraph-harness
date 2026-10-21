@@ -97,7 +97,7 @@ export const api = new Elysia({ prefix: '/api' })
             await threadsService.assertCanMutate(params.id, session);
             // An MR's author may abort or retry its review, but only an admin can delete it.
             const thread = await threadsDal.findById(params.id);
-            if (thread?.kind === RunKind.MrReview && !isAdmin(session.username))
+            if (thread?.kind === RunKind.MrReview && !isAdmin(session))
               throw errors.runs.forbidden();
             await threadsService.delete(params.id);
             set.status = 204;
@@ -205,7 +205,7 @@ export const api = new Elysia({ prefix: '/api' })
       .group('/task-resolve', (app) =>
         app
           .onBeforeHandle(({ session }) => {
-            if (!isAdmin(session.username)) throw errors.runs.forbidden();
+            if (!isAdmin(session)) throw errors.runs.forbidden();
           })
           .post(
             '/',
@@ -228,7 +228,7 @@ export const api = new Elysia({ prefix: '/api' })
                 projectPath,
                 prompt: body.prompt,
                 defaultBranch,
-                submittedBy: session.username,
+                submittedBy: session.gitlabUsername,
                 model: llms.find((m) => m.isDefault)?.model ?? llms[0].model,
                 config: await parseHarnessYml(projectPath),
               };
@@ -257,13 +257,13 @@ export const api = new Elysia({ prefix: '/api' })
           .get('/:id', ({ params }) => schedulesService.getById(params.id))
           // Everything below mutates — scoped here so it doesn't also gate the reads above.
           .onBeforeHandle(({ session }) => {
-            if (!isAdmin(session.username)) throw errors.runs.forbidden();
+            if (!isAdmin(session)) throw errors.runs.forbidden();
           })
           .post(
             '/',
             ({ body, session, set }) => {
               set.status = 201;
-              return schedulesService.create(body, session.username);
+              return schedulesService.create(body, session.gitlabUsername);
             },
             { body: createScheduleSchema },
           )
@@ -347,7 +347,7 @@ export const api = new Elysia({ prefix: '/api' })
         memoriesService.personalCount(session.id),
       )
       .delete('/memories/:id', async ({ params, session, set }) => {
-        if (isAdmin(session.username)) {
+        if (isAdmin(session)) {
           await memoriesService.delete(params.id);
         } else {
           await memoriesService.deleteForUser(params.id, session.id);
