@@ -10,6 +10,7 @@ export const mcpToolFilter =
   (allowList: Set<string>, prefix: 'gitlab') => (tool: DynamicStructuredTool) =>
     allowList.has(tool.name.replace(`${prefix}${mcpPrefixSeparator}`, ''));
 
+// mcp-adapters 2.0.1 joins the server-name prefix with '_', but additionalToolNamePrefix still with '__'
 export const mcpToolNameOptions = (prefix: 'gitlab') => ({
   prefixToolNameWithServerName: false,
   additionalToolNamePrefix: prefix,

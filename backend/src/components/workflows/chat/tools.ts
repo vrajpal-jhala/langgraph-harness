@@ -879,15 +879,25 @@ export async function buildChatTools({
       },
     });
 
+    let gitlabTools: DynamicStructuredTool[];
+
     try {
-      const gitlabTools = await adapter.listTools();
+      gitlabTools = await adapter.listTools();
+    } catch (err) {
+      // not close(): its getClient() re-runs discovery, retrying the connection that just failed
+      await adapter.close();
+      throw err;
+    }
+
+    try {
       assertMcpToolNames(gitlabTools, 'gitlab');
-      tools.push(...throwOnToolError(gitlabTools));
     } catch (err) {
       // buildChatTools throws before returning close(), so the caller can't release this session
       await close();
       throw err;
     }
+
+    tools.push(...throwOnToolError(gitlabTools));
   }
 
   if (webSearch) {
