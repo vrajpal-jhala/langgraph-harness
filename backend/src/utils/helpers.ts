@@ -10,6 +10,29 @@ export const mcpToolFilter =
   (allowList: Set<string>, prefix: 'gitlab') => (tool: DynamicStructuredTool) =>
     allowList.has(tool.name.replace(`${prefix}${mcpPrefixSeparator}`, ''));
 
+// mcp-adapters 2.0.1 joins the server-name prefix with '_', but additionalToolNamePrefix still with '__'
+export const mcpToolNameOptions = (prefix: 'gitlab') => ({
+  prefixToolNameWithServerName: false,
+  additionalToolNamePrefix: prefix,
+});
+
+export function assertMcpToolNames(
+  tools: DynamicStructuredTool[],
+  prefix: 'gitlab',
+): DynamicStructuredTool[] {
+  const mismatched = tools.filter(
+    (tool) => !tool.name.startsWith(`${prefix}${mcpPrefixSeparator}`),
+  );
+
+  if (mismatched.length) {
+    throw new Error(
+      `MCP tool names don't match the expected "${prefix}${mcpPrefixSeparator}" prefix: ${mismatched.map((tool) => tool.name).join(', ')}`,
+    );
+  }
+
+  return tools;
+}
+
 // mcp-adapters 2.0 returns server-reported errors as a ToolMessage instead of throwing; callers that rely on a throw (direct .invoke() bookkeeping, the {error} JSON the frontend keys on) need the 1.x behavior back.
 export function throwOnToolError(
   tools: DynamicStructuredTool[],
