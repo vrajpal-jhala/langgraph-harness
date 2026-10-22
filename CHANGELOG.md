@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.5.2] - 2026-10-22
+
+### Fixes
+
+- **The review and chat agents could silently run with no GitLab tools** — a dependency update changed how GitLab's tools are named, so the list of tools each agent is allowed to use stopped matching and the agent ran without any, with no error. Tool names are now set explicitly, and if they ever stop matching again langgraph-harness stops with a clear error naming the unexpected tools (at startup, or when a chat connects to GitLab) instead of continuing without them.
+
+---
+
 ## [0.5.1] - 2026-10-19
 
 ### Fixes
@@ -14,7 +22,7 @@ All notable changes to langgraph-harness are documented here.
 
 ### Features
 
-- **The author of a merge request can now abort or retry its review** — previously only admins could stop a running review or start it again, so an author waiting on a stuck or failed review of their own MR had to ask an admin. The Abort and Retry controls now also appear for the MR's author on that review's page, and work for them. Reviews of MRs that already existed pick up their author the next time the MR is pushed to or reopened; until then they stay admin-only. Deleting a review is still admin-only.
+- **The author of a merge request can now abort or retry its review** — previously only admins could, so an author with a stuck or failed review of their own MR had to ask one. The Abort and Retry controls now appear for the MR's author on that review's page. Reviews of existing MRs pick up their author the next time the MR is pushed to or reopened; until then they stay admin-only. Deleting a review is still admin-only.
 
 ---
 
