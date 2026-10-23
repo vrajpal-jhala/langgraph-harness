@@ -789,7 +789,14 @@ export const chatMcpServer = {
       proc = null;
     });
 
-    await waitForPort(gitlabMcpPort, 15_000);
+    try {
+      await waitForPort(gitlabMcpPort, 60_000);
+    } catch (err) {
+      // A slow start still binds the port after we give up, blocking every later start until this process is killed.
+      proc?.kill();
+      proc = null;
+      throw err;
+    }
     logger.info({ port: gitlabMcpPort }, '[chat-mcp] GitLab MCP server ready');
   },
 
