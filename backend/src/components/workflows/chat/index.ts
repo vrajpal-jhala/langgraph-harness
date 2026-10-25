@@ -19,7 +19,7 @@ import { threadsService } from '#components/threads/service.js';
 import { translateRunStream } from '#components/workflows/stream-translator.js';
 import { chatAgentNode } from './nodes/agent_node.js';
 import { chatState } from './state.js';
-import { buildChatTools, chatMcpServer } from './tools.js';
+import { buildChatTools } from './tools.js';
 import { type sendChatMessageSchema } from './validation.js';
 
 import { config, llms } from '#utils/config.js';
@@ -238,12 +238,10 @@ export const chatWorkflow: Workflow<
   },
   init: async () => {
     compiledChat = await buildChatWorkflow();
-    await chatMcpServer.start();
     cleanupLoop.start();
   },
   cleanup: () => {
     cleanupLoop.stop();
-    chatMcpServer.stop();
   },
   getGraphMermaid: async () => {
     if (!compiledChat) throw new Error('Chat workflow not initialized');
