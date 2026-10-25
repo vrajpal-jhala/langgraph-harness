@@ -77,6 +77,7 @@ export const config = {
   gitlab: {
     pat: process.env.GITLAB_PAT || '',
     apiUrl: gitlabApiUrl,
+    mcpUrl: process.env.GITLAB_MCP_URL || 'http://localhost:3002/mcp',
     username: process.env.GITLAB_BOT_USERNAME || '',
     commitIdentity: {
       name: process.env.GITLAB_BOT_NAME || 'langgraph-harness',

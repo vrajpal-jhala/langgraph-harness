@@ -47,6 +47,27 @@ services:
       ]
     restart: unless-stopped
 
+  gitlab-mcp:
+    image: zereight050/gitlab-mcp:2.3.4
+    container_name: harness_gitlab_mcp
+    environment:
+      STREAMABLE_HTTP: 'true'
+      # Token comes from each request's Authorization header, not the env.
+      REMOTE_AUTHORIZATION: 'true'
+      HOST: 0.0.0.0
+      GITLAB_API_URL: ${GITLAB_API_URL}
+      GITLAB_TOOLSETS: all
+      GITLAB_DISABLE_VERSION_CHECK: 'true'
+      # Limits per client IP, and the backend is the only client: its default of 60 is shared by every workflow and Chat user.
+      MAX_REQUESTS_PER_MINUTE: 1000
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3002/health || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
   supermemory:
     build: ./services/supermemory
     container_name: harness_supermemory
@@ -152,6 +173,7 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       SGLANG_BASE_URL: http://host.docker.internal:30000
       LIGHTPANDA_CDP_URL: http://lightpanda:9222
+      GITLAB_MCP_URL: http://gitlab-mcp:3002/mcp
       SUPERMEMORY_URL: http://supermemory:6767
       OPENSANDBOX_URL: http://opensandbox:8080
       MONITORING_URL: http://monitoring:4100
@@ -180,6 +202,8 @@ services:
         condition: service_started
       lightpanda:
         condition: service_started
+      gitlab-mcp:
+        condition: service_healthy
       supermemory:
         condition: service_started
     restart: unless-stopped

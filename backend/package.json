@@ -35,7 +35,6 @@
     "@langchain/openai": "1.6.2",
     "@langchain/openrouter": "0.4.17",
     "@mozilla/readability": "0.6.0",
-    "@zereight/mcp-gitlab": "2.3.4",
     "better-auth": "1.7.11",
     "bullmq": "6.3.17",
     "busboy": "1.6.0",
