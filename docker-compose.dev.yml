@@ -53,6 +53,30 @@ services:
       - '9222:9222'
     restart: unless-stopped
 
+  gitlab-mcp:
+    image: zereight050/gitlab-mcp:2.3.4
+    container_name: harness_gitlab_mcp
+    environment:
+      STREAMABLE_HTTP: 'true'
+      # Token comes from each request's Authorization header, not the env.
+      REMOTE_AUTHORIZATION: 'true'
+      HOST: 0.0.0.0
+      GITLAB_API_URL: ${GITLAB_API_URL}
+      GITLAB_TOOLSETS: all
+      GITLAB_DISABLE_VERSION_CHECK: 'true'
+      # Limits per client IP, and the backend is the only client: its default of 60 is shared by every workflow and Chat user.
+      MAX_REQUESTS_PER_MINUTE: 1000
+    ports:
+      # Loopback only — the endpoint forwards GitLab tokens.
+      - '127.0.0.1:3002:3002'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3002/health || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
   supermemory:
     build: ./services/supermemory
     container_name: harness_supermemory
