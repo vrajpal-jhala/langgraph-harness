@@ -64,7 +64,8 @@ image IDs; read their versions from the repo pins.
 `lightpanda-io/browser`, `NVIDIA/nvidia-container-toolkit`, `moby/moby`
 (`docker-vX` tags), `docker/compose`, `docker/buildx`,
 `Tecnativa/docker-socket-proxy`, `alibaba/OpenSandbox`,
-`supermemoryai/supermemory` (`server-v*`), `redis/redis`. PyPI for
+`supermemoryai/supermemory` (`server-v*`), `redis/redis`, `zereight/gitlab-mcp`
+(Docker Hub `zereight050/gitlab-mcp` gets a matching tag per release). PyPI for
 `opensandbox-server`. Docker Hub tags for `postgres`/`redis` (`X.Y-alpine`) and
 `last_updated` for the floating `nginx:alpine`, `python:3.12-slim`, `node:22-slim`.
 

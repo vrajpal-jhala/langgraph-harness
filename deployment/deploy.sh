@@ -18,7 +18,7 @@ mkdir -p "${DATA_PATH}/opensandbox"
 
 docker compose up -d --build postgres redis
 docker compose --profile migrate run --rm db-migrate
-docker compose up -d --build lightpanda supermemory opensandbox monitoring
+docker compose up -d --build lightpanda gitlab-mcp supermemory opensandbox monitoring
 docker compose up -d --no-deps backend frontend
 
 echo "Deploy complete. Server running at http://localhost:3698 and App running at http://localhost:5173"

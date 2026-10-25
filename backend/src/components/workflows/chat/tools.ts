@@ -1,12 +1,9 @@
-import { type ChildProcess, spawn } from 'node:child_process';
-import { createRequire } from 'node:module';
-import { connect } from 'node:net';
 import {
   type DynamicStructuredTool,
   tool,
   type ToolRuntime,
 } from '@langchain/core/tools';
-import { MCPAdapter } from '@langchain/mcp-adapters';
+import type { MCPAdapter } from '@langchain/mcp-adapters';
 import { z } from 'zod';
 
 import {
@@ -20,15 +17,15 @@ import {
 import { memoriesDal } from '#components/memories/dal.js';
 import { runsDal } from '#components/runs/dal.js';
 import { threadsDal } from '#components/threads/dal.js';
+import {
+  createGitlabMcpAdapter,
+  terminateGitlabSession,
+} from '#components/workflows/gitlab-mcp.js';
 import { fetchWebPage } from '#components/workflows/web-fetch.js';
 import type { ChatToolContext } from './state.js';
 
 import { config, supermemoryProjects } from '#utils/config.js';
-import {
-  assertMcpToolNames,
-  mcpToolNameOptions,
-  throwOnToolError,
-} from '#utils/helpers.js';
+import { assertMcpToolNames, throwOnToolError } from '#utils/helpers.js';
 import { logger } from '#utils/logger.js';
 
 const searchModeSchema = z
@@ -725,94 +722,6 @@ const searchChatContent = tool(
   },
 );
 
-// Same package MR-review spawns over stdio, but as a second long-lived streamable-http + remote-auth instance so each chat run can forward its own user's GitLab token.
-const gitlabMcpBin = createRequire(import.meta.url).resolve(
-  '@zereight/mcp-gitlab/build/index.js',
-);
-
-// Bound to loopback so the token-forwarding endpoint is never externally reachable.
-const gitlabMcpPort = 3101;
-const gitlabMcpUrl = `http://127.0.0.1:${gitlabMcpPort}/mcp`;
-
-let proc: ChildProcess | null = null;
-
-// Resolve once the server is accepting connections so the first chat run can't race a not-yet-listening process.
-function waitForPort(port: number, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  return new Promise((resolve, reject) => {
-    const attempt = () => {
-      const socket = connect(port, '127.0.0.1');
-      socket.once('connect', () => {
-        socket.destroy();
-        resolve();
-      });
-      socket.once('error', () => {
-        socket.destroy();
-        if (Date.now() > deadline) {
-          reject(new Error(`chat GitLab MCP server never opened port ${port}`));
-        } else setTimeout(attempt, 300);
-      });
-    };
-    attempt();
-  });
-}
-
-export const chatMcpServer = {
-  start: async () => {
-    if (proc) return;
-
-    proc = spawn('node', [gitlabMcpBin], {
-      env: {
-        ...process.env,
-        STREAMABLE_HTTP: 'true',
-        // Token comes from each request's Authorization header, not the env.
-        REMOTE_AUTHORIZATION: 'true',
-        HOST: '127.0.0.1',
-        PORT: String(gitlabMcpPort),
-        GITLAB_API_URL: config.gitlab.apiUrl,
-        GITLAB_TOOLSETS: 'all',
-        LOG_LEVEL: process.env.NODE_ENV === 'development' ? '' : 'silent',
-        GITLAB_DISABLE_VERSION_CHECK:
-          process.env.NODE_ENV === 'development' ? '' : 'true',
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    proc.stdout?.on('data', (d) =>
-      logger.debug({ mcp: 'chat-gitlab' }, String(d).trim()),
-    );
-    proc.stderr?.on('data', (d) =>
-      logger.warn({ mcp: 'chat-gitlab' }, String(d).trim()),
-    );
-    proc.on('exit', (code, signal) => {
-      logger.warn({ code, signal }, '[chat-mcp] GitLab MCP server exited');
-      proc = null;
-    });
-
-    await waitForPort(gitlabMcpPort, 15_000);
-    logger.info({ port: gitlabMcpPort }, '[chat-mcp] GitLab MCP server ready');
-  },
-
-  stop: () => {
-    proc?.kill();
-    proc = null;
-  },
-};
-
-// adapter.close() only tears down the local connection; without this the GitLab MCP server holds the session's dedicated Server instance in memory until its own idle timeout fires.
-async function terminateGitlabSession(
-  adapter: MCPAdapter | null,
-): Promise<void> {
-  const transport = (await adapter?.getClient('gitlab'))?.transport;
-  if (transport && 'terminateSession' in transport) {
-    await (transport as { terminateSession: () => Promise<void> })
-      .terminateSession()
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'failed to terminate GitLab MCP session');
-      });
-  }
-}
-
 type BuildChatToolsOptions = {
   server: boolean;
   gitlab: boolean;
@@ -820,7 +729,7 @@ type BuildChatToolsOptions = {
   gitlabToken?: string;
 };
 
-// Built fresh per run, not a module singleton like MR-review's stdio client — GitLab's token rides as a per-request header, so the MCP client must be constructed and torn down within the run's own lifetime.
+// Built fresh per run, not a module singleton like the workflows' shared bot connection — GitLab's token rides as a per-request header, so the MCP client must be constructed and torn down within the run's own lifetime.
 export async function buildChatTools({
   server,
   gitlab,
@@ -864,20 +773,7 @@ export async function buildChatTools({
 
   // No token → no GitLab client at all, so we never open an unusable connection.
   if (gitlab && gitlabToken) {
-    adapter = new MCPAdapter({
-      ...mcpToolNameOptions('gitlab'),
-      servers: {
-        gitlab: {
-          transport: 'http',
-          mode: 'legacy',
-          // @zereight/mcp-gitlab is an SDK 1 server; a fallback would resend the Bearer token to a guessed /sse URL
-          automaticSSEFallback: false,
-          url: gitlabMcpUrl,
-          // secret: token rides only in this transport header, never as a tool arg
-          headers: { Authorization: `Bearer ${gitlabToken}` },
-        },
-      },
-    });
+    adapter = createGitlabMcpAdapter(gitlabToken);
 
     let gitlabTools: DynamicStructuredTool[];
 

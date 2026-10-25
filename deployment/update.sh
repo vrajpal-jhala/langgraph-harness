@@ -19,7 +19,7 @@ mkdir -p "$DATA_PATH"
 docker compose build backend frontend db-migrate supermemory opensandbox monitoring
 docker compose --profile migrate run --rm db-migrate
 # New service? Add it here too — this deploy flow never creates one automatically.
-docker compose up -d lightpanda supermemory docker-socket-proxy-kata opensandbox docker-socket-proxy-system monitoring
+docker compose up -d lightpanda gitlab-mcp supermemory docker-socket-proxy-kata opensandbox docker-socket-proxy-system monitoring
 docker compose up -d --no-deps --force-recreate backend frontend
 
 echo "Pruning build cache unused for 7+ days..."
