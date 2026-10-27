@@ -12,6 +12,7 @@ import { threadsService } from '#components/threads/service.js';
 import { enqueueMrReview } from '#components/workflows/mr-review/queue.js';
 import { enqueueTaskResolve } from '#components/workflows/task-resolve/queue.js';
 import { enqueueWorkItemResolve } from '#components/workflows/work-item-resolve/queue.js';
+import { handleOnce } from './delivery.js';
 import { startWorkItemResolveRun } from './work-item.js';
 
 import { gitlabWebhookAuth } from '#utils/auth.js';
@@ -521,32 +522,42 @@ const SUPPORTED_WORK_ITEM_TYPES = new Set(['Task']);
 export const gitlabWebhook = new Elysia({ prefix: '/webhooks' })
   .use(gitlabWebhookAuth)
   // GitLab webhook payload is an untyped external boundary — no request schema, hence `any`.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  .post('/gitlab', async ({ body, set }: { body: any; set: any }) => {
-    set.status = 200;
+  .post(
+    '/gitlab',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async ({ body, headers, set }: { body: any; headers: any; set: any }) => {
+      set.status = 200;
 
-    const { object_kind, object_attributes } = body ?? {};
+      return handleOnce(
+        GitProvider.GitLab,
+        headers['idempotency-key'],
+        async () => {
+          const { object_kind, object_attributes } = body ?? {};
 
-    if (object_kind === 'issue')
-      return handleIssueAssignmentEvent(body, 'issue');
+          if (object_kind === 'issue')
+            return handleIssueAssignmentEvent(body, 'issue');
 
-    if (object_kind === 'work_item') {
-      const workItemType = object_attributes?.type;
-      if (!SUPPORTED_WORK_ITEM_TYPES.has(workItemType))
-        return {
-          received: true,
-          status: 'skipped',
-          reason: `unsupported_work_item_type: ${workItemType}`,
-        };
-      return handleIssueAssignmentEvent(body, 'work_item');
-    }
+          if (object_kind === 'work_item') {
+            const workItemType = object_attributes?.type;
+            if (!SUPPORTED_WORK_ITEM_TYPES.has(workItemType))
+              return {
+                received: true,
+                status: 'skipped',
+                reason: `unsupported_work_item_type: ${workItemType}`,
+              };
+            return handleIssueAssignmentEvent(body, 'work_item');
+          }
 
-    if (object_kind === 'note') return handleNoteEvent(body);
-    if (object_kind === 'merge_request') return handleMergeRequestEvent(body);
+          if (object_kind === 'note') return handleNoteEvent(body);
+          if (object_kind === 'merge_request')
+            return handleMergeRequestEvent(body);
 
-    return {
-      received: true,
-      status: 'skipped',
-      reason: `unhandled_object_kind: ${object_kind}`,
-    };
-  });
+          return {
+            received: true,
+            status: 'skipped',
+            reason: `unhandled_object_kind: ${object_kind}`,
+          };
+        },
+      );
+    },
+  );
