@@ -37,6 +37,7 @@ import { agentNode } from './nodes/agent_node.js';
 import { assessCompletionNode } from './nodes/assess_completion_node.js';
 import { loadInstructionsNode } from './nodes/load_instructions_node.js';
 import { notifyIssueStatusNode } from './nodes/notify_issue_status_node.js';
+import { workItemResolveQueue } from './queue.js';
 import { type WorkflowState, workflowState } from './state.js';
 
 import { isAdmin } from '#utils/auth.js';
@@ -116,6 +117,10 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
   },
   startMode: 'queued',
   interruptible: false,
+  cancelPendingRun: async (run) => {
+    const job = await workItemResolveQueue?.getJob(run.id);
+    await job?.remove().catch(() => {});
+  },
   init: async () => {
     await tools.init();
     compiledWorkflow = await buildWorkflow();

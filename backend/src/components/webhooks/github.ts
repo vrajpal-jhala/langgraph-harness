@@ -4,6 +4,7 @@ import { GitProvider } from '#types.js';
 
 import { repositoriesManager } from '#components/repositories/manager.js';
 import { threadsDal } from '#components/threads/dal.js';
+import { threadsService } from '#components/threads/service.js';
 import { startWorkItemResolveRun } from './work-item.js';
 
 import { githubWebhookAuth } from '#utils/auth.js';
@@ -43,6 +44,9 @@ async function handleIssuesEvent(body: any) {
 
   if (action === 'closed') {
     const existingThread = await threadsDal.findByMetadata(issueMetadata);
+    // Otherwise a run already underway still opens or updates a PR for an issue nobody wants anymore.
+    if (existingThread) await threadsService.stopRuns(existingThread.id);
+
     // Worktree cleanup is the fallback for an issue closed with no PR ever opened — once one exists, its own close event owns it instead.
     if (existingThread?.metadata?.codeChangeRequestNumber)
       return {

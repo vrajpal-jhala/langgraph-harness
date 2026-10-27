@@ -35,9 +35,9 @@ export const threadsService = {
 
   update: (id: string, title: string) => threadsDal.update(id, { title }),
 
-  delete: async (id: string) => {
-    const thread = await threadsDal.findById(id);
-    if (!thread) throw errors.threads.notFound();
+  stopRuns: async (id: string) => {
+    // Cleared first: a run ending, even by abort, is what drains a coalesced rerun.
+    await threadsDal.consumePendingRerun(id);
 
     const runs = await runsDal.getByThread(id);
 
@@ -50,9 +50,16 @@ export const threadsService = {
         }
       } else if (run.status === RunStatus.QUEUED) {
         await workflowsService.forKind(run.kind).cancelPendingRun?.(run);
+        await runsService.failById(run.id, id, 'Cancelled');
       }
     }
+  },
 
+  delete: async (id: string) => {
+    const thread = await threadsDal.findById(id);
+    if (!thread) throw errors.threads.notFound();
+
+    await threadsService.stopRuns(id);
     await checkpointer.deleteThread(id);
     const deleted = await threadsDal.deleteById(id);
     if (!deleted) throw errors.threads.notFound();

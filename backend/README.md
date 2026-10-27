@@ -223,15 +223,15 @@ Work-item-resolve is triggered by assigning the bot to a GitLab Issue or Task �
 - **URL**: `https://<your-host>/webhooks/gitlab`
 - **Triggers**: Issue events, Comment events, Work item events
 
-| Event                                       | Behaviour                                             |
-| ------------------------------------------- | ----------------------------------------------------- |
-| Issue/Task assigned to the bot              | Starts a run                                          |
-| Issue/Task opened/reopened already assigned | Starts a run                                          |
-| Issue/Task unassigned from the bot          | Ignored                                               |
-| Issue/Task closed, no MR ever opened        | Cleans up the issue's git worktree; no run            |
-| Issue/Task closed, MR already exists        | Ignored — the MR's own merge/close event owns cleanup |
-| Human comment tagging the bot on the MR     | Starts a fresh run against the issue's current state  |
-| The bot's own status comment on the MR      | Ignored — never mistaken for reviewer feedback        |
+| Event                                       | Behaviour                                                  |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| Issue/Task assigned to the bot              | Starts a run                                               |
+| Issue/Task opened/reopened already assigned | Starts a run                                               |
+| Issue/Task unassigned from the bot          | Ignored                                                    |
+| Issue/Task closed, no MR ever opened        | Stops any run; cleans up the issue's git worktree          |
+| Issue/Task closed, MR already exists        | Stops any run; the MR's own merge/close event owns cleanup |
+| Human comment tagging the bot on the MR     | Starts a fresh run against the issue's current state       |
+| The bot's own status comment on the MR      | Ignored — never mistaken for reviewer feedback             |
 
 Incoming webhooks are filtered by project path (`workItemResolve.projectPathFilters` in `config.ts`, matched by substring, shared with MR review). A thread stops accepting new runs once it hits `workItemResolve.runCap` (default: 10).
 
