@@ -24,11 +24,11 @@ export const agentNode: GraphNode<typeof taskResolveState> = async (
   } = state;
   const repoInstructions = workflowConfig.instructions.content;
   const { signal } = config;
-  const { sandbox, workingDirectory, worktreePath, mrIid } =
+  const { host, sandbox, workingDirectory, worktreePath, mrIid } =
     config.configurable as Partial<TaskResolveAgentConfigurable>;
   const threadId = config.configurable?.thread_id as string | undefined;
 
-  if (!sandbox || !workingDirectory || !worktreePath || !threadId) {
+  if (!host || !sandbox || !workingDirectory || !worktreePath || !threadId) {
     throw new Error(
       'Agent node invoked without a sandbox and thread configured.',
     );
@@ -48,7 +48,8 @@ export const agentNode: GraphNode<typeof taskResolveState> = async (
         taskType,
         repoInstructions,
         taskSource: 'carrying out a user-submitted task',
-        identifiers: `project_id "${projectPath}"`,
+        identifiers: host.repoIdentifiers(projectPath),
+        host,
         model,
         sandbox,
         workingDirectory,
@@ -63,7 +64,7 @@ export const agentNode: GraphNode<typeof taskResolveState> = async (
       },
       config,
     );
-    return { messages: updatedMessages, lastRunReplyNoteIds: replyNoteIds };
+    return { messages: updatedMessages, lastRunReplyCommentIds: replyNoteIds };
   } finally {
     emitNodeLifecycleEvents(config, {
       event: 'node_end',

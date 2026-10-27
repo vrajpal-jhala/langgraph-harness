@@ -6,11 +6,16 @@ import {
 } from '@langchain/core/tools';
 import z from 'zod';
 
+import { type GitHost, GitProvider } from '#types.js';
+
 import { createMemoryCandidateTool } from '#components/memories/tool.js';
+import { githubMcp } from '#components/workflows/github-mcp.js';
 import { gitlabMcp } from '#components/workflows/gitlab-mcp.js';
 import type { SandboxAgentConfigurable } from '#components/workflows/state.js';
 import { fetchWebPage } from '#components/workflows/web-fetch.js';
 
+import { config } from '#utils/config.js';
+import { gitHosts } from '#utils/git-host.js';
 import { mcpToolFilter } from '#utils/helpers.js';
 
 type SandboxToolRuntime = ToolRuntime<unknown, unknown> & {
@@ -119,32 +124,50 @@ const createMemoryCandidate =
         : { workflow: 'work-item-resolve', issueIid: configurable.issueIid },
   });
 
-const ISSUE_READ_TOOLS = new Set(['mr_discussions', 'list_issue_discussions']);
-const ISSUE_WRITE_TOOLS = new Set(['create_merge_request_discussion_note']);
-const ISSUE_TOOL_ALLOWLIST = new Set([
-  ...ISSUE_READ_TOOLS,
-  ...ISSUE_WRITE_TOOLS,
-]);
+const providerTools: Record<GitProvider, DynamicStructuredTool[]> = {
+  [GitProvider.GitLab]: [],
+  [GitProvider.GitHub]: [],
+};
 
-let mcpTools: DynamicStructuredTool[] = [];
+const allowedFrom = (allTools: DynamicStructuredTool[], host: GitHost) =>
+  allTools.filter(
+    mcpToolFilter(
+      new Set([...host.issueTools.read, ...host.issueTools.write]),
+      host.provider,
+    ),
+  );
 
 export const tools = {
   init: async () => {
-    const allTools = await gitlabMcp.getTools();
-    mcpTools = [
+    const baseTools = [
       runCommand,
       writeFiles,
       createMemoryCandidate,
       fetchWebPage,
-      ...allTools.filter(mcpToolFilter(ISSUE_TOOL_ALLOWLIST, 'gitlab')),
     ];
+    providerTools[GitProvider.GitLab] = [
+      ...baseTools,
+      ...allowedFrom(await gitlabMcp.getTools(), gitHosts[GitProvider.GitLab]),
+    ];
+    // GitHub is optional — a GitLab-only deployment never opens that connection.
+    if (config.github.pat) {
+      providerTools[GitProvider.GitHub] = [
+        ...baseTools,
+        ...allowedFrom(
+          await githubMcp.getTools(),
+          gitHosts[GitProvider.GitHub],
+        ),
+      ];
+    }
   },
-  getAll: () => mcpTools,
-  getReadNames: () =>
+  getAll: (host: GitHost) => providerTools[host.provider],
+  getReadNames: (host: GitHost) =>
     ['run_command', 'fetch_web_page'].concat(
-      mcpTools
-        .filter(mcpToolFilter(ISSUE_READ_TOOLS, 'gitlab'))
+      providerTools[host.provider]
+        .filter(mcpToolFilter(host.issueTools.read, host.provider))
         .map((t) => t.name),
     ),
-  cleanup: () => gitlabMcp.close(),
+  cleanup: async () => {
+    await Promise.all([gitlabMcp.close(), githubMcp.close()]);
+  },
 };

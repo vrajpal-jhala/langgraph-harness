@@ -24,8 +24,8 @@ const workflowStateSchema = z.object({
   defaultBranch: z.string(),
   model: z.enum(llms.map((m) => m.model)),
   messages: MessagesValue,
-  noteId: z.number().optional(),
-  lastRunReplyNoteIds: z.array(z.string()).optional().default([]),
+  statusCommentId: z.number().optional(),
+  lastRunReplyCommentIds: z.array(z.string()).optional().default([]),
   completionStatus: z.enum(CompletionStatus).optional(),
   completionSummary: z.string().optional(),
   // Repo config + parse status, resolved in the webhook route and passed in as

@@ -1,43 +1,47 @@
-import type { CompletionStatus, RunEvent } from '#types.js';
+import type { CompletionStatus, GitHost, RunEvent } from '#types.js';
 import { RunStep } from '#types.js';
 
 import { config } from '#utils/config.js';
-import { createDraftMergeRequest, updateMergeRequest } from '#utils/gitlab.js';
 
-export async function* createDraftMr(params: {
-  projectId: string;
+export async function* createDraftCodeChangeRequest(params: {
+  host: GitHost;
+  projectPath: string;
   sourceBranch: string;
   targetBranch: string;
   title: string;
   description: string;
-  reviewerId: number | null;
-  // GitLab rejects a second open MR for the same branch pair, so a thread that already has one reuses it instead of creating.
+  reviewerUsername: string | null;
+  // A second open MR for the same branch pair is rejected on both providers, so a thread that already has one reuses it instead of creating.
   existingMrIid?: string;
   existingMrUrl?: string;
   mockIid: string;
-}): AsyncGenerator<RunEvent, { mrIid: string; mrUrl: string }> {
+  signal?: AbortSignal;
+}): AsyncGenerator<RunEvent, { mrIid: string; mrUrl: string; draft: boolean }> {
   const {
-    projectId,
+    host,
+    projectPath,
     sourceBranch,
     targetBranch,
     title,
     description,
-    reviewerId,
+    reviewerUsername,
     existingMrIid,
     existingMrUrl,
     mockIid,
+    signal,
   } = params;
 
   const stepId = crypto.randomUUID();
   let error = '';
   let mrIid = existingMrIid ?? '';
   let mrUrl = existingMrUrl ?? '';
+  let draft = true;
 
   yield {
     event: 'run_step_start',
     data: {
       id: stepId,
-      step: RunStep.MrCreate,
+      step: RunStep.CreateCodeChangeRequest,
       sourceBranch,
       targetBranch,
       timestamp: Date.now(),
@@ -46,16 +50,15 @@ export async function* createDraftMr(params: {
   try {
     if (!config.mock.workflow) {
       if (!existingMrIid) {
-        const mr = await createDraftMergeRequest({
-          projectId,
+        ({ mrIid, mrUrl, draft } = await host.createDraftCodeChangeRequest({
+          projectPath,
           sourceBranch,
           targetBranch,
           title,
           description,
-          reviewerId,
-        });
-        mrIid = String(mr.iid);
-        mrUrl = mr.webUrl;
+          reviewerUsername,
+          signal,
+        }));
       }
     } else if (!existingMrIid) {
       mrIid = mockIid;
@@ -69,20 +72,21 @@ export async function* createDraftMr(params: {
       event: 'run_step_end',
       data: {
         id: stepId,
-        step: RunStep.MrCreate,
-        mrIid,
-        mrUrl,
+        step: RunStep.CreateCodeChangeRequest,
+        codeChangeRequestNumber: mrIid,
+        codeChangeRequestUrl: mrUrl,
         error,
         timestamp: Date.now(),
       },
     };
   }
 
-  return { mrIid, mrUrl };
+  return { mrIid, mrUrl, draft };
 }
 
-export async function* updateMr(params: {
-  projectId: string;
+export async function* updateCodeChangeRequest(params: {
+  host: GitHost;
+  projectPath: string;
   mrIid: string;
   description: string;
   draft?: boolean;
@@ -90,7 +94,8 @@ export async function* updateMr(params: {
   completionSummary: string;
 }): AsyncGenerator<RunEvent, void> {
   const {
-    projectId,
+    host,
+    projectPath,
     mrIid,
     description,
     draft,
@@ -105,14 +110,14 @@ export async function* updateMr(params: {
     event: 'run_step_start',
     data: {
       id: stepId,
-      step: RunStep.UpdateMergeRequest,
+      step: RunStep.UpdateCodeChangeRequest,
       timestamp: Date.now(),
     },
   };
   try {
     if (!config.mock.workflow) {
-      await updateMergeRequest({
-        projectId,
+      await host.updateCodeChangeRequest({
+        projectPath,
         mrIid,
         description,
         ...(draft !== undefined && { draft }),
@@ -125,7 +130,7 @@ export async function* updateMr(params: {
       event: 'run_step_end',
       data: {
         id: stepId,
-        step: RunStep.UpdateMergeRequest,
+        step: RunStep.UpdateCodeChangeRequest,
         completionStatus,
         completionSummary,
         error,

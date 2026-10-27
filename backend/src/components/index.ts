@@ -1,7 +1,7 @@
 import { Elysia, sse } from 'elysia';
 
 import type { TaskResolveRunInput } from '#types.js';
-import { MemoryScope, RunKind, RunStatus } from '#types.js';
+import { GitProvider, MemoryScope, RunKind, RunStatus } from '#types.js';
 
 import { analyticsService } from './analytics/service.js';
 import {
@@ -47,6 +47,7 @@ import { getStatus as getWorkItemResolveQueueStatus } from './workflows/work-ite
 import { authMacro, isAdmin } from '#utils/auth.js';
 import { llms } from '#utils/config.js';
 import { errors } from '#utils/errors.js';
+import { gitHosts } from '#utils/git-host.js';
 import { resolveProjectFromUrl } from '#utils/gitlab.js';
 import { parseHarnessYml } from '#utils/harness-config.js';
 
@@ -219,6 +220,7 @@ export const api = new Elysia({ prefix: '/api' })
                 session.id,
               );
               await threadsDal.mergeMetadata(thread.id, {
+                source: GitProvider.GitLab,
                 project: projectPath,
               });
 
@@ -230,7 +232,10 @@ export const api = new Elysia({ prefix: '/api' })
                 defaultBranch,
                 submittedBy: session.username,
                 model: llms.find((m) => m.isDefault)?.model ?? llms[0].model,
-                config: await parseHarnessYml(projectPath),
+                config: await parseHarnessYml(
+                  gitHosts[GitProvider.GitLab],
+                  projectPath,
+                ),
               };
 
               const run = await runsService.create(

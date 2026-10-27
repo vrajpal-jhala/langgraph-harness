@@ -1,7 +1,7 @@
 import { Queue, Worker } from 'bullmq';
 
 import type { TaskResolveRunInput, TaskSchedule } from '#types.js';
-import { RunKind, ScheduleStatus } from '#types.js';
+import { GitProvider, RunKind, ScheduleStatus } from '#types.js';
 
 import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
@@ -11,6 +11,7 @@ import { schedulesDal } from './dal.js';
 import { firstOccurrence, toCronPattern } from './recurrence.js';
 
 import { config, llms } from '#utils/config.js';
+import { gitHosts } from '#utils/git-host.js';
 import { parseHarnessYml } from '#utils/harness-config.js';
 import { logger } from '#utils/logger.js';
 
@@ -30,7 +31,10 @@ async function buildRunInput(
     defaultBranch: schedule.default_branch,
     submittedBy: schedule.created_by,
     model: llms.find((m) => m.isDefault)?.model ?? llms[0].model,
-    config: await parseHarnessYml(schedule.project_path),
+    config: await parseHarnessYml(
+      gitHosts[GitProvider.GitLab],
+      schedule.project_path,
+    ),
   };
 }
 
@@ -42,6 +46,7 @@ export async function materializeScheduleRun(schedule: TaskSchedule) {
     schedule.created_by,
   );
   await threadsDal.mergeMetadata(thread.id, {
+    source: GitProvider.GitLab,
     scheduleId: schedule.id,
     project: schedule.project_path,
   });

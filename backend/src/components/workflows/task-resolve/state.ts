@@ -22,7 +22,7 @@ const taskResolveStateSchema = z.object({
   defaultBranch: z.string(),
   model: z.enum(llms.map((m) => m.model)),
   messages: MessagesValue,
-  lastRunReplyNoteIds: z.array(z.string()).optional().default([]),
+  lastRunReplyCommentIds: z.array(z.string()).optional().default([]),
   completionStatus: z.enum(CompletionStatus).optional(),
   completionSummary: z.string().optional(),
   config: z.object({

@@ -1,18 +1,9 @@
-# Format staged files with Prettier (via lint-staged) before anything else, so
-# the formatted versions are what get committed. Aborts the commit on failure.
-npx lint-staged || exit 1
-
-# Lint each package when this commit touches it. Whole-package lint (fast) rather
-# than staged-only, matching the gen:types idiom below. Aborts on any lint error.
-if git diff --cached --name-only --diff-filter=ACMR | grep -q '^backend/'; then
-  echo "husky: backend changed — linting..."
-  npm --prefix backend run lint || exit 1
-fi
-
-if git diff --cached --name-only --diff-filter=ACMR | grep -q '^frontend/'; then
-  echo "husky: frontend changed — linting..."
-  npm --prefix frontend run lint || exit 1
-fi
+# Format, then lint, only the staged files (via lint-staged), so the fixed
+# versions are what get committed. Aborts the commit on any lint error.
+# Staged-only is enough: eslint has no type-aware rules (no parserOptions.project),
+# so a file's result never depends on another file. Sequential so prettier and
+# eslint never write the same file at once.
+npx lint-staged --concurrent false || exit 1
 
 # Keep the committed Eden type snapshot (frontend/src/__generated__/app.d.ts) in
 # sync with the backend API. When this commit touches backend/src, regenerate it
