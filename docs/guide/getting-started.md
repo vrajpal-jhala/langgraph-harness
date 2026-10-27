@@ -33,6 +33,12 @@ Sign-in (and per-user GitLab actions taken on your behalf) go through GitLab OAu
 4. Scope: `api` (the same scope as the bot's PAT — OAuth login also stores a per-user token used for on-behalf-of actions).
 5. Save, and copy the generated **Application ID** and **Secret**.
 
+### Optional: GitHub sign-in
+
+To also offer **Sign in with GitHub**, register a GitHub OAuth app (**Settings → Developer settings → OAuth Apps → New OAuth App**) with the callback URL `http://localhost:5173/auth/callback/github` (again `APP_URL` plus `/auth/callback/github`), then set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET`. Leave them empty and the button doesn't appear. Only github.com is supported; GitHub Enterprise isn't.
+
+A GitHub-only user can use chat but has no GitLab identity, so GitLab-backed features need them to connect GitLab from **Settings** (the two accounts can use different emails). If their GitHub and GitLab accounts share a verified email, signing in with either one lands in the same account. Admin rights for GitHub users come from `ADMIN_GITHUB_USERNAMES`.
+
 ## 4. Configure the backend
 
 ```bash

@@ -1,15 +1,14 @@
 import crypto from 'crypto';
 import { Elysia } from 'elysia';
 
-import type { Session } from '#types.js';
+import { Role, type Session } from '#types.js';
 
 import { auth } from '#components/auth/index.js';
 import { config } from './config.js';
 
 import { db } from '#utils/db.js';
 
-export const isAdmin = (username: string) =>
-  config.auth.adminGitlabUsernames.includes(username);
+export const isAdmin = (session: Session) => session.role === Role.Admin;
 
 export const authMacro = new Elysia({ name: 'auth-macro' }).macro({
   auth: {

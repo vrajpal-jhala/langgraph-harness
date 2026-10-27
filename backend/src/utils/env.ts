@@ -23,6 +23,9 @@ const OPTIONAL = new Set([
   'GITHUB_BOT_NAME',
   'GITHUB_BOT_EMAIL',
   'GITHUB_MCP_URL',
+  'GITHUB_OAUTH_CLIENT_ID',
+  'GITHUB_OAUTH_CLIENT_SECRET',
+  'ADMIN_GITHUB_USERNAMES',
 ]);
 
 export function validateEnv() {
