@@ -105,6 +105,22 @@ async function handleIssueAssignmentEvent(
       reason: 'not_assignment_event',
     };
 
+  if (
+    isAssignmentUpdate &&
+    usernamesFrom(changes.assignees.previous).has(config.gitlab.username) &&
+    !usernamesFrom(changes.assignees.current).has(config.gitlab.username)
+  ) {
+    const existingThread = await threadsDal.findByMetadata(issueMetadata);
+    if (!existingThread)
+      return {
+        received: true,
+        status: 'skipped',
+        reason: 'no_matching_thread',
+      };
+    await threadsService.stopRuns(existingThread.id);
+    return { received: true, status: 'accepted', detail: 'runs_stopped' };
+  }
+
   const currentlyAssigned = new Set([
     ...usernamesFrom(assignees),
     ...usernamesFrom(assignee),
