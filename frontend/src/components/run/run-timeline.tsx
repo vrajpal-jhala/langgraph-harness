@@ -1013,6 +1013,7 @@ const RunTimeline = ({
                   TrailingQuestionGuard: 'Task confirmation',
                   NoToolCallGuard: 'No action taken',
                   DiscussionCheckGuard: 'Discussion check',
+                  WriteTargetGuard: 'Write outside this run',
                   ExtractProjectMemory: 'Memory reflection',
                   HumanApproval: 'Split approval',
                 }[event.data.middleware];

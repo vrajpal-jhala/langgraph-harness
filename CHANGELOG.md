@@ -13,6 +13,7 @@ All notable changes to langgraph-harness are documented here.
 
 - **Unassigning the bot didn't stop its run** — removing the bot from an issue's assignees left a run already underway going, so it could still open a merge request nobody wanted. Unassigning now stops the run and cancels any waiting one, like closing the issue does.
 - **A redelivered webhook started the work all over again** — resending a delivery from GitLab's webhook settings, for example an issue assignment, queued a whole new run. Each delivery is now handled once; a repeat within a day is ignored.
+- **The agent could post comments outside the issue it was working on** — the issue and merge request it should write to were only named in its instructions, so text in an issue or comment could talk it into commenting somewhere else the bot can reach. Its comment and reply tools now refuse any target other than the run's own issue and merge request.
 - **Closing an issue didn't stop the agent working on it** — a run already underway kept going and could still open a merge request for the closed issue, and a run waiting in the queue or a follow-up queued behind it still started later. Closing the issue now stops the current run, cancels any waiting one, and the issue's status comment says the work was cancelled.
 
 ### Breaking Changes

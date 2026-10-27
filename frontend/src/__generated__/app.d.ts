@@ -637,7 +637,7 @@ type CorrectiveNudgeStartEvent = {
 	event: "corrective_nudge_start";
 	data: {
 		id: string;
-		middleware: "DuplicateCallGuard" | "ExtractProjectMemory" | "TrailingQuestionGuard" | "NoToolCallGuard" | "DiscussionCheckGuard" | "HumanApproval";
+		middleware: "DuplicateCallGuard" | "ExtractProjectMemory" | "TrailingQuestionGuard" | "NoToolCallGuard" | "DiscussionCheckGuard" | "WriteTargetGuard" | "HumanApproval";
 		prompt: string;
 		timestamp: number;
 		subagentId?: string;

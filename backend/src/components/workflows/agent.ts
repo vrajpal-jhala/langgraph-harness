@@ -29,6 +29,7 @@ import {
   summarizeContextMiddleware,
   toolOutputCapMiddleware,
   trailingQuestionGuardMiddleware,
+  writeTargetGuardMiddleware,
 } from '#components/workflows/middlewares/index.js';
 import type { BRANCH_TYPES } from './branch-naming.js';
 import {
@@ -216,6 +217,7 @@ function buildAgent(model: string, host: GitHost): CompiledAgent {
     duplicateCallGuardMiddleware({
       readToolNames: new Set(tools.getReadNames(host)),
     }),
+    writeTargetGuardMiddleware(),
     extractProjectMemoryMiddleware({
       llm,
       provider: modelConfig.provider,
