@@ -2721,6 +2721,10 @@ export declare const app: Elysia<"", {
 						status: string;
 						detail: string;
 						reason?: undefined;
+					} | {
+						received: boolean;
+						status: string;
+						reason: string;
 					};
 					401: "Unauthorized";
 				};
@@ -2739,13 +2743,12 @@ export declare const app: Elysia<"", {
 					200: {
 						received: boolean;
 						status: string;
-						reason: string;
-						detail?: undefined;
+						detail: string;
+						reason?: undefined;
 					} | {
 						received: boolean;
 						status: string;
-						detail: string;
-						reason?: undefined;
+						reason: string;
 					};
 					401: "Unauthorized";
 				};

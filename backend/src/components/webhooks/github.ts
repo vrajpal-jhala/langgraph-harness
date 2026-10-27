@@ -5,6 +5,7 @@ import { GitProvider } from '#types.js';
 import { repositoriesManager } from '#components/repositories/manager.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
+import { handleOnce } from './delivery.js';
 import { startWorkItemResolveRun } from './work-item.js';
 
 import { githubWebhookAuth } from '#utils/auth.js';
@@ -154,13 +155,20 @@ export const githubWebhook = new Elysia({ prefix: '/webhooks' })
 
       if (event === 'ping')
         return { received: true, status: 'accepted', detail: 'pong' };
-      if (event === 'issues') return handleIssuesEvent(body);
-      if (event === 'pull_request') return handlePullRequestEvent(body);
 
-      return {
-        received: true,
-        status: 'skipped',
-        reason: `unhandled_event: ${event}`,
-      };
+      return handleOnce(
+        GitProvider.GitHub,
+        headers['x-github-delivery'],
+        async () => {
+          if (event === 'issues') return handleIssuesEvent(body);
+          if (event === 'pull_request') return handlePullRequestEvent(body);
+
+          return {
+            received: true,
+            status: 'skipped',
+            reason: `unhandled_event: ${event}`,
+          };
+        },
+      );
     },
   );
