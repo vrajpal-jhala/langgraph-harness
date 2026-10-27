@@ -114,16 +114,16 @@ export type CompletionStatus =
 export const RunStep = {
   PrepareWorktree: 'prepare_worktree',
   SetGitIdentity: 'set_git_identity',
-  SandboxCreate: 'sandbox_create',
-  SandboxKill: 'sandbox_kill',
+  CreateSandbox: 'create_sandbox',
+  KillSandbox: 'kill_sandbox',
   ClassifyIssue: 'classify_issue',
   CreateBranch: 'create_branch',
   Push: 'push',
-  MrCreate: 'mr_create',
+  CreateCodeChangeRequest: 'create_code_change_request',
   NoChanges: 'no_changes',
   AssessCompletion: 'assess_completion',
   NotifyIssueEnd: 'notify_issue_end',
-  UpdateMergeRequest: 'update_merge_request',
+  UpdateCodeChangeRequest: 'update_code_change_request',
 } as const;
 export type RunStep = (typeof RunStep)[keyof typeof RunStep];
 
@@ -148,7 +148,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: typeof RunStep.SandboxCreate;
+        step: typeof RunStep.CreateSandbox;
         image: string;
         timestamp: number;
       };
@@ -157,7 +157,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: typeof RunStep.SandboxKill;
+        step: typeof RunStep.KillSandbox;
         sandboxId: string;
         timestamp: number;
       };
@@ -193,7 +193,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: typeof RunStep.MrCreate;
+        step: typeof RunStep.CreateCodeChangeRequest;
         sourceBranch: string;
         targetBranch: string;
         timestamp: number;
@@ -220,7 +220,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: typeof RunStep.UpdateMergeRequest;
+        step: typeof RunStep.UpdateCodeChangeRequest;
         timestamp: number;
       };
     };
@@ -254,7 +254,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: typeof RunStep.SandboxCreate;
+        step: typeof RunStep.CreateSandbox;
         sandboxId: string;
         error: string;
         timestamp: number;
@@ -264,7 +264,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: typeof RunStep.SandboxKill;
+        step: typeof RunStep.KillSandbox;
         error: string;
         timestamp: number;
       };
@@ -306,9 +306,9 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: typeof RunStep.MrCreate;
-        mrIid: string;
-        mrUrl: string;
+        step: typeof RunStep.CreateCodeChangeRequest;
+        codeChangeRequestNumber: string;
+        codeChangeRequestUrl: string;
         error: string;
         timestamp: number;
       };
@@ -335,7 +335,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: typeof RunStep.UpdateMergeRequest;
+        step: typeof RunStep.UpdateCodeChangeRequest;
         completionStatus: CompletionStatus;
         completionSummary: string;
         error: string;
@@ -375,8 +375,74 @@ export type ChatRunInput = {
   tools: { server: boolean; gitlab: boolean; webSearch: boolean };
 };
 
+export const GitProvider = {
+  GitLab: 'gitlab',
+  GitHub: 'github',
+} as const;
+
+export type GitProvider = (typeof GitProvider)[keyof typeof GitProvider];
+
+export type AlertType = 'note' | 'caution' | 'tip' | 'warning';
+
+export type ToolCallSpec = { name: string; method?: string };
+
+export type GitHost = {
+  provider: GitProvider;
+  name: string;
+  codeChangeRequestName: string;
+  commitIdentity: { name: string; email: string };
+  repoKey: (projectPath: string) => string;
+  remoteUrl: (projectPath: string) => string;
+  formatAlert: (type: AlertType, title: string, body: string) => string;
+  repoIdentifiers: (projectPath: string) => string;
+  codeChangeRequestIdentifier: (mrIid: string) => string;
+  issueIdentifiers: (projectPath: string, issueIid: string) => string;
+  issueTools: { read: Set<string>; write: Set<string> };
+  discussion: {
+    issueComments: ToolCallSpec[];
+    codeChangeRequestFeedback: ToolCallSpec[];
+    replies: string[];
+    replyGuidance: string;
+  };
+  fetchIssue: (
+    projectPath: string,
+    issueIid: string,
+    issueKind: 'issue' | 'work_item',
+    signal?: AbortSignal,
+  ) => Promise<{ title: string; description: string; labels: string[] }>;
+  fetchRepoFile: (projectPath: string, path: string) => Promise<string | null>;
+  upsertIssueComment: (
+    projectPath: string,
+    issueIid: string,
+    body: string,
+    commentId?: number,
+  ) => Promise<number>;
+  upsertCodeChangeRequestComment: (
+    projectPath: string,
+    mrIid: string,
+    body: string,
+    commentId?: number,
+  ) => Promise<number>;
+  createDraftCodeChangeRequest: (params: {
+    projectPath: string;
+    sourceBranch: string;
+    targetBranch: string;
+    title: string;
+    description: string;
+    reviewerUsername: string | null;
+    signal?: AbortSignal;
+  }) => Promise<{ mrIid: string; mrUrl: string; draft: boolean }>;
+  updateCodeChangeRequest: (params: {
+    projectPath: string;
+    mrIid: string;
+    description: string;
+    draft?: boolean;
+  }) => Promise<void>;
+};
+
 export type WorkItemResolveRunInput = {
   kind: typeof RunKind.WorkItemResolve;
+  provider: GitProvider;
   projectPath: string;
   issueIid: string;
   defaultBranch: string;

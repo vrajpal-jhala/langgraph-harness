@@ -3,7 +3,7 @@ export const IDLE_TOOL_CALL_MS = 60 * 1000;
 export const REPEATED_TEXT_THRESHOLD = 3;
 
 export function generationLoopReason(text: string): string {
-  const excerpt = text.length > 200 ? `${text.slice(0, 200)}…` : text;
+  const excerpt = text.length > 200 ? `${text.slice(0, 200)}...` : text;
   const minutes = IDLE_TOOL_CALL_MS / 60000;
   return (
     `No tool call for ${minutes} minute${minutes === 1 ? '' : 's'} — the ` +

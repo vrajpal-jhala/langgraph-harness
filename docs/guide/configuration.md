@@ -10,4 +10,6 @@ Drop a `.harness.yml` at the root of a project's default branch to customize how
 - **`exclude_branches`** — skip review entirely for branches that don't need it (release branches, WIP branches, a `staging` promotion merge).
 - **`mr_review_requires_harness_reviewer`** — opt into requiring the bot be explicitly added as a reviewer before it comments, instead of reviewing every MR by default.
 
+On GitHub repos, `work_item_resolve_instructions` applies to issue runs the same way; the review keys (`mr_review_instructions`, `exclude_branches`, `mr_review_requires_harness_reviewer`) only take effect on GitLab until pull request review is supported.
+
 This is application-level config, separate from the environment variables in [`backend/README.md`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/backend/README.md) — those configure the harness instance itself; `.harness.yml` configures how it treats one specific project.

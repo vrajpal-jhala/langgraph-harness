@@ -15,7 +15,6 @@ import { logger } from '#utils/logger.js';
 export type InstructionDoc = { path: string; match?: string[] };
 
 type LoadInstructionsState = {
-  noteId?: number;
   config: {
     status: ParsedHarnessConfig['status'];
     parsed: ParsedHarnessConfig['parsed'];
@@ -51,7 +50,7 @@ export function createLoadInstructionsNode<
   config: LangGraphRunnableConfig,
 ) => Promise<{ config: TState['config'] }> {
   return async (state, config) => {
-    const { noteId, config: workflowConfig } = state;
+    const { config: workflowConfig } = state;
     const { status: repoConfigStatus, parsed: repoConfig } = workflowConfig;
 
     emitNodeLifecycleEvents(config, {
@@ -89,12 +88,12 @@ export function createLoadInstructionsNode<
     }
 
     // Reuse the note opened by the workflow's own notify-start node to surface instruction status.
-    if (!appConfig.mock.workflow && noteId && options.postNote) {
+    if (!appConfig.mock.workflow && options.postNote) {
       await options
         .postNote(state, config, instructionStatus)
         .catch((err) =>
           logger.error(
-            { err, noteId },
+            { err },
             'Failed to update note with instruction status',
           ),
         );

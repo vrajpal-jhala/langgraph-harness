@@ -3,12 +3,12 @@ import { parse } from 'yaml';
 import { z } from 'zod';
 
 import {
+  type GitHost,
   HarnessConfig,
   HarnessConfigStatus,
   ParsedHarnessConfig,
 } from '#types.js';
 
-import { fetchRepoFile } from './gitlab.js';
 import { logger } from './logger.js';
 
 const HARNESS_CONFIG_PATH = '.harness.yml';
@@ -48,11 +48,12 @@ export const harnessConfigSchema = z.object({
  * instructions rather than failing the whole review.
  */
 export async function parseHarnessYml(
-  projectId: string,
+  host: GitHost,
+  projectPath: string,
 ): Promise<ParsedHarnessConfig> {
   let raw: string | null;
   try {
-    raw = await fetchRepoFile(projectId, HARNESS_CONFIG_PATH);
+    raw = await host.fetchRepoFile(projectPath, HARNESS_CONFIG_PATH);
   } catch (err) {
     logger.error({ err }, `Failed to fetch ${HARNESS_CONFIG_PATH}`);
     return { parsed: null, status: HarnessConfigStatus.Invalid };

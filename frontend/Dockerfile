@@ -4,7 +4,8 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 ARG GITLAB_API_URL
-RUN GITLAB_API_URL=$GITLAB_API_URL npm run build
+ARG GITHUB_API_URL
+RUN GITLAB_API_URL=$GITLAB_API_URL GITHUB_API_URL=$GITHUB_API_URL npm run build
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html

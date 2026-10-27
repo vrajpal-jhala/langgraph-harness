@@ -624,9 +624,9 @@ function extractSnippet(
   const start = Math.max(0, index - radius);
   const end = Math.min(text.length, index + length + radius);
   return (
-    (start > 0 ? '…' : '') +
+    (start > 0 ? '...' : '') +
     text.slice(start, end) +
-    (end < text.length ? '…' : '')
+    (end < text.length ? '...' : '')
   );
 }
 
