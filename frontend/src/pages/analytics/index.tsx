@@ -63,6 +63,7 @@ const commonNudges = [
 const sandboxedResolveNudges = [
   ...commonNudges,
   { key: 'DiscussionCheckGuard', label: 'Discussion check guard' },
+  { key: 'WriteTargetGuard', label: 'Write target guard' },
 ];
 
 const NUDGE_MIDDLEWARES: Record<RunKind, { key: string; label: string }[]> = {

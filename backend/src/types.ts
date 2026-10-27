@@ -601,6 +601,7 @@ export type CorrectiveNudgeStartEvent = {
       | 'TrailingQuestionGuard'
       | 'NoToolCallGuard'
       | 'DiscussionCheckGuard'
+      | 'WriteTargetGuard'
       | 'HumanApproval';
     prompt: string;
     timestamp: number;

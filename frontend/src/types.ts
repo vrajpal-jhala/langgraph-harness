@@ -635,6 +635,7 @@ export type WorkflowEvent =
           | 'TrailingQuestionGuard'
           | 'NoToolCallGuard'
           | 'DiscussionCheckGuard'
+          | 'WriteTargetGuard'
           | 'HumanApproval';
         prompt: string;
         timestamp: number;

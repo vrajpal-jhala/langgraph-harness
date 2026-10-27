@@ -11,3 +11,4 @@ export * from './reply-critic.js';
 export * from './summarize-context.js';
 export * from './tool-output-cap.js';
 export * from './trailing-question-guard.js';
+export * from './write-target-guard.js';
