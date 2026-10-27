@@ -8,6 +8,7 @@ import { repositoriesManager } from '#components/repositories/manager.js';
 import { runsDal } from '#components/runs/dal.js';
 import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
+import { threadsService } from '#components/threads/service.js';
 import { enqueueMrReview } from '#components/workflows/mr-review/queue.js';
 import { enqueueTaskResolve } from '#components/workflows/task-resolve/queue.js';
 import { enqueueWorkItemResolve } from '#components/workflows/work-item-resolve/queue.js';
@@ -73,6 +74,9 @@ async function handleIssueAssignmentEvent(
 
   if (action === 'close') {
     const existingThread = await threadsDal.findByMetadata(issueMetadata);
+    // Otherwise a run already underway still opens or updates an MR for an issue nobody wants anymore.
+    if (existingThread) await threadsService.stopRuns(existingThread.id);
+
     // Worktree cleanup is the fallback for an issue closed with no MR ever opened — once one exists, its own merge/close event owns it instead.
     if (existingThread?.metadata?.codeChangeRequestNumber)
       return {
