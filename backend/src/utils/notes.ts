@@ -1,12 +1,13 @@
-import { CompletionStatus, InstructionStatus } from '#types.js';
+import {
+  type AlertType,
+  CompletionStatus,
+  type GitHost,
+  GitProvider,
+  InstructionStatus,
+} from '#types.js';
 
 import { config, llms, noteFooter } from './config.js';
-
-type AlertType = 'note' | 'caution' | 'tip' | 'warning';
-
-function alertBlock(type: AlertType, title: string, body: string): string {
-  return `> [!${type.toUpperCase()}] ${title}\n> ${body}`;
-}
+import { gitHosts } from './git-host.js';
 
 function threadLink(threadId?: string): string {
   return threadId
@@ -50,7 +51,12 @@ function buildMrNoteBody(
   const line = instructionLine(status);
 
   return [
-    alertBlock(alert.type, alert.title, alert.body),
+    // mr-review only runs on GitLab so far.
+    gitHosts[GitProvider.GitLab].formatAlert(
+      alert.type,
+      alert.title,
+      alert.body,
+    ),
     ...(line ? [`_${line}_`] : []),
     `Reviewed by <small>${modelName}</small>${threadLink(threadId)}`,
     noteFooter,
@@ -126,6 +132,7 @@ const COMPLETION_ALERT: Record<
 
 // `#<issueIid>` alone at creation (no closing keyword — merging shouldn't auto-close the issue); the completion block is appended once assessed, and re-appended (not accumulated) on every later round.
 export function workItemResolveDescription(
+  host: GitHost,
   issueIid: string,
   completion?: { status: CompletionStatus; summary: string },
 ): string {
@@ -133,7 +140,9 @@ export function workItemResolveDescription(
   if (!completion) return reference;
 
   const { type, title } = COMPLETION_ALERT[completion.status];
-  return [reference, alertBlock(type, title, completion.summary)].join('\n\n');
+  return [reference, host.formatAlert(type, title, completion.summary)].join(
+    '\n\n',
+  );
 }
 
 // task-resolve has no issue to reference, so the prompt itself heads the description; the completion block is appended once assessed, and re-appended (not accumulated) on every later round.
@@ -142,26 +151,45 @@ export function taskResolveDescription(prompt: string): string {
   return ['**Requested:**', '', prompt].join('\n');
 }
 
+type Alert = { type: AlertType; title: string; body: string };
+
 function buildWorkItemResolveNoteBody(
+  host: GitHost,
   modelId: string,
-  alert: { type: AlertType; title: string; body: string },
+  alert: Alert,
   status: InstructionStatus,
   threadId?: string,
+  notice?: Alert,
 ): string {
   const modelName = llms.find((m) => m.model === modelId)?.name ?? modelId;
   const line = instructionLine(status);
 
   return [
-    alertBlock(alert.type, alert.title, alert.body),
+    host.formatAlert(alert.type, alert.title, alert.body),
+    ...(notice
+      ? [host.formatAlert(notice.type, notice.title, notice.body)]
+      : []),
     ...(line ? [`_${line}_`] : []),
     `Resolved by <small>${modelName}</small>${threadLink(threadId)}`,
     noteFooter,
   ].join('\n\n');
 }
 
+export const notDraftNotice = (host: GitHost): Alert => ({
+  type: 'warning',
+  title: 'Not a Draft',
+  body: `This repository doesn't support draft ${host.codeChangeRequestName}s, so it was opened as a regular one. It isn't ready to merge yet.`,
+});
+
 export const workItemResolveNote = {
-  working: (modelId: string, status: InstructionStatus, threadId?: string) =>
+  working: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'note',
@@ -172,75 +200,95 @@ export const workItemResolveNote = {
       threadId,
     ),
   done: (
+    host: GitHost,
     modelId: string,
     status: InstructionStatus,
     mrUrl: string,
     summary: string,
     threadId?: string,
+    notice?: Alert,
   ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'tip',
         title: 'Done',
-        body: `${summary} See the [merge request](${mrUrl}) for the change.`,
+        body: `${summary} See the [${host.codeChangeRequestName}](${mrUrl}) for the change.`,
       },
       status,
       threadId,
+      notice,
     ),
   // No mrUrl — the run made no commits, so no merge request was ever opened.
   noChanges: (
+    host: GitHost,
     modelId: string,
     status: InstructionStatus,
     summary: string,
     threadId?: string,
   ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'tip',
         title: 'No Changes Needed',
-        body: `${summary} No changes were made, so no merge request was opened.`,
+        body: `${summary} No changes were made, so no ${host.codeChangeRequestName} was opened.`,
       },
       status,
       threadId,
     ),
   partial: (
+    host: GitHost,
     modelId: string,
     status: InstructionStatus,
     mrUrl: string,
     summary: string,
     threadId?: string,
+    notice?: Alert,
   ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'caution',
         title: 'Partially Done',
-        body: `${summary} See the [merge request](${mrUrl}) for what's there so far.`,
+        body: `${summary} See the [${host.codeChangeRequestName}](${mrUrl}) for what's there so far.`,
       },
       status,
       threadId,
+      notice,
     ),
   blocked: (
+    host: GitHost,
     modelId: string,
     status: InstructionStatus,
     mrUrl: string,
     summary: string,
     threadId?: string,
+    notice?: Alert,
   ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'warning',
         title: 'Blocked',
-        body: `${summary} See the [merge request](${mrUrl}) for what was attempted.`,
+        body: `${summary} See the [${host.codeChangeRequestName}](${mrUrl}) for what was attempted.`,
       },
       status,
       threadId,
+      notice,
     ),
-  failed: (modelId: string, status: InstructionStatus, threadId?: string) =>
+  failed: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'warning',
@@ -250,8 +298,14 @@ export const workItemResolveNote = {
       status,
       threadId,
     ),
-  aborted: (modelId: string, status: InstructionStatus, threadId?: string) =>
+  aborted: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'caution',
@@ -261,8 +315,14 @@ export const workItemResolveNote = {
       status,
       threadId,
     ),
-  timedOut: (modelId: string, status: InstructionStatus, threadId?: string) =>
+  timedOut: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'caution',
@@ -276,8 +336,14 @@ export const workItemResolveNote = {
 
 // Same lifecycle as workItemResolveNote, but these land on the MR itself, so they never link back to it.
 export const taskResolveNote = {
-  working: (modelId: string, status: InstructionStatus, threadId?: string) =>
+  working: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'note',
@@ -288,43 +354,55 @@ export const taskResolveNote = {
       threadId,
     ),
   done: (
+    host: GitHost,
     modelId: string,
     status: InstructionStatus,
     summary: string,
     threadId?: string,
   ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       { type: 'tip', title: 'Done', body: summary },
       status,
       threadId,
     ),
   partial: (
+    host: GitHost,
     modelId: string,
     status: InstructionStatus,
     summary: string,
     threadId?: string,
   ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       { type: 'caution', title: 'Partially Done', body: summary },
       status,
       threadId,
     ),
   blocked: (
+    host: GitHost,
     modelId: string,
     status: InstructionStatus,
     summary: string,
     threadId?: string,
   ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       { type: 'warning', title: 'Blocked', body: summary },
       status,
       threadId,
     ),
-  failed: (modelId: string, status: InstructionStatus, threadId?: string) =>
+  failed: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'warning',
@@ -334,8 +412,14 @@ export const taskResolveNote = {
       status,
       threadId,
     ),
-  aborted: (modelId: string, status: InstructionStatus, threadId?: string) =>
+  aborted: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'caution',
@@ -345,8 +429,14 @@ export const taskResolveNote = {
       status,
       threadId,
     ),
-  timedOut: (modelId: string, status: InstructionStatus, threadId?: string) =>
+  timedOut: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
     buildWorkItemResolveNoteBody(
+      host,
       modelId,
       {
         type: 'caution',

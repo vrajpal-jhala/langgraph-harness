@@ -2,6 +2,27 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [Unreleased]
+
+### Features
+
+- **The GitLab MCP server now runs as its own container** — previously the backend started it itself, and a slow start could crash the backend and leave an orphaned process holding its port, so every later start failed too. Review, issue and chat runs now share one `gitlab-mcp` service that reconnects on its own after a restart. Self-hosters need to start the new service when upgrading.
+- **GitHub issues can now be assigned to the bot** — assigning the bot account to an issue in a GitHub repo starts the same issue-resolving run as on GitLab: it works on a branch, opens a pull request, and keeps one status comment on the issue up to date. Closing the pull request or the issue cleans up its working copy. On a private repo whose GitHub plan doesn't support draft pull requests, it opens a regular one instead and says so on the issue. GitHub support is opt-in; GitLab-only deployments don't need to change anything.
+
+### Fixes
+
+- **Unassigning the bot didn't stop its run** — removing the bot from an issue's assignees left a run already underway going, so it could still open a merge request nobody wanted. Unassigning now stops the run and cancels any waiting one, like closing the issue does.
+- **A redelivered webhook started the work all over again** — resending a delivery from GitLab's webhook settings, for example an issue assignment, queued a whole new run. Each delivery is now handled once; a repeat within a day is ignored.
+- **The agent could post comments outside the issue it was working on** — the issue and merge request it should write to were only named in its instructions, so text in an issue or comment could talk it into commenting somewhere else the bot can reach. Its comment and reply tools now refuse any target other than the run's own issue and merge request.
+- **Closing an issue didn't stop the agent working on it** — a run already underway kept going and could still open a merge request for the closed issue, and a run waiting in the queue or a follow-up queued behind it still started later. Closing the issue now stops the current run, cancels any waiting one, and the issue's status comment says the work was cancelled.
+
+### Breaking Changes
+
+- **`WEBHOOK_TOKENS` is renamed to `GITLAB_WEBHOOK_TOKENS`** — now that GitHub has its own webhook secrets, the GitLab ones are named for GitLab. Rename the variable in `backend/.env` before upgrading, or GitLab webhooks will be rejected.
+- **Upgrading needs a short pause in work** — stored run and thread data is rewritten from GitLab-only names to names shared by GitLab and GitHub. Before deploying, wait until no run is active and the queues are empty.
+
+---
+
 ## [0.5.2] - 2026-10-22
 
 ### Fixes
@@ -1190,7 +1211,7 @@ The project was developed privately before this public release, under an interna
 
 ### Fixes
 
-- **Instruction status no longer stuck on "Loading"** — completed reviews of repos without a config file (or with no instruction docs) now correctly show "No repository instructions configured." instead of remaining on "Loading repository instructions…". Always-on instruction docs were affected by the same issue.
+- **Instruction status no longer stuck on "Loading"** — completed reviews of repos without a config file (or with no instruction docs) now correctly show "No repository instructions configured." instead of remaining on "Loading repository instructions...". Always-on instruction docs were affected by the same issue.
 
 ---
 

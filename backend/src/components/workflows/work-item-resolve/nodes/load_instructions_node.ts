@@ -1,10 +1,9 @@
-import { InstructionStatus } from '#types.js';
+import { type GitHost, InstructionStatus } from '#types.js';
 
 import { resolveInstructionDocs } from '#components/workflows/instructions.js';
 import { createLoadInstructionsNode } from '#components/workflows/nodes/load_instructions_node.js';
 import type { WorkflowState } from '#components/workflows/work-item-resolve/state.js';
 
-import { upsertIssueNote } from '#utils/gitlab.js';
 import { workItemResolveNote } from '#utils/notes.js';
 
 export const loadInstructionsNode = createLoadInstructionsNode<WorkflowState>({
@@ -25,13 +24,15 @@ export const loadInstructionsNode = createLoadInstructionsNode<WorkflowState>({
   },
 
   postNote: async (state, config, status) => {
-    const { projectPath, issueIid, model, noteId } = state;
+    const { projectPath, issueIid, model, statusCommentId } = state;
+    if (!statusCommentId) return;
     const threadId = config.configurable?.thread_id as string | undefined;
-    await upsertIssueNote(
+    const host = config.configurable?.host as GitHost;
+    await host.upsertIssueComment(
       projectPath,
       issueIid,
-      workItemResolveNote.working(model, status, threadId),
-      noteId!,
+      workItemResolveNote.working(host, model, status, threadId),
+      statusCommentId,
     );
   },
 });

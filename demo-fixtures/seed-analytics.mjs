@@ -283,7 +283,9 @@ async function main() {
             ? pick(ISSUE_TITLES)
             : pick(CHAT_MESSAGES);
 
-      const metadata = project ? { project, ...(mrIid ? { mrIid } : {}) } : {};
+      const metadata = project
+        ? { project, ...(mrIid ? { codeChangeRequestNumber: mrIid } : {}) }
+        : {};
       const runs = buildRunTimeline(threadCreatedAt);
       const threadUpdatedAt = runs[runs.length - 1].completedAt;
 

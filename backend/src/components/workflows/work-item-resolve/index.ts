@@ -17,9 +17,9 @@ import {
 import { threadsDal } from '#components/threads/dal.js';
 import { parseBranchType } from '#components/workflows/branch-naming.js';
 import {
-  createDraftMr,
-  updateMr,
-} from '#components/workflows/merge-request.js';
+  createDraftCodeChangeRequest,
+  updateCodeChangeRequest,
+} from '#components/workflows/code-change-request.js';
 import {
   createSandbox,
   reclaimSandboxWrites,
@@ -37,15 +37,17 @@ import { agentNode } from './nodes/agent_node.js';
 import { assessCompletionNode } from './nodes/assess_completion_node.js';
 import { loadInstructionsNode } from './nodes/load_instructions_node.js';
 import { notifyIssueStatusNode } from './nodes/notify_issue_status_node.js';
+import { workItemResolveQueue } from './queue.js';
 import { type WorkflowState, workflowState } from './state.js';
 
 import { isAdmin } from '#utils/auth.js';
 import { config, toHostDataPath } from '#utils/config.js';
 import { checkpointer } from '#utils/db.js';
 import { errors } from '#utils/errors.js';
-import { resolveGitlabUserId, upsertIssueNote } from '#utils/gitlab.js';
+import { gitHosts } from '#utils/git-host.js';
 import { logger } from '#utils/logger.js';
 import {
+  notDraftNotice,
   workItemResolveDescription,
   workItemResolveNote,
 } from '#utils/notes.js';
@@ -60,7 +62,7 @@ const KNOWN_LC_SOURCES = new Set([
 
 const WORKFLOW_NAME = 'Work Item Resolve';
 const WORKFLOW_DESCRIPTION =
-  'Implements a GitLab issue assigned to the bot and opens a draft MR.';
+  'Implements an issue assigned to the bot and opens a draft with the change.';
 
 // Fixed, sandbox-internal paths — decoupled from the real host paths so nothing inside the sandbox (e.g. `pwd`) can observe the host filesystem layout.
 const SANDBOX_WORKTREE_DIR = '/workspace';
@@ -93,13 +95,13 @@ async function getNoteContext(threadId: string) {
   });
   const values = state?.values as WorkflowState;
   return {
-    noteId: values?.noteId ?? null,
+    statusCommentId: values?.statusCommentId ?? null,
     instructionStatus:
       values?.config?.instructions?.status ?? InstructionStatus.Loading,
     // AssessCompletion (the last node before END) always sets both together so they're never actually undefined.
     completionStatus: values?.completionStatus as CompletionStatus,
     completionSummary: values?.completionSummary as string,
-    lastRunReplyNoteIds: values?.lastRunReplyNoteIds ?? [],
+    lastRunReplyCommentIds: values?.lastRunReplyCommentIds ?? [],
   };
 }
 
@@ -115,6 +117,10 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
   },
   startMode: 'queued',
   interruptible: false,
+  cancelPendingRun: async (run) => {
+    const job = await workItemResolveQueue?.getJob(run.id);
+    await job?.remove().catch(() => {});
+  },
   init: async () => {
     await tools.init();
     compiledWorkflow = await buildWorkflow();
@@ -133,6 +139,7 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
     if (!compiledWorkflow) throw new Error('Workflow not initialized');
 
     const {
+      provider,
       projectPath,
       issueIid,
       defaultBranch,
@@ -142,18 +149,22 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
       issueKind,
     } = input;
     const { id: threadId, runId, signal } = ctx;
+    const host = gitHosts[provider];
+    const repo = host.repoKey(projectPath);
     const fromCheckpointId =
       ctx.mode === 'retry' ? ctx.fromCheckpointId : undefined;
 
     // Early read only to give the agent's MR tools a target — the authoritative mrIid read/write stays the block below.
     const threadAtStart = await threadsDal.findById(threadId);
     const mrIidAtStart =
-      (threadAtStart?.metadata?.mrIid as string | undefined) ?? null;
+      (threadAtStart?.metadata?.codeChangeRequestNumber as
+        string | undefined) ?? null;
 
     const { branchName, issue } = yield* deriveAndCheckoutBranch({
-      repo: projectPath,
+      host,
+      repo,
       issueIid,
-      projectId: projectPath,
+      projectPath,
       defaultBranch,
       model,
       issueKind,
@@ -163,7 +174,8 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
     const issueDescription = issue.description;
 
     const { worktree, restoreGitLinks } = yield* prepareSandboxedWorktree({
-      repo: projectPath,
+      host,
+      repo,
       entityType: 'issue',
       iid: issueIid,
       ref: branchName,
@@ -191,7 +203,7 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
           event: 'run_step_start',
           data: {
             id: sandboxStepId,
-            step: RunStep.SandboxCreate,
+            step: RunStep.CreateSandbox,
             image,
             timestamp: Date.now(),
           },
@@ -222,7 +234,7 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
             event: 'run_step_end',
             data: {
               id: sandboxStepId,
-              step: RunStep.SandboxCreate,
+              step: RunStep.CreateSandbox,
               sandboxId: sandbox?.id ?? '',
               error: sandboxError,
               timestamp: Date.now(),
@@ -264,6 +276,7 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
                 workingDirectory: SANDBOX_WORKTREE_DIR,
                 worktreePath: worktree.path,
                 mrIid: mrIidAtStart,
+                host,
               },
               streamMode: ['messages', 'tools', 'custom', 'checkpoints'],
               signal,
@@ -278,7 +291,7 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
             event: 'run_step_start',
             data: {
               id: killStepId,
-              step: RunStep.SandboxKill,
+              step: RunStep.KillSandbox,
               sandboxId: sandbox.id,
               timestamp: Date.now(),
             },
@@ -296,7 +309,7 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
               event: 'run_step_end',
               data: {
                 id: killStepId,
-                step: RunStep.SandboxKill,
+                step: RunStep.KillSandbox,
                 error: killError,
                 timestamp: Date.now(),
               },
@@ -307,16 +320,20 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
         await restoreGitLinks();
       }
 
-      // GitLab rejects a second open MR for the same branch pair, so reuse one if this thread already made it.
+      // A second open MR for the same branch pair is rejected on both providers, so reuse one if this thread already made it.
       const thread = await threadsDal.findById(threadId);
-      const existingMrIid = thread?.metadata?.mrIid as string | undefined;
-      const existingMrUrl = thread?.metadata?.mrUrl as string | undefined;
+      const existingMrIid = thread?.metadata?.codeChangeRequestNumber as
+        string | undefined;
+      const existingMrUrl = thread?.metadata?.codeChangeRequestUrl as
+        string | undefined;
+      let openedAsDraft =
+        thread?.metadata?.codeChangeRequestOpenedAsDraft === true;
 
       // An existing MR already means an earlier run had changes — never abandon that branch.
       const hasChanges =
         !!existingMrIid ||
         (yield* abandonBranchIfEmpty({
-          repo: projectPath,
+          repo,
           worktreeRepoPath: worktree.repoPath,
           branchName,
           defaultBranch,
@@ -330,57 +347,62 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
 
       if (hasChanges) {
         yield* pushBranch({
-          repo: projectPath,
+          repo,
           worktreeRepoPath: worktree.repoPath,
           branchName,
           expectedSha: worktree.preFetchSha,
           signal,
         });
 
-        const reviewerId =
-          !existingMrIid && assignedBy
-            ? await resolveGitlabUserId(assignedBy, signal)
-            : null;
-
-        ({ mrIid, mrUrl } = yield* createDraftMr({
-          projectId: projectPath,
+        const created = yield* createDraftCodeChangeRequest({
+          host,
+          projectPath,
           sourceBranch: branchName,
           targetBranch: defaultBranch,
           title: issueTitle,
           description: `#${issueIid}`,
-          reviewerId,
+          reviewerUsername: existingMrIid ? null : assignedBy || null,
           existingMrIid,
           existingMrUrl,
           mockIid: `mock-mr-iid-${issueIid}`,
-        }));
+          signal,
+        });
+        ({ mrIid, mrUrl } = created);
 
         if (!existingMrIid) {
-          await threadsDal.mergeMetadata(threadId, { mrIid, mrUrl });
+          openedAsDraft = created.draft;
+          await threadsDal.mergeMetadata(threadId, {
+            codeChangeRequestNumber: mrIid,
+            codeChangeRequestUrl: mrUrl,
+            codeChangeRequestOpenedAsDraft: openedAsDraft,
+          });
         }
       }
 
       try {
         const {
-          noteId,
+          statusCommentId,
           instructionStatus,
           completionStatus,
           completionSummary,
-          lastRunReplyNoteIds,
+          lastRunReplyCommentIds,
         } = await getNoteContext(threadId);
 
-        await threadsDal.mergeMetadata(threadId, { lastRunReplyNoteIds });
+        await threadsDal.mergeMetadata(threadId, {
+          lastRunReplyCommentIds,
+        });
 
         if (hasChanges) {
-          yield* updateMr({
-            projectId: projectPath,
+          yield* updateCodeChangeRequest({
+            host,
+            projectPath,
             mrIid,
-            description: workItemResolveDescription(issueIid, {
+            description: workItemResolveDescription(host, issueIid, {
               status: completionStatus,
               summary: completionSummary,
             }),
-            ...(completionStatus === CompletionStatus.Done && {
-              draft: false,
-            }),
+            ...(completionStatus === CompletionStatus.Done &&
+              openedAsDraft && { draft: false }),
             completionStatus,
             completionSummary,
           });
@@ -397,25 +419,31 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
         };
         let noteError = '';
         try {
-          if (!config.mock.workflow && noteId) {
-            await upsertIssueNote(
+          if (!config.mock.workflow && statusCommentId) {
+            await host.upsertIssueComment(
               projectPath,
               issueIid,
               hasChanges
                 ? workItemResolveNote[completionStatus](
+                    host,
                     model,
                     instructionStatus,
                     mrUrl,
                     completionSummary,
                     threadId,
+                    // Done means ready for review either way, so the draft state only matters before that.
+                    openedAsDraft || completionStatus === CompletionStatus.Done
+                      ? undefined
+                      : notDraftNotice(host),
                   )
                 : workItemResolveNote.noChanges(
+                    host,
                     model,
                     instructionStatus,
                     completionSummary,
                     threadId,
                   ),
-              noteId,
+              statusCommentId,
             );
           }
         } catch (err) {
@@ -439,12 +467,12 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
         );
       }
     } catch (err) {
-      // createBranch already pushed the branch empty; a run that fails before earning an MR would otherwise leave it dangling on GitLab forever.
+      // createBranch already pushed the branch empty; a run that fails before earning an MR would otherwise leave it dangling on the remote forever.
       const thread = await threadsDal.findById(threadId);
-      if (!thread?.metadata?.mrIid) {
+      if (!thread?.metadata?.codeChangeRequestNumber) {
         try {
           yield* abandonBranchIfEmpty({
-            repo: projectPath,
+            repo,
             worktreeRepoPath: worktree.repoPath,
             branchName,
             defaultBranch,
@@ -476,26 +504,30 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
     isTimeout: boolean,
   ): Promise<void> => {
     const { id, runId } = ctx;
-    const { projectPath, issueIid, model } = input;
+    const { provider, projectPath, issueIid, model } = input;
+    const host = gitHosts[provider];
 
     const noteContext = await getNoteContext(id).catch((err) => {
       logger.error({ err, runId, id }, 'Error reading issue note context');
       return null;
     });
 
-    if (!noteContext?.noteId) return;
+    if (!noteContext?.statusCommentId) return;
 
-    const { noteId, instructionStatus } = noteContext;
+    const { statusCommentId, instructionStatus } = noteContext;
     const noteBody = isTimeout
-      ? workItemResolveNote.timedOut(model, instructionStatus, id)
+      ? workItemResolveNote.timedOut(host, model, instructionStatus, id)
       : isAbort
-        ? workItemResolveNote.aborted(model, instructionStatus, id)
-        : workItemResolveNote.failed(model, instructionStatus, id);
+        ? workItemResolveNote.aborted(host, model, instructionStatus, id)
+        : workItemResolveNote.failed(host, model, instructionStatus, id);
 
-    await upsertIssueNote(projectPath, issueIid, noteBody, noteId).catch(
-      (err) => {
-        logger.error({ err, runId, id, noteId }, 'Error updating issue note');
-      },
-    );
+    await host
+      .upsertIssueComment(projectPath, issueIid, noteBody, statusCommentId)
+      .catch((err) => {
+        logger.error(
+          { err, runId, id, statusCommentId },
+          'Error updating issue note',
+        );
+      });
   },
 };

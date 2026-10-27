@@ -34,7 +34,7 @@ async function blockedReason(raw: string): Promise<string | null> {
       : null;
   }
 
-  // Single-label names are the deployment's own service names (lightpanda, monitoring, …), never public sites.
+  // Single-label names are the deployment's own service names (lightpanda, monitoring, ...), never public sites.
   if (!host.includes('.')) {
     return `${host} is not a public hostname`;
   }

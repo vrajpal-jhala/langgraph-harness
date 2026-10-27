@@ -77,6 +77,28 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  github-mcp:
+    # Distroless, with no shell or health subcommand, so busybox is copied in only for the health check.
+    build:
+      dockerfile_inline: |
+        FROM busybox:1.37-musl AS busybox
+        FROM ghcr.io/github/github-mcp-server:v2.0.3
+        COPY --from=busybox /bin/busybox /busybox
+    container_name: harness_github_mcp
+    command: ['http']
+    environment:
+      GITHUB_HOST: ${GITHUB_HOST:-}
+    ports:
+      # Loopback only — the endpoint forwards GitHub tokens.
+      - '127.0.0.1:8082:8082'
+    healthcheck:
+      test: ['CMD', '/busybox', 'nc', '-z', '127.0.0.1', '8082']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
   supermemory:
     build: ./services/supermemory
     container_name: harness_supermemory

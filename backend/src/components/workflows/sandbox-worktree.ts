@@ -1,4 +1,4 @@
-import type { RunEvent, WorktreeEntityType } from '#types.js';
+import type { GitHost, RunEvent, WorktreeEntityType } from '#types.js';
 import { RunStep } from '#types.js';
 
 import { repositoriesManager } from '#components/repositories/manager.js';
@@ -7,6 +7,7 @@ import { gitService } from '#components/repositories/service.js';
 import { config } from '#utils/config.js';
 
 export async function* prepareSandboxedWorktree(params: {
+  host: GitHost;
   repo: string;
   entityType: WorktreeEntityType;
   iid: string;
@@ -22,6 +23,7 @@ export async function* prepareSandboxedWorktree(params: {
   }
 > {
   const {
+    host,
     repo,
     entityType,
     iid,
@@ -83,12 +85,8 @@ export async function* prepareSandboxedWorktree(params: {
     },
   };
   try {
-    await gitService.setIdentity(
-      worktree.path,
-      config.gitlab.commitIdentity.name,
-      config.gitlab.commitIdentity.email,
-      signal,
-    );
+    const { name, email } = host.commitIdentity;
+    await gitService.setIdentity(worktree.path, name, email, signal);
   } catch (err) {
     identityError = err instanceof Error ? err.message : String(err);
   } finally {
