@@ -45,7 +45,7 @@ import { createTaskSchema } from './workflows/task-resolve/validation.js';
 import { getStatus as getWorkItemResolveQueueStatus } from './workflows/work-item-resolve/queue.js';
 
 import { authMacro, isAdmin } from '#utils/auth.js';
-import { llms } from '#utils/config.js';
+import { config, llms } from '#utils/config.js';
 import { errors } from '#utils/errors.js';
 import { gitHosts } from '#utils/git-host.js';
 import { resolveProjectFromUrl } from '#utils/gitlab.js';
@@ -54,6 +54,11 @@ import { parseHarnessYml } from '#utils/harness-config.js';
 // inline routes to auto infer response type
 export const api = new Elysia({ prefix: '/api' })
   .use(authMacro)
+  // Public: the login page needs it before anyone is signed in.
+  .get('/providers', () => ({
+    gitlab: config.gitlab.enabled,
+    github: config.github.enabled,
+  }))
   .guard({ auth: true }, (app) =>
     app
       .use(uploads)
@@ -207,6 +212,9 @@ export const api = new Elysia({ prefix: '/api' })
         app
           .onBeforeHandle(({ session }) => {
             if (!isAdmin(session)) throw errors.runs.forbidden();
+            if (!workflowsService.isEnabled(RunKind.TaskResolve)) {
+              throw errors.workflows.disabled();
+            }
           })
           .post(
             '/',
@@ -267,6 +275,9 @@ export const api = new Elysia({ prefix: '/api' })
           .post(
             '/',
             ({ body, session, set }) => {
+              if (!workflowsService.isEnabled(RunKind.TaskResolve)) {
+                throw errors.workflows.disabled();
+              }
               set.status = 201;
               return schedulesService.create(body, session.gitlabUsername);
             },

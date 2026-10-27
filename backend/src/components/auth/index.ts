@@ -125,18 +125,20 @@ export const auth = betterAuth({
     }),
   ],
   socialProviders: {
-    gitlab: {
-      clientId: config.gitlab.oauth.clientId,
-      clientSecret: config.gitlab.oauth.clientSecret,
-      scope: ['api'],
-      disableDefaultScope: true,
-      overrideUserInfoOnSignIn: true,
-      mapProfileToUser: (profile) => ({
-        emailVerified: true,
-        gitlabUsername: profile.username,
-      }),
-    },
-    ...(config.github.oauth.clientId && {
+    ...(config.gitlab.enabled && {
+      gitlab: {
+        clientId: config.gitlab.oauth.clientId,
+        clientSecret: config.gitlab.oauth.clientSecret,
+        scope: ['api'],
+        disableDefaultScope: true,
+        overrideUserInfoOnSignIn: true,
+        mapProfileToUser: (profile) => ({
+          emailVerified: true,
+          gitlabUsername: profile.username,
+        }),
+      },
+    }),
+    ...(config.github.enabled && {
       github: {
         clientId: config.github.oauth.clientId,
         clientSecret: config.github.oauth.clientSecret,

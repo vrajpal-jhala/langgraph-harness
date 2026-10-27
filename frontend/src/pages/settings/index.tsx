@@ -15,10 +15,12 @@ import Icon from '@/components/icon';
 
 import { api, authClient } from '@/api';
 import { Context } from '@/contexts';
+import { useAuth } from '@/hooks/useAuth';
 import { useOAuthError } from '@/hooks/useOAuthError';
 
 const SettingsPage = () => {
   const { handleError } = use(Context);
+  const { providers } = useAuth();
   const [gitlab, setGitlab] = useState<
     | { state: 'loading' }
     | { state: 'connected'; username: string }
@@ -123,51 +125,55 @@ const SettingsPage = () => {
         Settings
       </Title>
 
-      <Text fw={600}>Connections</Text>
+      {providers.gitlab && (
+        <>
+          <Text fw={600}>Connections</Text>
 
-      <Card withBorder radius="md" className="settings-page__card">
-        <Group justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <Icon as={IconBrandGitlab} size={20} />
-            <Stack gap={0}>
-              <Text fw={600} size="sm">
-                GitLab
-              </Text>
-              {gitlab.state === 'loading' ? (
-                <Text size="xs" c="dimmed">
-                  Checking connection...
-                </Text>
-              ) : gitlab.state === 'connected' ? (
-                <Text size="xs" c="dimmed">
-                  Connected as @{gitlab.username}
-                </Text>
-              ) : gitlab.state === 'check-failed' ? (
-                <Text size="xs" c="dimmed">
-                  Failed to check GitLab connection status
-                </Text>
-              ) : (
-                <Text size="xs" c="red">
-                  Connection expired — reconnect to keep using GitLab tools
-                </Text>
+          <Card withBorder radius="md" className="settings-page__card">
+            <Group justify="space-between" wrap="nowrap">
+              <Group gap="sm" wrap="nowrap">
+                <Icon as={IconBrandGitlab} size={20} />
+                <Stack gap={0}>
+                  <Text fw={600} size="sm">
+                    GitLab
+                  </Text>
+                  {gitlab.state === 'loading' ? (
+                    <Text size="xs" c="dimmed">
+                      Checking connection...
+                    </Text>
+                  ) : gitlab.state === 'connected' ? (
+                    <Text size="xs" c="dimmed">
+                      Connected as @{gitlab.username}
+                    </Text>
+                  ) : gitlab.state === 'check-failed' ? (
+                    <Text size="xs" c="dimmed">
+                      Failed to check GitLab connection status
+                    </Text>
+                  ) : (
+                    <Text size="xs" c="red">
+                      Connection expired — reconnect to keep using GitLab tools
+                    </Text>
+                  )}
+                </Stack>
+              </Group>
+
+              {gitlab.state === 'disconnected' && (
+                <Group gap="xs" wrap="nowrap">
+                  <Button
+                    size="xs"
+                    variant="default"
+                    leftSection={<Icon as={IconRefresh} size={16} />}
+                    loading={reconnecting}
+                    onClick={handleReconnect}
+                  >
+                    Reconnect
+                  </Button>
+                </Group>
               )}
-            </Stack>
-          </Group>
-
-          {gitlab.state === 'disconnected' && (
-            <Group gap="xs" wrap="nowrap">
-              <Button
-                size="xs"
-                variant="default"
-                leftSection={<Icon as={IconRefresh} size={16} />}
-                loading={reconnecting}
-                onClick={handleReconnect}
-              >
-                Reconnect
-              </Button>
             </Group>
-          )}
-        </Group>
-      </Card>
+          </Card>
+        </>
+      )}
 
       <Text fw={600}>API keys</Text>
 

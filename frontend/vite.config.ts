@@ -23,9 +23,6 @@ export default defineConfig(({ mode }) => {
     githubApiUrl.host === 'api.github.com'
       ? 'https://github.com'
       : githubApiUrl.origin;
-  const githubSignIn = Boolean(
-    backendEnv.GITHUB_OAUTH_CLIENT_ID || process.env.GITHUB_OAUTH_CLIENT_ID,
-  );
   const serverPort = backendEnv.SERVER_PORT;
 
   return {
@@ -36,7 +33,6 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_API_URL': 'location.origin',
       'import.meta.env.VITE_GITLAB_URL': JSON.stringify(gitlabUrl),
       'import.meta.env.VITE_GITHUB_URL': JSON.stringify(githubUrl),
-      'import.meta.env.VITE_GITHUB_SIGN_IN': JSON.stringify(githubSignIn),
     },
     plugins: [
       react(),

@@ -65,6 +65,7 @@ const captureRawBody = async (request: Request, contentType: string) => {
 export const githubWebhookAuth = new Elysia({ name: 'github-webhook-auth' })
   .onParse(({ request }, contentType) => captureRawBody(request, contentType))
   .onBeforeHandle(({ headers, status, request }) => {
+    if (!config.github.enabled) return status(404, 'Not Found');
     if (config.mock.webhook) return undefined;
 
     const received = headers['x-hub-signature-256'];
@@ -86,6 +87,7 @@ export const githubWebhookAuth = new Elysia({ name: 'github-webhook-auth' })
 export const gitlabWebhookAuth = new Elysia({ name: 'gitlab-webhook-auth' })
   .onParse(({ request }, contentType) => captureRawBody(request, contentType))
   .onBeforeHandle(({ headers, status, request }) => {
+    if (!config.gitlab.enabled) return status(404, 'Not Found');
     if (config.mock.webhook) return undefined;
 
     const id = headers['webhook-id'];

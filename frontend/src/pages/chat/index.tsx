@@ -44,6 +44,7 @@ import QueryList from './components/query-list';
 import { api, ws } from '@/api';
 import { config } from '@/config';
 import { Context } from '@/contexts';
+import { useAuth } from '@/hooks/useAuth';
 import { useRunStream } from '@/hooks/useRunStream';
 import { useStickToBottom } from '@/hooks/useStickToBottom';
 import { CHAT_TOUR_ID, chatSteps } from '@/tours/steps';
@@ -151,6 +152,7 @@ const ChatPage = () => {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [serverTools, setServerTools] = useState(false);
   const [gitlabTools, setGitlabTools] = useState(false);
+  const { providers } = useAuth();
   const [webSearchTools, setWebSearchTools] = useState(false);
   const [sending, setSending] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -739,13 +741,15 @@ const ChatPage = () => {
                     checked={serverTools}
                     onChange={(e) => setServerTools(e.currentTarget.checked)}
                   />
-                  <Switch
-                    size="xs"
-                    label="GitLab tools"
-                    labelPosition="left"
-                    checked={gitlabTools}
-                    onChange={(e) => setGitlabTools(e.currentTarget.checked)}
-                  />
+                  {providers.gitlab && (
+                    <Switch
+                      size="xs"
+                      label="GitLab tools"
+                      labelPosition="left"
+                      checked={gitlabTools}
+                      onChange={(e) => setGitlabTools(e.currentTarget.checked)}
+                    />
+                  )}
                   <Switch
                     size="xs"
                     label="Fetch web pages"

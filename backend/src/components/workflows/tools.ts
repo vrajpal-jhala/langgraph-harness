@@ -145,12 +145,16 @@ export const tools = {
       createMemoryCandidate,
       fetchWebPage,
     ];
-    providerTools[GitProvider.GitLab] = [
-      ...baseTools,
-      ...allowedFrom(await gitlabMcp.getTools(), gitHosts[GitProvider.GitLab]),
-    ];
-    // GitHub is optional — a GitLab-only deployment never opens that connection.
-    if (config.github.pat) {
+    if (config.gitlab.enabled) {
+      providerTools[GitProvider.GitLab] = [
+        ...baseTools,
+        ...allowedFrom(
+          await gitlabMcp.getTools(),
+          gitHosts[GitProvider.GitLab],
+        ),
+      ];
+    }
+    if (config.github.enabled) {
       providerTools[GitProvider.GitHub] = [
         ...baseTools,
         ...allowedFrom(

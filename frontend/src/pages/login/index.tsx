@@ -17,7 +17,6 @@ import Icon from '@/components/icon';
 
 import { authClient } from '@/api';
 import logo from '@/assets/logo.svg';
-import { config } from '@/config';
 import { Context } from '@/contexts';
 import { useAuth } from '@/hooks/useAuth';
 import { useOAuthError } from '@/hooks/useOAuthError';
@@ -33,7 +32,7 @@ const LoginPage = () => {
     null,
   );
   const { handleError } = use(Context);
-  const { user, loading: authLoading } = useAuth();
+  const { user, providers, loading: authLoading } = useAuth();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
   useOAuthError('Failed to sign in');
@@ -86,23 +85,25 @@ const LoginPage = () => {
           </Text>
         </Stack>
         <Group justify="center">
-          <Button
-            onClick={() => handleLogin(GitProvider.GitLab)}
-            loading={pendingProvider === GitProvider.GitLab}
-            disabled={pendingProvider === GitProvider.GitHub}
-            leftSection={<Icon as={IconBrandGitlab} />}
-            size="md"
-          >
-            Sign in with GitLab
-          </Button>
-          {config.githubSignIn && (
+          {providers.gitlab && (
+            <Button
+              onClick={() => handleLogin(GitProvider.GitLab)}
+              loading={pendingProvider === GitProvider.GitLab}
+              disabled={pendingProvider === GitProvider.GitHub}
+              leftSection={<Icon as={IconBrandGitlab} />}
+              size="md"
+            >
+              Sign in with GitLab
+            </Button>
+          )}
+          {providers.github && (
             <Button
               onClick={() => handleLogin(GitProvider.GitHub)}
               loading={pendingProvider === GitProvider.GitHub}
               disabled={pendingProvider === GitProvider.GitLab}
               leftSection={<Icon as={IconBrandGithub} />}
               size="md"
-              variant="default"
+              variant={providers.gitlab ? 'default' : 'filled'}
             >
               Sign in with GitHub
             </Button>

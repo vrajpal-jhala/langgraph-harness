@@ -36,7 +36,7 @@ import Icon from '@/components/icon';
 import Logo from '@/components/logo';
 
 import { authClient } from '@/api';
-import { type AuthUser, Context } from '@/contexts';
+import { type AuthUser, Context, type Providers } from '@/contexts';
 import { useAuth } from '@/hooks/useAuth';
 import { ORIENTATION_TOUR_ID, orientationSteps } from '@/tours/steps';
 import { hasSeenTour, useTour } from '@/tours/tourState';
@@ -64,6 +64,8 @@ const NAV_ITEMS = [
     to: '/schedules',
     label: 'Schedules',
     icon: <Icon as={IconCalendarClock} />,
+    // Schedules only start task-resolve runs, which open GitLab merge requests.
+    requiresGitlab: true,
   },
   {
     to: '/workflows',
@@ -183,6 +185,7 @@ const NavBody = ({
   logoContent,
   onStartTour,
   user,
+  providers,
 }: {
   pathname: string;
   collapsed?: boolean;
@@ -190,6 +193,7 @@ const NavBody = ({
   logoContent?: React.ReactNode;
   onStartTour: () => void;
   user: AuthUser;
+  providers: Providers;
 }) => (
   <>
     <AppShell.Section>
@@ -205,7 +209,9 @@ const NavBody = ({
     </AppShell.Section>
     <AppShell.Section grow>
       {NAV_ITEMS.filter(
-        (item) => !item.adminOnly || user?.role === Role.Admin,
+        (item) =>
+          (!item.adminOnly || user?.role === Role.Admin) &&
+          (!item.requiresGitlab || providers.gitlab),
       ).map(({ to, label, icon, dataTour }) => (
         <NavItem
           key={to}
@@ -250,7 +256,7 @@ const NavBody = ({
 
 const Layout = () => {
   const { pathname } = useLocation();
-  const { user } = useAuth();
+  const { user, providers } = useAuth();
   const [
     mobileOpened,
     { open: openMobile, toggle: toggleMobile, close: closeMobile },
@@ -339,6 +345,7 @@ const Layout = () => {
             onNavigate={closeMobile}
             onStartTour={handleStartTour}
             user={user}
+            providers={providers}
           />
         </Drawer>
       ) : (
@@ -349,6 +356,7 @@ const Layout = () => {
             logoContent={desktopLogoContent}
             onStartTour={handleStartTour}
             user={user}
+            providers={providers}
           />
         </AppShell.Navbar>
       )}
