@@ -110,7 +110,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
   name: WORKFLOW_NAME,
   description: WORKFLOW_DESCRIPTION,
   checkAccess: (_thread, session, action) => {
-    if (action === 'mutate' && !isAdmin(session.username)) {
+    if (action === 'mutate' && !isAdmin(session)) {
       throw errors.runs.forbidden();
     }
   },

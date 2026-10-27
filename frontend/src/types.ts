@@ -13,6 +13,13 @@ export const RunKind = {
 } as const;
 export type RunKind = (typeof RunKind)[keyof typeof RunKind];
 
+export const GitProvider = {
+  GitLab: 'gitlab',
+  GitHub: 'github',
+} as const;
+
+export type GitProvider = (typeof GitProvider)[keyof typeof GitProvider];
+
 export type Thread = {
   id: string;
   title: string;
@@ -69,7 +76,7 @@ export type ChatRunInput = {
 
 export type WorkItemResolveRunInput = {
   kind: 'work_item_resolve';
-  provider: 'gitlab' | 'github';
+  provider: GitProvider;
   projectPath: string;
   issueIid: string;
   defaultBranch: string;

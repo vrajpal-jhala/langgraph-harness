@@ -34,7 +34,7 @@ async function fetchMonitoring<T>(path: string): Promise<T> {
 
 export const monitoringService = {
   assertAdmin: (session: Session) => {
-    if (!isAdmin(session.username)) throw errors.monitoring.forbidden();
+    if (!isAdmin(session)) throw errors.monitoring.forbidden();
   },
 
   getStackContainers: () =>

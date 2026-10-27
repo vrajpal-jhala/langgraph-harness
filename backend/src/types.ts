@@ -20,10 +20,13 @@ export type Role = (typeof Role)[keyof typeof Role];
 
 export type Session = {
   id: string;
-  username: string;
+  // Empty when the user hasn't signed in with (or connected) that provider.
+  gitlabUsername: string;
+  githubUsername: string;
   gitlabId: number | null;
   name: string;
   avatarUrl: string | null;
+  role: Role;
 };
 
 // ─── LLM ──────────────────────────────────────────────────────────────────────
