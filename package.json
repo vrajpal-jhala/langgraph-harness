@@ -34,7 +34,9 @@
     "format:check": "prettier --check ."
   },
   "lint-staged": {
-    "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,vue,json,css,scss,md,yml,yaml}": "prettier --write"
+    "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,vue,json,css,scss,md,yml,yaml}": "prettier --write",
+    "backend/**/*.{ts,mts,cts,js,mjs,cjs}": "backend/node_modules/.bin/eslint --fix --no-warn-ignored",
+    "frontend/**/*.{ts,tsx,js,jsx,mjs,cjs}": "frontend/node_modules/.bin/eslint --fix --no-warn-ignored"
   },
   "devDependencies": {
     "husky": "9.1.7",
