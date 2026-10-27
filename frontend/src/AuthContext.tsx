@@ -1,24 +1,34 @@
 import { use, useCallback, useEffect, useState } from 'react';
 
-import { authClient } from '@/api';
-import { AuthContext, type AuthUser, Context } from '@/contexts';
+import { api, authClient } from '@/api';
+import {
+  AuthContext,
+  type AuthUser,
+  Context,
+  type Providers,
+} from '@/contexts';
 
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser>(null);
+  const [providers, setProviders] = useState<Providers>({
+    gitlab: false,
+    github: false,
+  });
   const [loading, setLoading] = useState(true);
   const [checkFailed, setCheckFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const { handleError } = use(Context);
 
   useEffect(() => {
-    authClient
-      .getSession()
-      .then(({ data, error }) => {
-        if (error) {
+    Promise.all([authClient.getSession(), api.providers.get()])
+      .then(([session, providersResponse]) => {
+        const error = session.error ?? providersResponse.error;
+        if (error || !providersResponse.data) {
           handleError(error, 'Failed to check sign-in status');
           setCheckFailed(true);
         } else {
-          setUser(data);
+          setUser(session.data);
+          setProviders(providersResponse.data);
         }
       })
       .catch((error) => {
@@ -37,7 +47,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext value={{ user, loading, checkFailed, retry }}>
+    <AuthContext value={{ user, providers, loading, checkFailed, retry }}>
       {children}
     </AuthContext>
   );
