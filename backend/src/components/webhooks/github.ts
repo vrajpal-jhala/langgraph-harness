@@ -67,7 +67,22 @@ async function handleIssuesEvent(body: any) {
     };
   }
 
-  // `assigned` fires once per added assignee, naming only that one — so a match is always a fresh assignment, no previous/current diff needed.
+  // `assigned`/`unassigned` fire once per added or removed assignee, naming only that one — so unlike GitLab, no previous/current diff is needed.
+  if (
+    action === 'unassigned' &&
+    (assignee as GitHubUser | undefined)?.login === config.github.username
+  ) {
+    const existingThread = await threadsDal.findByMetadata(issueMetadata);
+    if (!existingThread)
+      return {
+        received: true,
+        status: 'skipped',
+        reason: 'no_matching_thread',
+      };
+    await threadsService.stopRuns(existingThread.id);
+    return { received: true, status: 'accepted', detail: 'runs_stopped' };
+  }
+
   const isBotAssignment =
     action === 'assigned' &&
     (assignee as GitHubUser | undefined)?.login === config.github.username;
