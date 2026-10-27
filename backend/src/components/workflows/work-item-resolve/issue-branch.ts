@@ -1,4 +1,4 @@
-import type { ModelName, RunEvent } from '#types.js';
+import type { GitHost, ModelName, RunEvent } from '#types.js';
 import { RunStep } from '#types.js';
 
 import { repositoriesManager } from '#components/repositories/manager.js';
@@ -7,12 +7,11 @@ import {
   slugify,
 } from '#components/workflows/branch-naming.js';
 
-import { fetchIssue, fetchWorkItem } from '#utils/gitlab.js';
-
 export async function* deriveAndCheckoutBranch(params: {
+  host: GitHost;
   repo: string;
   issueIid: string;
-  projectId: string;
+  projectPath: string;
   defaultBranch: string;
   model: ModelName;
   issueKind: 'issue' | 'work_item';
@@ -24,8 +23,16 @@ export async function* deriveAndCheckoutBranch(params: {
     issue: { title: string; description: string; labels: string[] };
   }
 > {
-  const { repo, issueIid, projectId, defaultBranch, model, issueKind, signal } =
-    params;
+  const {
+    host,
+    repo,
+    issueIid,
+    projectPath,
+    defaultBranch,
+    model,
+    issueKind,
+    signal,
+  } = params;
 
   const existingBranches = await repositoriesManager.listBranches({
     repo,
@@ -34,10 +41,7 @@ export async function* deriveAndCheckoutBranch(params: {
   });
 
   let branchName = existingBranches[0];
-  const issue =
-    issueKind === 'work_item'
-      ? await fetchWorkItem(projectId, issueIid, signal)
-      : await fetchIssue(projectId, issueIid, signal);
+  const issue = await host.fetchIssue(projectPath, issueIid, issueKind, signal);
 
   if (!branchName) {
     const labelHint = issue.labels.find((l) => l.startsWith('type::'));

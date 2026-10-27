@@ -256,16 +256,16 @@ type CompletionStatus = (typeof CompletionStatus)[keyof typeof CompletionStatus]
 declare const RunStep: {
 	readonly PrepareWorktree: "prepare_worktree";
 	readonly SetGitIdentity: "set_git_identity";
-	readonly SandboxCreate: "sandbox_create";
-	readonly SandboxKill: "sandbox_kill";
+	readonly CreateSandbox: "create_sandbox";
+	readonly KillSandbox: "kill_sandbox";
 	readonly ClassifyIssue: "classify_issue";
 	readonly CreateBranch: "create_branch";
 	readonly Push: "push";
-	readonly MrCreate: "mr_create";
+	readonly CreateCodeChangeRequest: "create_code_change_request";
 	readonly NoChanges: "no_changes";
 	readonly AssessCompletion: "assess_completion";
 	readonly NotifyIssueEnd: "notify_issue_end";
-	readonly UpdateMergeRequest: "update_merge_request";
+	readonly UpdateCodeChangeRequest: "update_code_change_request";
 };
 type RunStep = (typeof RunStep)[keyof typeof RunStep];
 type RunStepStartEvent = {
@@ -286,7 +286,7 @@ type RunStepStartEvent = {
 	event: "run_step_start";
 	data: {
 		id: string;
-		step: typeof RunStep.SandboxCreate;
+		step: typeof RunStep.CreateSandbox;
 		image: string;
 		timestamp: number;
 	};
@@ -294,7 +294,7 @@ type RunStepStartEvent = {
 	event: "run_step_start";
 	data: {
 		id: string;
-		step: typeof RunStep.SandboxKill;
+		step: typeof RunStep.KillSandbox;
 		sandboxId: string;
 		timestamp: number;
 	};
@@ -326,7 +326,7 @@ type RunStepStartEvent = {
 	event: "run_step_start";
 	data: {
 		id: string;
-		step: typeof RunStep.MrCreate;
+		step: typeof RunStep.CreateCodeChangeRequest;
 		sourceBranch: string;
 		targetBranch: string;
 		timestamp: number;
@@ -350,7 +350,7 @@ type RunStepStartEvent = {
 	event: "run_step_start";
 	data: {
 		id: string;
-		step: typeof RunStep.UpdateMergeRequest;
+		step: typeof RunStep.UpdateCodeChangeRequest;
 		timestamp: number;
 	};
 };
@@ -380,7 +380,7 @@ type RunStepEndEvent = {
 	event: "run_step_end";
 	data: {
 		id: string;
-		step: typeof RunStep.SandboxCreate;
+		step: typeof RunStep.CreateSandbox;
 		sandboxId: string;
 		error: string;
 		timestamp: number;
@@ -389,7 +389,7 @@ type RunStepEndEvent = {
 	event: "run_step_end";
 	data: {
 		id: string;
-		step: typeof RunStep.SandboxKill;
+		step: typeof RunStep.KillSandbox;
 		error: string;
 		timestamp: number;
 	};
@@ -427,9 +427,9 @@ type RunStepEndEvent = {
 	event: "run_step_end";
 	data: {
 		id: string;
-		step: typeof RunStep.MrCreate;
-		mrIid: string;
-		mrUrl: string;
+		step: typeof RunStep.CreateCodeChangeRequest;
+		codeChangeRequestNumber: string;
+		codeChangeRequestUrl: string;
 		error: string;
 		timestamp: number;
 	};
@@ -453,7 +453,7 @@ type RunStepEndEvent = {
 	event: "run_step_end";
 	data: {
 		id: string;
-		step: typeof RunStep.UpdateMergeRequest;
+		step: typeof RunStep.UpdateCodeChangeRequest;
 		completionStatus: CompletionStatus;
 		completionSummary: string;
 		error: string;
@@ -496,8 +496,14 @@ type ChatRunInput = {
 		webSearch: boolean;
 	};
 };
+declare const GitProvider: {
+	readonly GitLab: "gitlab";
+	readonly GitHub: "github";
+};
+type GitProvider = (typeof GitProvider)[keyof typeof GitProvider];
 type WorkItemResolveRunInput = {
 	kind: typeof RunKind.WorkItemResolve;
+	provider: GitProvider;
 	projectPath: string;
 	issueIid: string;
 	defaultBranch: string;
@@ -2316,8 +2322,8 @@ export declare const app: Elysia<"", {
 					query: {
 						limit?: number | undefined;
 						offset?: number | undefined;
-						projectId?: string | undefined;
 						since?: string | undefined;
+						projectId?: string | undefined;
 						kind: "chat" | "mr_review" | "work_item_resolve" | "task_resolve";
 					};
 					headers: {};
@@ -2426,8 +2432,8 @@ export declare const app: Elysia<"", {
 				body: {};
 				params: {};
 				query: {
-					projectId?: string | undefined;
 					scope?: "personal" | undefined;
+					projectId?: string | undefined;
 					categories?: ("knowledge" | "preference" | "lesson" | "decision")[] | undefined;
 				};
 				headers: {};
@@ -2699,6 +2705,31 @@ export declare const app: Elysia<"", {
 } & {
 	webhooks: {
 		gitlab: {
+			post: {
+				body: unknown;
+				params: {};
+				query: unknown;
+				headers: unknown;
+				response: {
+					200: {
+						received: boolean;
+						status: string;
+						reason: string;
+						detail?: undefined;
+					} | {
+						received: boolean;
+						status: string;
+						detail: string;
+						reason?: undefined;
+					};
+					401: "Unauthorized";
+				};
+			};
+		};
+	};
+} & {
+	webhooks: {
+		github: {
 			post: {
 				body: unknown;
 				params: {};

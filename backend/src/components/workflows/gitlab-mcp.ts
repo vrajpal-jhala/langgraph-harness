@@ -4,6 +4,7 @@ import { MCPAdapter } from '@langchain/mcp-adapters';
 import { config } from '#utils/config.js';
 import {
   assertMcpToolNames,
+  listMcpTools,
   mcpToolNameOptions,
   throwOnToolError,
 } from '#utils/helpers.js';
@@ -73,10 +74,13 @@ async function open(): Promise<OpenedConnection> {
   const next = createGitlabMcpAdapter(config.gitlab.pat);
 
   try {
-    return {
+    const listed = await listMcpTools(
       next,
-      tools: assertMcpToolNames(await next.listTools(), 'gitlab'),
-    };
+      'GitLab',
+      config.gitlab.mcpUrl,
+      'GITLAB_MCP_URL',
+    );
+    return { next, tools: assertMcpToolNames(listed, 'gitlab') };
   } catch (err) {
     // not terminateGitlabSession: its getClient() re-runs discovery, retrying the connection that just failed
     await next.close();
@@ -155,7 +159,11 @@ async function connect(): Promise<DynamicStructuredTool[]> {
 export const gitlabMcp = {
   // Memoized so concurrent callers await the same connection instead of racing two sessions.
   getTools: (): Promise<DynamicStructuredTool[]> => {
-    toolsPromise ??= connect();
+    // A failed connect isn't kept, so the next call retries instead of failing until restart; open() already closed its adapter.
+    toolsPromise ??= connect().catch((err) => {
+      toolsPromise = null;
+      throw err;
+    });
     return toolsPromise;
   },
   // Idempotent — so more than one workflow can call this concurrently at shutdown.

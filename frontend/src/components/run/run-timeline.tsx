@@ -56,6 +56,7 @@ interface IRunTimelineProps {
   ) => void;
   loading: boolean;
   precedingContextTotalByRunId: Record<string, number>;
+  codeChangeRequestName?: string;
   activeSubagent?: { id: string; label: string } | null;
   onOpenSubagent?: (id: string, label: string) => void;
   onCloseSubagent?: () => void;
@@ -68,18 +69,18 @@ const IMAGE_GRID_MAX_HEIGHT = `calc(${IMAGE_GRID_MAX_ROWS} * ${IMAGE_THUMB_SIZE}
 const RUN_STEP_LABELS: Record<string, string> = {
   prepare_worktree: 'Prepare worktree',
   set_git_identity: 'Set git identity',
-  sandbox_kill: 'Kill sandbox',
+  kill_sandbox: 'Kill sandbox',
   classify_issue: 'Classify issue',
   assess_completion: 'Assess completion',
-  update_merge_request: 'Update merge request',
   notify_issue_end: 'Notify issue end',
   no_changes: 'No changes — branch abandoned',
 };
 
 function runStepTitle(
   event: Extract<Run['events'][number], { event: 'run_step_start' }>,
+  codeChangeRequestName = 'code change request',
 ): string {
-  if (event.data.step === 'sandbox_create') {
+  if (event.data.step === 'create_sandbox') {
     return `Create sandbox · ${event.data.image}`;
   }
   if (event.data.step === 'create_branch') {
@@ -88,8 +89,11 @@ function runStepTitle(
   if (event.data.step === 'push') {
     return `Push · ${event.data.sourceBranch}`;
   }
-  if (event.data.step === 'mr_create') {
-    return `Open MR · ${event.data.sourceBranch} → ${event.data.targetBranch}`;
+  if (event.data.step === 'create_code_change_request') {
+    return `Open ${codeChangeRequestName} · ${event.data.sourceBranch} → ${event.data.targetBranch}`;
+  }
+  if (event.data.step === 'update_code_change_request') {
+    return `Update ${codeChangeRequestName}`;
   }
   if (event.data.step === 'no_changes') {
     return `No changes · ${event.data.branchName}`;
@@ -105,6 +109,7 @@ const RunTimeline = ({
   onDecision,
   loading,
   precedingContextTotalByRunId,
+  codeChangeRequestName,
   activeSubagent,
   onOpenSubagent,
   onCloseSubagent,
@@ -509,7 +514,7 @@ const RunTimeline = ({
                       endEvent.data.timestamp - event.data.timestamp,
                     )
                   : null;
-                const label = runStepTitle(event);
+                const label = runStepTitle(event, codeChangeRequestName);
                 const worktreeEnd =
                   done && endEvent.data.step === 'prepare_worktree'
                     ? endEvent.data

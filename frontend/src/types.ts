@@ -69,6 +69,7 @@ export type ChatRunInput = {
 
 export type WorkItemResolveRunInput = {
   kind: 'work_item_resolve';
+  provider: 'gitlab' | 'github';
   projectPath: string;
   issueIid: string;
   defaultBranch: string;
@@ -209,7 +210,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: 'sandbox_create';
+        step: 'create_sandbox';
         image: string;
         timestamp: number;
       };
@@ -218,7 +219,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: 'sandbox_kill';
+        step: 'kill_sandbox';
         sandboxId: string;
         timestamp: number;
       };
@@ -254,7 +255,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: 'mr_create';
+        step: 'create_code_change_request';
         sourceBranch: string;
         targetBranch: string;
         timestamp: number;
@@ -282,7 +283,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: 'update_merge_request';
+        step: 'update_code_change_request';
         timestamp: number;
       };
     };
@@ -325,7 +326,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: 'sandbox_create';
+        step: 'create_sandbox';
         sandboxId: string;
         error: string;
         timestamp: number;
@@ -335,7 +336,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: 'sandbox_kill';
+        step: 'kill_sandbox';
         error: string;
         timestamp: number;
       };
@@ -377,9 +378,9 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: 'mr_create';
-        mrIid: string;
-        mrUrl: string;
+        step: 'create_code_change_request';
+        codeChangeRequestNumber: string;
+        codeChangeRequestUrl: string;
         error: string;
         timestamp: number;
       };
@@ -410,7 +411,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: 'update_merge_request';
+        step: 'update_code_change_request';
         completionStatus: 'done' | 'partial' | 'blocked';
         completionSummary: string;
         error: string;

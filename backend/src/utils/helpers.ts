@@ -1,24 +1,56 @@
 import { type AIMessage, ToolMessage } from '@langchain/core/messages';
+import type { MCPAdapter } from '@langchain/mcp-adapters';
 import { DynamicStructuredTool } from 'langchain';
+
+import type { GitProvider, ToolCallSpec } from '#types.js';
 
 const mcpPrefixSeparator = '__';
 
-export const mcpToolName = (prefix: 'gitlab', name: string) =>
+export const mcpToolName = (prefix: GitProvider, name: string) =>
   `${prefix}${mcpPrefixSeparator}${name}`;
 
 export const mcpToolFilter =
-  (allowList: Set<string>, prefix: 'gitlab') => (tool: DynamicStructuredTool) =>
+  (allowList: Set<string>, prefix: GitProvider) =>
+  (tool: DynamicStructuredTool) =>
     allowList.has(tool.name.replace(`${prefix}${mcpPrefixSeparator}`, ''));
 
+export const matchesToolCall = (
+  spec: ToolCallSpec,
+  call: { name: string; args?: unknown },
+) =>
+  call.name === spec.name &&
+  (!spec.method ||
+    (call.args as { method?: string } | undefined)?.method === spec.method);
+
+const describeToolCall = (spec: ToolCallSpec) =>
+  spec.method
+    ? `\`${spec.name}\` with method \`${spec.method}\``
+    : `\`${spec.name}\``;
+
+export const describeToolCalls = (specs: ToolCallSpec[]) =>
+  specs.map(describeToolCall).join(', ');
+
+export const listMcpTools = (
+  adapter: MCPAdapter,
+  server: string,
+  url: string,
+  urlVariable: string,
+) =>
+  adapter.listTools().catch((err: unknown) => {
+    throw new Error(
+      `Couldn't list tools from the ${server} MCP server at ${url} (${urlVariable}): ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
+
 // mcp-adapters 2.0.1 joins the server-name prefix with '_', but additionalToolNamePrefix still with '__'
-export const mcpToolNameOptions = (prefix: 'gitlab') => ({
+export const mcpToolNameOptions = (prefix: GitProvider) => ({
   prefixToolNameWithServerName: false,
   additionalToolNamePrefix: prefix,
 });
 
 export function assertMcpToolNames(
   tools: DynamicStructuredTool[],
-  prefix: 'gitlab',
+  prefix: GitProvider,
 ): DynamicStructuredTool[] {
   const mismatched = tools.filter(
     (tool) => !tool.name.startsWith(`${prefix}${mcpPrefixSeparator}`),

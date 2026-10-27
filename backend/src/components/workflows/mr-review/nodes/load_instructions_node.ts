@@ -80,12 +80,13 @@ export const loadInstructionsNode = createLoadInstructionsNode<WorkflowState>({
 
   postNote: async (state, config, status) => {
     const { query, model, noteId } = state;
+    if (!noteId) return;
     const threadId = config.configurable?.thread_id as string | undefined;
     await upsertMrNote(
       query.projectId,
       query.mrIid,
       mrNote.inProgress(model, status, threadId),
-      noteId!,
+      noteId,
     );
   },
 });

@@ -1,6 +1,6 @@
 import type { GraphNode } from '@langchain/langgraph';
 
-import { CompletionStatus, WorkflowNode } from '#types.js';
+import { CompletionStatus, type GitHost, WorkflowNode } from '#types.js';
 
 import { assessCompletion } from '#components/workflows/completion-assessor.js';
 import { emitNodeLifecycleEvents } from '#components/workflows/emit.js';
@@ -11,6 +11,7 @@ export const assessCompletionNode: GraphNode<typeof workflowState> = async (
   config,
 ) => {
   const { messages, model, config: workflowConfig } = state;
+  const host = config.configurable?.host as GitHost;
   const repoInstructions = workflowConfig.instructions.content;
 
   emitNodeLifecycleEvents(config, {
@@ -37,8 +38,7 @@ export const assessCompletionNode: GraphNode<typeof workflowState> = async (
     error = err instanceof Error ? err.message : String(err);
     // The agent's work must not be lost just because this classifier call failed.
     status = CompletionStatus.Partial;
-    summary =
-      'Automated completion assessment failed after retries — review the merge request directly.';
+    summary = `Automated completion assessment failed after retries — review the ${host.codeChangeRequestName} directly.`;
   } finally {
     emitNodeLifecycleEvents(config, {
       event: 'node_end',
