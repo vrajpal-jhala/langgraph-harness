@@ -2,6 +2,15 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.5.3] - 2026-10-28
+
+### Fixes
+
+- **Retrying a single review comment skipped the quality check** — when a review re-published one comment on its own, that comment went out without the screening every other comment gets. Single-comment publishes are now screened the same way, and only the comment being published is judged.
+- **Garbled or unfinished review comments could be posted** — a comment containing the model's own second-guessing or repeated, unreadable text passed screening as long as it described a concrete problem. The screening step now withholds comments that read as unfinished or hard to follow.
+
+---
+
 ## [0.5.2] - 2026-10-22
 
 ### Fixes
