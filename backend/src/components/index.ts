@@ -238,6 +238,7 @@ export const api = new Elysia({ prefix: '/api' })
                 projectPath,
                 prompt: body.prompt,
                 defaultBranch,
+                // TODO - use the run's provider username once task resolve supports GitHub; empty for a GitHub-only user, so no reviewer is assigned.
                 submittedBy: session.gitlabUsername,
                 model: llms.find((m) => m.isDefault)?.model ?? llms[0].model,
                 config: await parseHarnessYml(
@@ -279,6 +280,7 @@ export const api = new Elysia({ prefix: '/api' })
                 throw errors.workflows.disabled();
               }
               set.status = 201;
+              // TODO - same as the task route: a GitHub-only user's schedules get no reviewer.
               return schedulesService.create(body, session.gitlabUsername);
             },
             { body: createScheduleSchema },

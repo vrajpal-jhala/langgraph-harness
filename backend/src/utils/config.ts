@@ -57,11 +57,11 @@ export const config = {
       .filter(Boolean),
     gitlabAdminUsernames: (process.env.GITLAB_ADMIN_USERNAMES || '')
       .split(',')
-      .map((u) => u.trim())
+      .map((u) => u.trim().toLowerCase())
       .filter(Boolean),
     githubAdminUsernames: (process.env.GITHUB_ADMIN_USERNAMES || '')
       .split(',')
-      .map((u) => u.trim())
+      .map((u) => u.trim().toLowerCase())
       .filter(Boolean),
     // Empty means no restriction — every email domain can sign in.
     allowedEmailDomains: (process.env.AUTH_ALLOWED_EMAIL_DOMAINS || '')

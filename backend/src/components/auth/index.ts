@@ -49,8 +49,12 @@ export const auth = betterAuth({
       trustedProxies: ['127.0.0.1'],
     },
   },
-  // The only client-writable path to additionalFields; nothing here calls it.
-  disabledPaths: ['/update-user'],
+  disabledPaths: [
+    // The only client-writable path to additionalFields; nothing here calls it.
+    '/update-user',
+    // Unlinking would leave the provider's username on the user row, so its admin rights would outlive the link.
+    '/unlink-account',
+  ],
   account: {
     encryptOAuthTokens: true,
     accountLinking: {
@@ -62,7 +66,8 @@ export const auth = betterAuth({
   },
   user: {
     validateUserInfo: ({ user, source }) => {
-      if (!source.oauth) return;
+      // Settings links to a signed-in user and implicit linking needs the user's own email, which passed this check when stored, so a later-tightened allowlist isn't re-applied here.
+      if (!source.oauth || source.action === 'link-account') return;
 
       const { allowedEmailDomains } = config.auth;
       if (
@@ -117,8 +122,12 @@ export const auth = betterAuth({
         avatarUrl: user.image ?? null,
         // Matched per provider, so a GitHub handle that happens to equal an admin's GitLab handle grants nothing.
         role:
-          config.auth.gitlabAdminUsernames.includes(gitlabUsername) ||
-          config.auth.githubAdminUsernames.includes(githubUsername)
+          config.auth.gitlabAdminUsernames.includes(
+            gitlabUsername.toLowerCase(),
+          ) ||
+          config.auth.githubAdminUsernames.includes(
+            githubUsername.toLowerCase(),
+          )
             ? Role.Admin
             : Role.Viewer,
       };
@@ -131,6 +140,7 @@ export const auth = betterAuth({
         clientSecret: config.gitlab.oauth.clientSecret,
         scope: ['api'],
         disableDefaultScope: true,
+        // Keeps the username current after a rename; the cost is that the stored email follows whichever provider signed in last.
         overrideUserInfoOnSignIn: true,
         mapProfileToUser: (profile) => ({
           emailVerified: true,
@@ -142,6 +152,7 @@ export const auth = betterAuth({
       github: {
         clientId: config.github.oauth.clientId,
         clientSecret: config.github.oauth.clientSecret,
+        // Same trade-off as GitLab's.
         overrideUserInfoOnSignIn: true,
         mapProfileToUser: (profile) => ({
           githubUsername: profile.login,

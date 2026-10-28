@@ -92,7 +92,7 @@ Optionally set `GITHUB_BOT_NAME` and `GITHUB_BOT_EMAIL` for the bot's commits. D
 
 ### Signing in with both
 
-When both providers are configured, a person whose GitHub and GitLab accounts share a verified email lands in the same account whichever button they use. Otherwise they can connect the other provider from **Settings** — the emails don't have to match there. Admin rights are checked per provider: a GitHub login only grants admin through `GITHUB_ADMIN_USERNAMES`, a GitLab username only through `GITLAB_ADMIN_USERNAMES`.
+When both providers are configured, a person whose GitHub and GitLab accounts share a verified email lands in the same account whichever button they use. Otherwise they can connect the other provider from **Settings** — the emails don't have to match there. Admin rights are checked per provider: a GitHub login only grants admin through `GITHUB_ADMIN_USERNAMES`, a GitLab username only through `GITLAB_ADMIN_USERNAMES`. With both connected, either one being listed makes the account an admin.
 
 ## 4. Configure the backend
 
