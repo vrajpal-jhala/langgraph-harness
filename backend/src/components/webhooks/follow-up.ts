@@ -102,14 +102,14 @@ export async function startFollowUpRun(params: {
     };
   }
 
-  const { issueIid, defaultBranch, assignedBy, model, issueKind } =
+  const { issueNumber, defaultBranch, assignedBy, model, issueKind } =
     latestRun.input as WorkItemResolveRunInput;
 
   const workItemResolveInput = {
     kind: RunKind.WorkItemResolve,
     provider: host.provider,
     projectPath,
-    issueIid,
+    issueNumber,
     defaultBranch,
     assignedBy,
     model,

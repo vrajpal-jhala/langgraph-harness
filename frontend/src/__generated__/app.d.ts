@@ -195,7 +195,7 @@ declare const MemorySourceSchema: z$1.ZodDiscriminatedUnion<[
 	}, z$1.z.core.$strip>,
 	z$1.ZodObject<{
 		workflow: z$1.ZodLiteral<"work-item-resolve">;
-		issueIid: z$1.ZodString;
+		issueNumber: z$1.ZodString;
 	}, z$1.z.core.$strip>,
 	z$1.ZodObject<{
 		workflow: z$1.ZodLiteral<"task-resolve">;
@@ -549,7 +549,7 @@ type WorkItemResolveRunInput = {
 	kind: typeof RunKind.WorkItemResolve;
 	provider: GitProvider;
 	projectPath: string;
-	issueIid: string;
+	issueNumber: string;
 	defaultBranch: string;
 	assignedBy: string;
 	model: ModelName;

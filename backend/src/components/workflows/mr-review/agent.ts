@@ -300,7 +300,7 @@ export const agent = {
           memoryReflectNudged,
           noToolCallNudged,
           trailingQuestionNudged,
-          projectId,
+          repoKey: projectId,
           mrIid,
           diffLineMapCache,
           draftPositions,

@@ -61,7 +61,7 @@ async function handleIssuesEvent(body: any) {
     await repositoriesManager.cleanupWorktree({
       repo: host.repoKey(projectPath),
       entityType: 'issue',
-      iid: String(issueNumber),
+      entityId: String(issueNumber),
     });
     return {
       received: true,
@@ -108,7 +108,7 @@ async function handleIssuesEvent(body: any) {
   return startWorkItemResolveRun({
     host,
     projectPath,
-    issueIid: String(issueNumber),
+    issueNumber: String(issueNumber),
     issueKind: 'issue',
     defaultBranch: repository?.default_branch ?? '',
     assignedBy: (sender as GitHubUser | undefined)?.login ?? '',
@@ -134,9 +134,12 @@ async function handlePullRequestEvent(body: any) {
   // A task has no issue — its worktree is keyed by the thread instead.
   const target =
     thread?.kind === RunKind.TaskResolve
-      ? { entityType: 'task' as const, iid: thread.id }
+      ? { entityType: 'task' as const, entityId: thread.id }
       : thread?.metadata?.number != null
-        ? { entityType: 'issue' as const, iid: String(thread.metadata.number) }
+        ? {
+            entityType: 'issue' as const,
+            entityId: String(thread.metadata.number),
+          }
         : undefined;
   if (!target)
     return { received: true, status: 'skipped', reason: 'no_matching_thread' };

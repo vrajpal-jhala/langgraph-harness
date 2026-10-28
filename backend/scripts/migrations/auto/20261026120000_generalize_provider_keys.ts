@@ -1,6 +1,7 @@
 import { type Kysely, sql } from 'kysely';
 
 import {
+  withoutMemoryTouchTrigger,
   withoutRunTouchTriggers,
   withoutThreadTouchTrigger,
 } from './helpers.js';
@@ -129,6 +130,65 @@ async function renameStepDataKeys(
   return total;
 }
 
+// A work-item run's input and a memory's provenance name an issue's number `issueNumber`, like the thread metadata's `number`; mr-review's `mrIid` stays GitLab-only.
+async function renameRunInputKey(
+  db: Kysely<any>,
+  from: string,
+  to: string,
+): Promise<number> {
+  const { numUpdatedRows } = await db
+    .updateTable('runs')
+    .set({
+      input: sql`(input - ${from}::text) || jsonb_build_object(${to}::text, input -> ${from}::text)`,
+    })
+    .where('kind', '=', 'work_item_resolve')
+    .where(sql<boolean>`input -> ${from}::text IS NOT NULL`)
+    .executeTakeFirst();
+  console.log(
+    `[generalize-provider-keys] run input ${from} → ${to}: ${numUpdatedRows} run(s)`,
+  );
+  return Number(numUpdatedRows);
+}
+
+async function renameMemorySourceKey(
+  db: Kysely<any>,
+  from: string,
+  to: string,
+): Promise<number> {
+  const { numUpdatedRows } = await db
+    .updateTable('memories')
+    .set({
+      source: sql`(source - ${from}::text) || jsonb_build_object(${to}::text, source -> ${from}::text)`,
+    })
+    .where(sql<boolean>`source ->> 'workflow' = 'work-item-resolve'`)
+    .where(sql<boolean>`source -> ${from}::text IS NOT NULL`)
+    .executeTakeFirst();
+  console.log(
+    `[generalize-provider-keys] memory source ${from} → ${to}: ${numUpdatedRows} memor(ies)`,
+  );
+  return Number(numUpdatedRows);
+}
+
+// The worktree key isn't always a number — a task's is its thread id — and the table is named for neither provider.
+async function renameWorktreeKeyColumn(
+  db: Kysely<any>,
+  from: string,
+  to: string,
+  constraintFrom: string,
+  constraintTo: string,
+): Promise<void> {
+  await db.schema
+    .alterTable('worktree_leases')
+    .renameColumn(from, to)
+    .execute();
+  await sql`ALTER TABLE worktree_leases RENAME CONSTRAINT ${sql.id(constraintFrom)} TO ${sql.id(constraintTo)}`.execute(
+    db,
+  );
+  console.log(
+    `[generalize-provider-keys] worktree_leases ${from} → ${to}: column renamed`,
+  );
+}
+
 export async function up(db: Kysely<any>): Promise<void> {
   let total = 0;
 
@@ -182,7 +242,20 @@ export async function up(db: Kysely<any>): Promise<void> {
       'create_code_change_request',
       STEP_DATA_RENAMES,
     );
+    total += await renameRunInputKey(db, 'issueIid', 'issueNumber');
   });
+
+  await withoutMemoryTouchTrigger(db, async () => {
+    total += await renameMemorySourceKey(db, 'issueIid', 'issueNumber');
+  });
+
+  await renameWorktreeKeyColumn(
+    db,
+    'iid',
+    'entity_id',
+    'worktree_leases_repo_entity_iid',
+    'worktree_leases_repo_entity_id',
+  );
 
   console.log(
     `[generalize-provider-keys] done — ${total} row update(s) in total`,
@@ -205,5 +278,16 @@ export async function down(db: Kysely<any>): Promise<void> {
       reversed(STEP_DATA_RENAMES),
     );
     await renameStepValues(db, reversed(STEP_RENAMES));
+    await renameRunInputKey(db, 'issueNumber', 'issueIid');
   });
+  await withoutMemoryTouchTrigger(db, async () => {
+    await renameMemorySourceKey(db, 'issueNumber', 'issueIid');
+  });
+  await renameWorktreeKeyColumn(
+    db,
+    'entity_id',
+    'iid',
+    'worktree_leases_repo_entity_id',
+    'worktree_leases_repo_entity_iid',
+  );
 }

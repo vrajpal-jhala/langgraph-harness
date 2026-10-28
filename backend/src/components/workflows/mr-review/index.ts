@@ -189,7 +189,7 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
       worktree = await repositoriesManager.acquireWorktree({
         repo: query.projectId,
         entityType: 'mr',
-        iid: query.mrIid,
+        entityId: query.mrIid,
         ref: query.sourceBranch,
         sha: query.sourceSha,
         signal,

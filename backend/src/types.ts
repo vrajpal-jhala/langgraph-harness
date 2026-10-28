@@ -424,8 +424,8 @@ export type GitHost = {
   ) => Promise<{ projectPath: string; defaultBranch: string }>;
   formatAlert: (type: AlertType, title: string, body: string) => string;
   repoIdentifiers: (projectPath: string) => string;
-  codeChangeRequestIdentifier: (mrIid: string) => string;
-  issueIdentifiers: (projectPath: string, issueIid: string) => string;
+  codeChangeRequestIdentifier: (codeChangeRequestNumber: string) => string;
+  issueIdentifiers: (projectPath: string, issueNumber: string) => string;
   issueTools: { read: Set<string>; write: Set<string> };
   discussion: {
     issueComments: ToolCallSpec[];
@@ -435,20 +435,20 @@ export type GitHost = {
   };
   fetchIssue: (
     projectPath: string,
-    issueIid: string,
+    issueNumber: string,
     issueKind: 'issue' | 'work_item',
     signal?: AbortSignal,
   ) => Promise<{ title: string; description: string; labels: string[] }>;
   fetchRepoFile: (projectPath: string, path: string) => Promise<string | null>;
   upsertIssueComment: (
     projectPath: string,
-    issueIid: string,
+    issueNumber: string,
     body: string,
     commentId?: number,
   ) => Promise<number>;
   upsertCodeChangeRequestComment: (
     projectPath: string,
-    mrIid: string,
+    codeChangeRequestNumber: string,
     body: string,
     commentId?: number,
   ) => Promise<number>;
@@ -460,10 +460,14 @@ export type GitHost = {
     description: string;
     reviewerUsername: string | null;
     signal?: AbortSignal;
-  }) => Promise<{ mrIid: string; mrUrl: string; draft: boolean }>;
+  }) => Promise<{
+    codeChangeRequestNumber: string;
+    codeChangeRequestUrl: string;
+    draft: boolean;
+  }>;
   updateCodeChangeRequest: (params: {
     projectPath: string;
-    mrIid: string;
+    codeChangeRequestNumber: string;
     description: string;
     draft?: boolean;
   }) => Promise<void>;
@@ -473,7 +477,7 @@ export type WorkItemResolveRunInput = {
   kind: typeof RunKind.WorkItemResolve;
   provider: GitProvider;
   projectPath: string;
-  issueIid: string;
+  issueNumber: string;
   defaultBranch: string;
   assignedBy: string;
   model: ModelName;
@@ -1135,19 +1139,20 @@ export interface MemoryTable {
   updated_at: Timestamp;
 }
 
+// TODO - rename 'mr' once MR review supports GitHub; it's persisted in worktree_leases and in worktree directory names.
 export type WorktreeEntityType = 'mr' | 'issue' | 'task';
 
 export type WorktreeIdentity = {
   repo: string;
   entityType: WorktreeEntityType;
-  iid: string;
+  entityId: string;
 };
 
 export interface WorktreeLeaseTable {
   id: ColumnType<string, never, never>;
   repo: string;
   entity_type: WorktreeEntityType;
-  iid: string;
+  entity_id: string;
   ref: string;
   leased: ColumnType<boolean>;
   pending_delete: ColumnType<boolean>;

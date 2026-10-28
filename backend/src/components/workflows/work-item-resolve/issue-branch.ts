@@ -10,7 +10,7 @@ import {
 export async function* deriveAndCheckoutBranch(params: {
   host: GitHost;
   repo: string;
-  issueIid: string;
+  issueNumber: string;
   projectPath: string;
   defaultBranch: string;
   model: ModelName;
@@ -26,7 +26,7 @@ export async function* deriveAndCheckoutBranch(params: {
   const {
     host,
     repo,
-    issueIid,
+    issueNumber,
     projectPath,
     defaultBranch,
     model,
@@ -36,12 +36,17 @@ export async function* deriveAndCheckoutBranch(params: {
 
   const existingBranches = await repositoriesManager.listBranches({
     repo,
-    pattern: `harness/*/${issueIid}-*`,
+    pattern: `harness/*/${issueNumber}-*`,
     signal,
   });
 
   let branchName = existingBranches[0];
-  const issue = await host.fetchIssue(projectPath, issueIid, issueKind, signal);
+  const issue = await host.fetchIssue(
+    projectPath,
+    issueNumber,
+    issueKind,
+    signal,
+  );
 
   if (!branchName) {
     const labelHint = issue.labels.find((l) => l.startsWith('type::'));
@@ -53,7 +58,7 @@ export async function* deriveAndCheckoutBranch(params: {
       model,
     });
 
-    branchName = `harness/${type}/${issueIid}-${slugify(slug)}`;
+    branchName = `harness/${type}/${issueNumber}-${slugify(slug)}`;
 
     const createBranchStepId = crypto.randomUUID();
     let createBranchError = '';

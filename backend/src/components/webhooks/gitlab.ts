@@ -86,7 +86,7 @@ async function handleIssueAssignmentEvent(
     await repositoriesManager.cleanupWorktree({
       repo: host.repoKey(projectPath),
       entityType: 'issue',
-      iid: String(issueIid),
+      entityId: String(issueIid),
     });
     return {
       received: true,
@@ -147,7 +147,7 @@ async function handleIssueAssignmentEvent(
   return startWorkItemResolveRun({
     host,
     projectPath,
-    issueIid: String(issueIid),
+    issueNumber: String(issueIid),
     issueKind,
     defaultBranch: project?.default_branch ?? '',
     assignedBy: user?.username ?? '',
@@ -242,7 +242,7 @@ async function handleMergeRequestEvent(body: any) {
     await repositoriesManager.cleanupWorktree({
       repo: host.repoKey(projectPath),
       entityType: 'mr',
-      iid: String(mrIid),
+      entityId: String(mrIid),
     });
 
     // Merging/closing never closes the issue (no closing keyword, deliberately) — this is the worktree's only cleanup trigger in the common case.
@@ -257,7 +257,7 @@ async function handleMergeRequestEvent(body: any) {
       await repositoriesManager.cleanupWorktree({
         repo: host.repoKey(projectPath),
         entityType: 'issue',
-        iid: String(issueIidFromMetadata),
+        entityId: String(issueIidFromMetadata),
       });
     }
 
@@ -266,7 +266,7 @@ async function handleMergeRequestEvent(body: any) {
       await repositoriesManager.cleanupWorktree({
         repo: host.repoKey(projectPath),
         entityType: 'task',
-        iid: resolveThread.id,
+        entityId: resolveThread.id,
       });
     }
 

@@ -78,10 +78,22 @@ export const gitHosts: Record<GitProvider, GitHost> = {
         reviewerId,
         ...rest,
       });
-      return { mrIid: String(mr.iid), mrUrl: mr.webUrl, draft: true };
+      return {
+        codeChangeRequestNumber: String(mr.iid),
+        codeChangeRequestUrl: mr.webUrl,
+        draft: true,
+      };
     },
-    updateCodeChangeRequest: ({ projectPath, ...rest }) =>
-      gitlab.updateMergeRequest({ projectId: projectPath, ...rest }),
+    updateCodeChangeRequest: ({
+      projectPath,
+      codeChangeRequestNumber,
+      ...rest
+    }) =>
+      gitlab.updateMergeRequest({
+        projectId: projectPath,
+        mrIid: codeChangeRequestNumber,
+        ...rest,
+      }),
   },
   [GitProvider.GitHub]: {
     provider: GitProvider.GitHub,
@@ -97,13 +109,13 @@ export const gitHosts: Record<GitProvider, GitHost> = {
     // GitHub only recognises the marker alone on its line — a title after it turns the whole block into a plain quote.
     formatAlert: (type, title, body) =>
       `> [!${type.toUpperCase()}]\n> **${title}**\n>\n> ${body}`,
-    codeChangeRequestIdentifier: (mrIid) => `pullNumber ${mrIid}`,
+    codeChangeRequestIdentifier: (number) => `pullNumber ${number}`,
     repoIdentifiers: (projectPath) => {
       const [owner, repo] = projectPath.split('/');
       return `owner "${owner}", repo "${repo}"`;
     },
-    issueIdentifiers: (projectPath, issueIid) =>
-      `${gitHosts[GitProvider.GitHub].repoIdentifiers(projectPath)}, issue_number ${issueIid}`,
+    issueIdentifiers: (projectPath, issueNumber) =>
+      `${gitHosts[GitProvider.GitHub].repoIdentifiers(projectPath)}, issue_number ${issueNumber}`,
     issueTools: {
       read: new Set(['issue_read', 'pull_request_read']),
       write: new Set([
@@ -127,8 +139,8 @@ export const gitHosts: Record<GitProvider, GitHost> = {
       // Unlike GitLab, GitHub has two reply paths depending on where the comment lives.
       replyGuidance: `call \`${githubReviewReply}\` with the comment's id for an inline review comment, or \`${githubIssueComment}\` for a general pull request comment or review`,
     },
-    fetchIssue: (projectPath, issueIid, _issueKind, signal) =>
-      github.fetchIssue(projectPath, issueIid, signal),
+    fetchIssue: (projectPath, issueNumber, _issueKind, signal) =>
+      github.fetchIssue(projectPath, issueNumber, signal),
     fetchRepoFile: github.fetchRepoFile,
     upsertIssueComment: github.upsertIssueComment,
     // A pull request's conversation comments are issue comments in GitHub's API.
@@ -143,10 +155,14 @@ export const gitHosts: Record<GitProvider, GitHost> = {
         reviewer: reviewerUsername,
         ...rest,
       });
-      return { mrIid: String(pr.number), mrUrl: pr.htmlUrl, draft: pr.draft };
+      return {
+        codeChangeRequestNumber: String(pr.number),
+        codeChangeRequestUrl: pr.htmlUrl,
+        draft: pr.draft,
+      };
     },
-    updateCodeChangeRequest: ({ mrIid, ...rest }) =>
-      github.updatePullRequest({ prNumber: mrIid, ...rest }),
+    updateCodeChangeRequest: ({ codeChangeRequestNumber, ...rest }) =>
+      github.updatePullRequest({ prNumber: codeChangeRequestNumber, ...rest }),
   },
 };
 
