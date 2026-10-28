@@ -35,6 +35,9 @@ const VerdictSchema = z.object({
   ),
 });
 
+const BULK_PUBLISH_TOOL = mcpToolName('gitlab', 'bulk_publish_draft_notes');
+const SINGLE_PUBLISH_TOOL = mcpToolName('gitlab', 'publish_draft_note');
+
 const CRITIC_PROMPT =
   `You are a skeptical senior engineer screening draft code review comments ` +
   `before they're posted publicly. For each comment below, decide whether to ` +
@@ -54,7 +57,9 @@ const CRITIC_PROMPT =
   `author something they don't already know. Scope/hygiene problems — an ` +
   `unrelated file or commit mixed into this MR, changes outside the stated ` +
   `purpose — are concrete and actionable; keep them, don't treat them as ` +
-  `style opinions.`;
+  `style opinions. Also drop any comment that reads as unfinished or ` +
+  `garbled — self-correction ("wait, that's the same"), repeated identical ` +
+  `blocks, or text the author could not follow.`;
 
 // Screens each not-yet-screened batch of drafts before publish, dropping anything a senior dev would roll their eyes at — lives in the tool-call path so it can't be skipped.
 export function commentCriticMiddleware({
@@ -142,10 +147,9 @@ export function commentCriticMiddleware({
         return result;
       }
 
-      if (
-        request.toolCall.name ===
-        mcpToolName('gitlab', 'bulk_publish_draft_notes')
-      ) {
+      const toolName = request.toolCall.name;
+
+      if (toolName === BULK_PUBLISH_TOOL || toolName === SINGLE_PUBLISH_TOOL) {
         // note is always a general MR-level overview, which Step 6 already forbids outright — strip it deterministically, no critic call needed.
         const { note: noteArg } = (request.toolCall.args ?? {}) as {
           note?: string;
@@ -200,8 +204,15 @@ export function commentCriticMiddleware({
         }
 
         const screenedIds = configurable.commentCriticScreenedIds;
+        // publish_draft_note only publishes the named draft, so only that one is screened
+        const targetId =
+          toolName === SINGLE_PUBLISH_TOOL
+            ? String(request.toolCall.args.draft_note_id)
+            : undefined;
         const drafts = [...configurable.draftNotes.values()].filter(
-          (draft) => !screenedIds?.has(draft.id),
+          (draft) =>
+            !screenedIds?.has(draft.id) &&
+            (targetId === undefined || draft.id === targetId),
         );
 
         if (!drafts.length) {
