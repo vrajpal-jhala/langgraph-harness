@@ -271,14 +271,11 @@ export const ScheduleForm = ({ schedule }: { schedule?: TaskSchedule }) => {
         </Button>
       </Group>
 
-      {/* TODO - show for GitHub too once pull request comments trigger follow-ups. */}
-      {providers.gitlab && (
-        <Alert color="blue" icon={<Icon as={IconInfoCircle} />}>
-          On a GitLab repository, once the draft merge request is open, comment
-          on it mentioning the bot to send a follow-up — each comment runs again
-          against the same branch.
-        </Alert>
-      )}
+      <Alert color="blue" icon={<Icon as={IconInfoCircle} />}>
+        Once the draft merge request or pull request is open, comment on it
+        mentioning the bot to send a follow-up — each comment runs again against
+        the same branch.
+      </Alert>
     </Stack>
   );
 };

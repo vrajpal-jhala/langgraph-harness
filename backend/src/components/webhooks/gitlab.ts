@@ -1,18 +1,15 @@
 import { Elysia } from 'elysia';
 
-import type { TaskResolveRunInput, WorkItemResolveRunInput } from '#types.js';
 import { GitProvider, RunKind } from '#types.js';
 
 import { analyticsService } from '#components/analytics/service.js';
 import { repositoriesManager } from '#components/repositories/manager.js';
-import { runsDal } from '#components/runs/dal.js';
 import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
 import { enqueueMrReview } from '#components/workflows/mr-review/queue.js';
-import { enqueueTaskResolve } from '#components/workflows/task-resolve/queue.js';
-import { enqueueWorkItemResolve } from '#components/workflows/work-item-resolve/queue.js';
 import { handleOnce } from './delivery.js';
+import { mentionsUser, startFollowUpRun } from './follow-up.js';
 import { startWorkItemResolveRun } from './work-item.js';
 
 import { gitlabWebhookAuth } from '#utils/auth.js';
@@ -189,11 +186,7 @@ async function handleNoteEvent(body: any) {
     };
 
   // A human note must tag the bot, or any reviewer aside would re-trigger a run.
-  const mentionsBot =
-    !!config.gitlab.username &&
-    noteText.toLowerCase().includes(`@${config.gitlab.username}`.toLowerCase());
-
-  if (!isBotAuthored && !mentionsBot)
+  if (!isBotAuthored && !mentionsUser(noteText, config.gitlab.username))
     return {
       received: true,
       status: 'skipped',
@@ -212,112 +205,7 @@ async function handleNoteEvent(body: any) {
       reason: 'no_matching_work_item_resolve_thread',
     };
 
-  // task-resolve workflow is manually setup so it doesn't need project filters
-  if (
-    thread.kind === RunKind.WorkItemResolve &&
-    !isProjectInScope(config.workItemResolve.projectPathFilters, projectPath)
-  )
-    return {
-      received: true,
-      status: 'skipped',
-      reason: 'project_out_of_scope',
-    };
-
-  // A blanket bot-username filter would also exclude mr-review's own comments, which must still count.
-  const ownNoteIds =
-    (thread.metadata?.lastRunReplyCommentIds as string[] | undefined) ?? [];
-  // The GitLab MCP tool returns a posted note's id as a string; the raw webhook payload sends it as a number — compare as strings on both sides.
-  if (ownNoteIds.includes(String(noteId)))
-    return { received: true, status: 'skipped', reason: 'own_note' };
-
-  const runCap =
-    thread.kind === RunKind.TaskResolve
-      ? config.taskResolve.runCap
-      : config.workItemResolve.runCap;
-  if ((await runsService.countByThread(thread.id)) >= runCap) {
-    return { received: true, status: 'skipped', reason: 'run_cap_reached' };
-  }
-
-  const latestRun = await runsDal.findLatestByThread(thread.id);
-  if (!latestRun)
-    return { received: true, status: 'skipped', reason: 'no_prior_run' };
-
-  // Fresh parse, not a replay — unlike retry(), which intentionally reuses the original snapshot.
-  const harnessConfig = await parseHarnessYml(host, projectPath);
-
-  if (thread.kind === RunKind.TaskResolve) {
-    const { defaultBranch, submittedBy, model } =
-      latestRun.input as TaskResolveRunInput;
-
-    // The comment itself is the next instruction — unlike work-item-resolve, which re-reads its issue.
-    const taskResolveInput = {
-      kind: RunKind.TaskResolve,
-      provider: host.provider,
-      title: thread.title,
-      projectPath,
-      prompt: noteText,
-      defaultBranch,
-      submittedBy,
-      model,
-      config: harnessConfig,
-    };
-
-    const run = await runsService.create(
-      thread.id,
-      RunKind.TaskResolve,
-      taskResolveInput,
-    );
-
-    const enqueueResult = await enqueueTaskResolve({
-      threadId: thread.id,
-      runId: run.id,
-      ...taskResolveInput,
-    });
-
-    return {
-      received: true,
-      status: 'accepted',
-      detail:
-        enqueueResult === 'fresh'
-          ? 'task_resolve_reenqueued'
-          : 'task_resolve_reenqueue_pending',
-    };
-  }
-
-  const { issueIid, defaultBranch, assignedBy, model, issueKind } =
-    latestRun.input as WorkItemResolveRunInput;
-
-  const workItemResolveInput = {
-    kind: RunKind.WorkItemResolve,
-    provider: host.provider,
-    projectPath,
-    issueIid,
-    defaultBranch,
-    assignedBy,
-    model,
-    config: harnessConfig,
-    issueKind,
-  };
-  const run = await runsService.create(
-    thread.id,
-    RunKind.WorkItemResolve,
-    workItemResolveInput,
-  );
-
-  const enqueueResult = await enqueueWorkItemResolve({
-    threadId: thread.id,
-    runId: run.id,
-    ...workItemResolveInput,
-  });
-
-  return {
-    received: true,
-    status: 'accepted',
-    detail:
-      enqueueResult === 'fresh'
-        ? 'work_item_resolve_reenqueued'
-        : 'work_item_resolve_reenqueue_pending',
-  };
+  return startFollowUpRun({ host, thread, projectPath, noteId, noteText });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -358,18 +246,27 @@ async function handleMergeRequestEvent(body: any) {
     });
 
     // Merging/closing never closes the issue (no closing keyword, deliberately) — this is the worktree's only cleanup trigger in the common case.
-    const workItemResolveThread = await threadsDal.findByMetadata({
+    const resolveThread = await threadsDal.findByMetadata({
       source: GitProvider.GitLab,
       project: projectPath,
       codeChangeRequestNumber: String(mrIid),
     });
     // Stored as a raw JSON number from the original webhook payload, not pre-stringified — coerce below.
-    const issueIidFromMetadata = workItemResolveThread?.metadata?.number;
+    const issueIidFromMetadata = resolveThread?.metadata?.number;
     if (issueIidFromMetadata !== undefined && issueIidFromMetadata !== null) {
       await repositoriesManager.cleanupWorktree({
         repo: host.repoKey(projectPath),
         entityType: 'issue',
         iid: String(issueIidFromMetadata),
+      });
+    }
+
+    // A task has no issue — its worktree is keyed by the thread instead.
+    if (resolveThread?.kind === RunKind.TaskResolve) {
+      await repositoriesManager.cleanupWorktree({
+        repo: host.repoKey(projectPath),
+        entityType: 'task',
+        iid: resolveThread.id,
       });
     }
 

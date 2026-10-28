@@ -1,16 +1,18 @@
 import { Elysia } from 'elysia';
 
-import { GitProvider } from '#types.js';
+import { GitProvider, RunKind } from '#types.js';
 
 import { repositoriesManager } from '#components/repositories/manager.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
 import { handleOnce } from './delivery.js';
+import { mentionsUser, startFollowUpRun } from './follow-up.js';
 import { startWorkItemResolveRun } from './work-item.js';
 
 import { githubWebhookAuth } from '#utils/auth.js';
 import { config, isProjectInScope } from '#utils/config.js';
 import { gitHosts } from '#utils/git-host.js';
+import { isAutomatedStatusNote } from '#utils/notes.js';
 
 type GitHubUser = { login?: string };
 
@@ -129,16 +131,80 @@ async function handlePullRequestEvent(body: any) {
     project: projectPath,
     codeChangeRequestNumber: String(prNumber),
   });
-  const issueNumber = thread?.metadata?.number;
-  if (issueNumber === undefined || issueNumber === null)
+  // A task has no issue — its worktree is keyed by the thread instead.
+  const target =
+    thread?.kind === RunKind.TaskResolve
+      ? { entityType: 'task' as const, iid: thread.id }
+      : thread?.metadata?.number != null
+        ? { entityType: 'issue' as const, iid: String(thread.metadata.number) }
+        : undefined;
+  if (!target)
     return { received: true, status: 'skipped', reason: 'no_matching_thread' };
 
   await repositoriesManager.cleanupWorktree({
     repo: host.repoKey(projectPath),
-    entityType: 'issue',
-    iid: String(issueNumber),
+    ...target,
   });
   return { received: true, status: 'accepted', detail: 'worktree_cleanup' };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleCommentEvent(event: string, body: any) {
+  const { action, comment, repository } = body ?? {};
+  // A PR's conversation comments arrive as `issue_comment`, shared with plain issues; only the ones on a PR can have a follow-up.
+  const prNumber =
+    event === 'pull_request_review_comment'
+      ? body?.pull_request?.number
+      : body?.issue?.pull_request
+        ? body.issue.number
+        : undefined;
+  const projectPath: string | undefined = repository?.full_name;
+  const noteId = comment?.id;
+
+  if (
+    action !== 'created' ||
+    !prNumber ||
+    !projectPath ||
+    !noteId ||
+    !config.github.username
+  )
+    return { received: true, status: 'skipped', reason: 'not_pr_comment' };
+
+  const botUsername = config.github.username.toLowerCase();
+  const isBotAuthored =
+    ((comment.user as GitHubUser | undefined)?.login ?? '').toLowerCase() ===
+    botUsername;
+  const noteText: string = comment.body ?? '';
+
+  // Same bot identity as the issue-resolve status comment, which would otherwise pass as bot feedback and re-trigger a run on every update.
+  if (isBotAuthored && isAutomatedStatusNote(noteText))
+    return {
+      received: true,
+      status: 'skipped',
+      reason: 'automated_status_note',
+    };
+
+  // A human comment must tag the bot, or any reviewer aside would re-trigger a run.
+  if (!isBotAuthored && !mentionsUser(noteText, config.github.username))
+    return {
+      received: true,
+      status: 'skipped',
+      reason: 'human_comment_not_tagged',
+    };
+
+  const thread = await threadsDal.findByMetadata({
+    source: GitProvider.GitHub,
+    project: projectPath,
+    codeChangeRequestNumber: String(prNumber),
+  });
+  if (!thread)
+    return {
+      received: true,
+      status: 'skipped',
+      reason: 'no_matching_work_item_resolve_thread',
+    };
+
+  return startFollowUpRun({ host, thread, projectPath, noteId, noteText });
 }
 
 export const githubWebhook = new Elysia({ prefix: '/webhooks' })
@@ -162,6 +228,11 @@ export const githubWebhook = new Elysia({ prefix: '/webhooks' })
         async () => {
           if (event === 'issues') return handleIssuesEvent(body);
           if (event === 'pull_request') return handlePullRequestEvent(body);
+          if (
+            event === 'issue_comment' ||
+            event === 'pull_request_review_comment'
+          )
+            return handleCommentEvent(event, body);
 
           return {
             received: true,
