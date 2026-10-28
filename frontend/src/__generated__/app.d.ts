@@ -285,6 +285,7 @@ declare const RunStep: {
 	readonly CreateSandbox: "create_sandbox";
 	readonly KillSandbox: "kill_sandbox";
 	readonly ClassifyIssue: "classify_issue";
+	readonly ResolveRepo: "resolve_repo";
 	readonly CreateBranch: "create_branch";
 	readonly Push: "push";
 	readonly CreateCodeChangeRequest: "create_code_change_request";
@@ -330,6 +331,14 @@ type RunStepStartEvent = {
 		id: string;
 		step: typeof RunStep.ClassifyIssue;
 		prompt: string;
+		timestamp: number;
+	};
+} | {
+	event: "run_step_start";
+	data: {
+		id: string;
+		step: typeof RunStep.ResolveRepo;
+		projectPath: string;
 		timestamp: number;
 	};
 } | {
@@ -429,6 +438,15 @@ type RunStepEndEvent = {
 		error: string;
 		retries: number;
 		maxRetries: number;
+		timestamp: number;
+	};
+} | {
+	event: "run_step_end";
+	data: {
+		id: string;
+		step: typeof RunStep.ResolveRepo;
+		defaultBranch: string;
+		error: string;
 		timestamp: number;
 	};
 } | {
@@ -540,6 +558,7 @@ type WorkItemResolveRunInput = {
 };
 type TaskResolveRunInput = {
 	kind: typeof RunKind.TaskResolve;
+	provider: GitProvider;
 	title: string;
 	projectPath: string;
 	prompt: string;
@@ -1874,6 +1893,7 @@ export declare const app: Elysia<"", {
 						id: string;
 						created_at: Date;
 						updated_at: Date;
+						provider: GitProvider;
 						project_path: string;
 						prompt: string;
 						default_branch: string;
@@ -1929,6 +1949,7 @@ export declare const app: Elysia<"", {
 							id: string;
 							created_at: Date;
 							updated_at: Date;
+							provider: GitProvider;
 							project_path: string;
 							prompt: string;
 							default_branch: string;
@@ -1991,6 +2012,7 @@ export declare const app: Elysia<"", {
 						id: string;
 						created_at: Date;
 						updated_at: Date;
+						provider: GitProvider;
 						project_path: string;
 						prompt: string;
 						default_branch: string;
@@ -2022,7 +2044,6 @@ export declare const app: Elysia<"", {
 						title: string;
 						prompt: string;
 						timezone: string;
-						repoUrl: string;
 						scheduledFor: string;
 					} | {
 						endDate?: string | undefined;
@@ -2041,7 +2062,6 @@ export declare const app: Elysia<"", {
 							dayOfMonth: number;
 						};
 						timezone: string;
-						repoUrl: string;
 					};
 					params: {
 						id: string;
@@ -2055,6 +2075,7 @@ export declare const app: Elysia<"", {
 							id: string;
 							created_at: Date;
 							updated_at: Date;
+							provider: GitProvider;
 							project_path: string;
 							prompt: string;
 							default_branch: string;

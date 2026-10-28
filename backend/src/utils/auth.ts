@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { Elysia } from 'elysia';
 
-import { Role, type Session } from '#types.js';
+import { GitProvider, Role, type Session } from '#types.js';
 
 import { auth } from '#components/auth/index.js';
 import { config } from './config.js';
@@ -9,6 +9,11 @@ import { config } from './config.js';
 import { db } from '#utils/db.js';
 
 export const isAdmin = (session: Session) => session.role === Role.Admin;
+
+export const providerUsername = (session: Session, provider: GitProvider) =>
+  provider === GitProvider.GitHub
+    ? session.githubUsername
+    : session.gitlabUsername;
 
 export const authMacro = new Elysia({ name: 'auth-macro' }).macro({
   auth: {

@@ -83,6 +83,9 @@ function runStepTitle(
   if (event.data.step === 'create_sandbox') {
     return `Create sandbox · ${event.data.image}`;
   }
+  if (event.data.step === 'resolve_repo') {
+    return `Resolve repository · ${event.data.projectPath}`;
+  }
   if (event.data.step === 'create_branch') {
     return `Create branch & push · ${event.data.branchName}`;
   }

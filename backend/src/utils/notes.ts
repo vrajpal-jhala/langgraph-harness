@@ -359,6 +359,7 @@ export const taskResolveNote = {
     status: InstructionStatus,
     summary: string,
     threadId?: string,
+    notice?: Alert,
   ) =>
     buildWorkItemResolveNoteBody(
       host,
@@ -366,6 +367,7 @@ export const taskResolveNote = {
       { type: 'tip', title: 'Done', body: summary },
       status,
       threadId,
+      notice,
     ),
   partial: (
     host: GitHost,
@@ -373,6 +375,7 @@ export const taskResolveNote = {
     status: InstructionStatus,
     summary: string,
     threadId?: string,
+    notice?: Alert,
   ) =>
     buildWorkItemResolveNoteBody(
       host,
@@ -380,6 +383,7 @@ export const taskResolveNote = {
       { type: 'caution', title: 'Partially Done', body: summary },
       status,
       threadId,
+      notice,
     ),
   blocked: (
     host: GitHost,
@@ -387,6 +391,7 @@ export const taskResolveNote = {
     status: InstructionStatus,
     summary: string,
     threadId?: string,
+    notice?: Alert,
   ) =>
     buildWorkItemResolveNoteBody(
       host,
@@ -394,6 +399,7 @@ export const taskResolveNote = {
       { type: 'warning', title: 'Blocked', body: summary },
       status,
       threadId,
+      notice,
     ),
   failed: (
     host: GitHost,

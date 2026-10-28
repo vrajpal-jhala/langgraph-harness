@@ -64,6 +64,11 @@ export const workflowsService = {
   isEnabled: (kind: RunKind) =>
     workflows.some((workflow) => workflow.kind === kind),
 
+  // Also checks the run's own provider, which can be switched off while its workflow stays on (e.g. a GitHub issue run on a now GitLab-only deployment).
+  isRunEnabled: (kind: RunKind, input: RunInput) =>
+    workflowsService.isEnabled(kind) &&
+    (!('provider' in input) || config[input.provider].enabled),
+
   list: async () => Promise.all(workflows.map(buildWorkflow)),
 
   getById: async (id: string) => {
