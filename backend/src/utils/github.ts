@@ -25,6 +25,8 @@ async function githubFetch(
     GITHUB_FETCH_TIMEOUT_MS,
   );
   const onParentAbort = () => controller.abort(parentSignal!.reason);
+  // An 'abort' listener never fires for a signal that was already aborted.
+  if (parentSignal?.aborted) onParentAbort();
   parentSignal?.addEventListener('abort', onParentAbort, { once: true });
 
   try {
@@ -108,17 +110,17 @@ export async function resolveRepo(
       `URL is not a repository path: ${urlPath}`,
     );
   }
-  const unreachable = () =>
-    errors.taskResolve.invalidRepo(
-      `langgraph-harness can't reach ${owner}/${repo} — check the URL and that langgraph-harness has access.`,
-    );
   // A private repo the bot can't see is indistinguishable from one that doesn't exist — GitHub 404s both.
   const res = await githubFetch(
     repoPath(`${owner}/${repo}`),
     undefined,
     signal,
-  ).catch(() => {
-    throw unreachable();
+  ).catch((err: unknown) => {
+    if (err instanceof Error && err.message.startsWith('GitHub API error 404'))
+      throw errors.taskResolve.invalidRepo(
+        `langgraph-harness can't reach ${owner}/${repo} — check the URL and that langgraph-harness has access.`,
+      );
+    throw err;
   });
   const data = (await res.json()) as {
     full_name: string;
@@ -135,7 +137,7 @@ export async function resolveRepo(
       throw errors.taskResolve.invalidRepo(
         `${data.full_name} has no default branch (is it an empty repository?)`,
       );
-    throw unreachable();
+    throw err;
   });
 
   return { projectPath: data.full_name, defaultBranch: data.default_branch };
