@@ -246,6 +246,15 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
+        step: 'resolve_repo';
+        projectPath: string;
+        timestamp: number;
+      };
+    }
+  | {
+      event: 'run_step_start';
+      data: {
+        id: string;
         step: 'create_branch';
         branchName: string;
         timestamp: number;
@@ -360,6 +369,16 @@ export type RunStepEndEvent =
         error: string;
         retries: number;
         maxRetries: number;
+        timestamp: number;
+      };
+    }
+  | {
+      event: 'run_step_end';
+      data: {
+        id: string;
+        step: 'resolve_repo';
+        defaultBranch: string;
+        error: string;
         timestamp: number;
       };
     }
