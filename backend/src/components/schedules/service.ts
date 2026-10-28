@@ -120,18 +120,9 @@ export const schedulesService = {
       throw errors.schedules.cancelled();
     }
 
-    const { host, projectPath, defaultBranch } = await resolveRepoFromUrl(
-      body.repoUrl,
-    );
-
     if (existing.status === ScheduleStatus.Active) await teardown(existing);
 
-    const updated = await schedulesDal.update(id, {
-      ...fieldsFromBody(body),
-      provider: host.provider,
-      project_path: projectPath,
-      default_branch: defaultBranch,
-    });
+    const updated = await schedulesDal.update(id, fieldsFromBody(body));
     if (!updated) throw errors.schedules.notFound();
 
     if (updated.status === ScheduleStatus.Active) await arm(updated);

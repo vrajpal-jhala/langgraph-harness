@@ -107,14 +107,12 @@ export const ScheduleForm = ({ schedule }: { schedule?: TaskSchedule }) => {
       when === 'once'
         ? {
             title: title.trim(),
-            repoUrl: repoUrl.trim(),
             prompt: prompt.trim(),
             timezone: TIMEZONE,
             scheduledFor: scheduledFor!.toISOString(),
           }
         : {
             title: title.trim(),
-            repoUrl: repoUrl.trim(),
             prompt: prompt.trim(),
             timezone: TIMEZONE,
             recurrence,
@@ -123,7 +121,7 @@ export const ScheduleForm = ({ schedule }: { schedule?: TaskSchedule }) => {
 
     const { error } = isEdit
       ? await api.schedules({ id: schedule.id }).patch(body)
-      : await api.schedules.post(body);
+      : await api.schedules.post({ ...body, repoUrl: repoUrl.trim() });
 
     setSubmitting(false);
     if (error) {
@@ -151,8 +149,14 @@ export const ScheduleForm = ({ schedule }: { schedule?: TaskSchedule }) => {
             ? 'https://gitlab.com/group/project'
             : 'https://github.com/owner/repo'
         }
+        description={
+          isEdit
+            ? "A schedule's repository can't change — create a new schedule for another one."
+            : undefined
+        }
         value={repoUrl}
         onChange={(e) => setRepoUrl(e.currentTarget.value)}
+        readOnly={isEdit}
       />
 
       <Textarea

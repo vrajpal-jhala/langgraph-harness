@@ -120,6 +120,7 @@ export const RunStep = {
   CreateSandbox: 'create_sandbox',
   KillSandbox: 'kill_sandbox',
   ClassifyIssue: 'classify_issue',
+  ResolveRepo: 'resolve_repo',
   CreateBranch: 'create_branch',
   Push: 'push',
   CreateCodeChangeRequest: 'create_code_change_request',
@@ -171,6 +172,15 @@ export type RunStepStartEvent =
         id: string;
         step: typeof RunStep.ClassifyIssue;
         prompt: string;
+        timestamp: number;
+      };
+    }
+  | {
+      event: 'run_step_start';
+      data: {
+        id: string;
+        step: typeof RunStep.ResolveRepo;
+        projectPath: string;
         timestamp: number;
       };
     }
@@ -282,6 +292,16 @@ export type RunStepEndEvent =
         error: string;
         retries: number;
         maxRetries: number;
+        timestamp: number;
+      };
+    }
+  | {
+      event: 'run_step_end';
+      data: {
+        id: string;
+        step: typeof RunStep.ResolveRepo;
+        defaultBranch: string;
+        error: string;
         timestamp: number;
       };
     }

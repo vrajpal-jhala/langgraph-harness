@@ -138,7 +138,6 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
       title,
       projectPath,
       prompt,
-      defaultBranch,
       model,
       submittedBy,
       config: harnessConfig,
@@ -146,6 +145,40 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
     const { id: threadId, runId, signal } = ctx;
     const host = gitHosts[provider];
     const repo = host.repoKey(projectPath);
+
+    // The input's default branch was resolved when the task was submitted or the schedule saved; re-resolving catches a renamed branch or lost access as this run's failure.
+    let defaultBranch = input.defaultBranch;
+    const resolveRepoStepId = crypto.randomUUID();
+    let resolveRepoError = '';
+    yield {
+      event: 'run_step_start',
+      data: {
+        id: resolveRepoStepId,
+        step: RunStep.ResolveRepo,
+        projectPath,
+        timestamp: Date.now(),
+      },
+    };
+    try {
+      if (!config.mock.workflow) {
+        ({ defaultBranch } = await host.resolveRepo(projectPath, signal));
+      }
+    } catch (err) {
+      resolveRepoError = err instanceof Error ? err.message : String(err);
+      throw err;
+    } finally {
+      yield {
+        event: 'run_step_end',
+        data: {
+          id: resolveRepoStepId,
+          step: RunStep.ResolveRepo,
+          defaultBranch,
+          error: resolveRepoError,
+          timestamp: Date.now(),
+        },
+      };
+    }
+
     const fromCheckpointId =
       ctx.mode === 'retry' ? ctx.fromCheckpointId : undefined;
 

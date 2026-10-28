@@ -44,4 +44,8 @@ export const createScheduleSchema = t.Union([
   t.Object({ ...recurringFields, repoUrl: repoUrlSchema }),
 ]);
 
-export const updateScheduleSchema = createScheduleSchema;
+// The repo is fixed once created, so a schedule's run history never spans two repos.
+export const updateScheduleSchema = t.Union([
+  t.Object(oneTimeFields),
+  t.Object(recurringFields),
+]);
