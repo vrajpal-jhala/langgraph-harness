@@ -54,7 +54,7 @@ Chat itself works with either provider; only its GitLab tools need GitLab. On a 
 | `GITLAB_OAUTH_CLIENT_ID`     | The OAuth application's ID                                                                       |
 | `GITLAB_OAUTH_CLIENT_SECRET` | The OAuth application's secret                                                                   |
 | `GITLAB_WEBHOOK_TOKENS`      | The webhook's signing token (starts with `whsec_`); comma-separate several for multiple webhooks |
-| `ADMIN_GITLAB_USERNAMES`     | GitLab `@handle`s that get admin rights — at least your own                                      |
+| `GITLAB_ADMIN_USERNAMES`     | GitLab `@handle`s that get admin rights — at least your own                                      |
 
 Self-hosted GitLab: also set `GITLAB_API_URL` (defaults to `https://gitlab.com/api/v4`).
 
@@ -86,13 +86,13 @@ gh webhook forward --repo=<owner>/<repo> --events=issues,pull_request \
 | `GITHUB_OAUTH_CLIENT_ID`     | The OAuth app's client ID                                                      |
 | `GITHUB_OAUTH_CLIENT_SECRET` | The OAuth app's client secret                                                  |
 | `GITHUB_WEBHOOK_TOKENS`      | The webhook secret; comma-separate several if your webhooks use different ones |
-| `ADMIN_GITHUB_USERNAMES`     | GitHub logins that get admin rights — at least your own                        |
+| `GITHUB_ADMIN_USERNAMES`     | GitHub logins that get admin rights — at least your own                        |
 
 Optionally set `GITHUB_BOT_NAME` and `GITHUB_BOT_EMAIL` for the bot's commits. Draft pull requests on private repos need a paid GitHub plan; public repos work on any plan. Without one, the bot opens a regular pull request instead, and its status comment on the issue says it isn't ready to merge.
 
 ### Signing in with both
 
-When both providers are configured, a person whose GitHub and GitLab accounts share a verified email lands in the same account whichever button they use. Otherwise they can connect the other provider from **Settings** — the emails don't have to match there. Admin rights are checked per provider: a GitHub login only grants admin through `ADMIN_GITHUB_USERNAMES`, a GitLab username only through `ADMIN_GITLAB_USERNAMES`.
+When both providers are configured, a person whose GitHub and GitLab accounts share a verified email lands in the same account whichever button they use. Otherwise they can connect the other provider from **Settings** — the emails don't have to match there. Admin rights are checked per provider: a GitHub login only grants admin through `GITHUB_ADMIN_USERNAMES`, a GitLab username only through `GITLAB_ADMIN_USERNAMES`.
 
 ## 4. Configure the backend
 

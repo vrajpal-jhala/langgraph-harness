@@ -23,7 +23,7 @@ export const PROVIDER_ENV_VARS = {
     'GITLAB_WEBHOOK_TOKENS',
     'GITLAB_OAUTH_CLIENT_ID',
     'GITLAB_OAUTH_CLIENT_SECRET',
-    'ADMIN_GITLAB_USERNAMES',
+    'GITLAB_ADMIN_USERNAMES',
   ],
   github: [
     'GITHUB_PAT',
@@ -31,11 +31,11 @@ export const PROVIDER_ENV_VARS = {
     'GITHUB_WEBHOOK_TOKENS',
     'GITHUB_OAUTH_CLIENT_ID',
     'GITHUB_OAUTH_CLIENT_SECRET',
-    'ADMIN_GITHUB_USERNAMES',
+    'GITHUB_ADMIN_USERNAMES',
   ],
 } as const;
 
-const isProviderVar = (key: string) => /^(ADMIN_)?GIT(LAB|HUB)_/.test(key);
+const isProviderVar = (key: string) => /^GIT(LAB|HUB)_/.test(key);
 
 export function validateEnv() {
   const example = readFileSync(

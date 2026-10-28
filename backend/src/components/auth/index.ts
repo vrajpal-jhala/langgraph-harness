@@ -117,8 +117,8 @@ export const auth = betterAuth({
         avatarUrl: user.image ?? null,
         // Matched per provider, so a GitHub handle that happens to equal an admin's GitLab handle grants nothing.
         role:
-          config.auth.adminGitlabUsernames.includes(gitlabUsername) ||
-          config.auth.adminGithubUsernames.includes(githubUsername)
+          config.auth.gitlabAdminUsernames.includes(gitlabUsername) ||
+          config.auth.githubAdminUsernames.includes(githubUsername)
             ? Role.Admin
             : Role.Viewer,
       };

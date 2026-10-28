@@ -55,11 +55,11 @@ export const config = {
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean),
-    adminGitlabUsernames: (process.env.ADMIN_GITLAB_USERNAMES || '')
+    gitlabAdminUsernames: (process.env.GITLAB_ADMIN_USERNAMES || '')
       .split(',')
       .map((u) => u.trim())
       .filter(Boolean),
-    adminGithubUsernames: (process.env.ADMIN_GITHUB_USERNAMES || '')
+    githubAdminUsernames: (process.env.GITHUB_ADMIN_USERNAMES || '')
       .split(',')
       .map((u) => u.trim())
       .filter(Boolean),
