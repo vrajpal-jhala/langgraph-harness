@@ -1,7 +1,7 @@
 import { Elysia, sse } from 'elysia';
 
 import type { TaskResolveRunInput } from '#types.js';
-import { GitProvider, MemoryScope, RunKind, RunStatus } from '#types.js';
+import { MemoryScope, RunKind, RunStatus } from '#types.js';
 
 import { analyticsService } from './analytics/service.js';
 import {
@@ -44,11 +44,10 @@ import {
 import { createTaskSchema } from './workflows/task-resolve/validation.js';
 import { getStatus as getWorkItemResolveQueueStatus } from './workflows/work-item-resolve/queue.js';
 
-import { authMacro, isAdmin } from '#utils/auth.js';
+import { authMacro, isAdmin, providerUsername } from '#utils/auth.js';
 import { config, llms } from '#utils/config.js';
 import { errors } from '#utils/errors.js';
-import { gitHosts } from '#utils/git-host.js';
-import { resolveProjectFromUrl } from '#utils/gitlab.js';
+import { resolveRepoFromUrl } from '#utils/git-host.js';
 import { parseHarnessYml } from '#utils/harness-config.js';
 
 // inline routes to auto infer response type
@@ -212,15 +211,12 @@ export const api = new Elysia({ prefix: '/api' })
         app
           .onBeforeHandle(({ session }) => {
             if (!isAdmin(session)) throw errors.runs.forbidden();
-            if (!workflowsService.isEnabled(RunKind.TaskResolve)) {
-              throw errors.workflows.disabled();
-            }
           })
           .post(
             '/',
             async ({ body, session, set }) => {
-              const { projectPath, defaultBranch } =
-                await resolveProjectFromUrl(body.repoUrl);
+              const { host, projectPath, defaultBranch } =
+                await resolveRepoFromUrl(body.repoUrl);
 
               const thread = await threadsService.create(
                 body.title,
@@ -228,23 +224,20 @@ export const api = new Elysia({ prefix: '/api' })
                 session.id,
               );
               await threadsDal.mergeMetadata(thread.id, {
-                source: GitProvider.GitLab,
+                source: host.provider,
                 project: projectPath,
               });
 
               const input: TaskResolveRunInput = {
                 kind: RunKind.TaskResolve,
+                provider: host.provider,
                 title: body.title,
                 projectPath,
                 prompt: body.prompt,
                 defaultBranch,
-                // TODO - use the run's provider username once task resolve supports GitHub; empty for a GitHub-only user, so no reviewer is assigned.
-                submittedBy: session.gitlabUsername,
+                submittedBy: providerUsername(session, host.provider),
                 model: llms.find((m) => m.isDefault)?.model ?? llms[0].model,
-                config: await parseHarnessYml(
-                  gitHosts[GitProvider.GitLab],
-                  projectPath,
-                ),
+                config: await parseHarnessYml(host, projectPath),
               };
 
               const run = await runsService.create(
@@ -276,12 +269,8 @@ export const api = new Elysia({ prefix: '/api' })
           .post(
             '/',
             ({ body, session, set }) => {
-              if (!workflowsService.isEnabled(RunKind.TaskResolve)) {
-                throw errors.workflows.disabled();
-              }
               set.status = 201;
-              // TODO - same as the task route: a GitHub-only user's schedules get no reviewer.
-              return schedulesService.create(body, session.gitlabUsername);
+              return schedulesService.create(body, session);
             },
             { body: createScheduleSchema },
           )

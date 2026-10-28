@@ -594,10 +594,15 @@ const ThreadDetailPage = () => {
           firstInput &&
             isTaskResolveRunInput(firstInput) &&
             thread?.metadata?.codeChangeRequestNumber
-          ? {
-              url: `${config.gitlabUrl}/${firstInput.projectPath}/-/merge_requests/${thread.metadata.codeChangeRequestNumber}`,
-              label: 'Open merge request',
-            }
+          ? firstInput.provider === 'github'
+            ? {
+                url: `${config.githubUrl}/${firstInput.projectPath}/pull/${thread.metadata.codeChangeRequestNumber}`,
+                label: 'Open pull request',
+              }
+            : {
+                url: `${config.gitlabUrl}/${firstInput.projectPath}/-/merge_requests/${thread.metadata.codeChangeRequestNumber}`,
+                label: 'Open merge request',
+              }
           : undefined;
   const header = (
     <Group

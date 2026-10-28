@@ -8,7 +8,6 @@ import type {
 } from '#types.js';
 import {
   CompletionStatus,
-  GitProvider,
   InstructionStatus,
   RunKind,
   RunStep,
@@ -49,7 +48,11 @@ import { checkpointer } from '#utils/db.js';
 import { errors } from '#utils/errors.js';
 import { gitHosts } from '#utils/git-host.js';
 import { logger } from '#utils/logger.js';
-import { taskResolveDescription, taskResolveNote } from '#utils/notes.js';
+import {
+  notDraftNotice,
+  taskResolveDescription,
+  taskResolveNote,
+} from '#utils/notes.js';
 
 type CompiledWorkflow = Awaited<ReturnType<typeof buildWorkflow>>;
 
@@ -61,10 +64,7 @@ const KNOWN_LC_SOURCES = new Set([
 
 const WORKFLOW_NAME = 'Task Resolve';
 const WORKFLOW_DESCRIPTION =
-  'Runs a free-text instruction against a repository and opens a draft MR.';
-
-// Task-resolve only runs against GitLab so far.
-const host = gitHosts[GitProvider.GitLab];
+  'Runs a free-text instruction against a repository and opens a draft with the change.';
 
 // Fixed, sandbox-internal paths — decoupled from the real host paths so nothing inside the sandbox (e.g. `pwd`) can observe the host filesystem layout.
 const SANDBOX_WORKTREE_DIR = '/workspace';
@@ -107,7 +107,6 @@ async function getCompletionContext(threadId: string) {
 export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
   id: 'task-resolve',
   kind: RunKind.TaskResolve,
-  requiresProvider: GitProvider.GitLab,
   name: WORKFLOW_NAME,
   description: WORKFLOW_DESCRIPTION,
   checkAccess: (_thread, session, action) => {
@@ -135,6 +134,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
     if (!compiledWorkflow) throw new Error('Workflow not initialized');
 
     const {
+      provider,
       title,
       projectPath,
       prompt,
@@ -144,6 +144,8 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
       config: harnessConfig,
     } = input;
     const { id: threadId, runId, signal } = ctx;
+    const host = gitHosts[provider];
+    const repo = host.repoKey(projectPath);
     const fromCheckpointId =
       ctx.mode === 'retry' ? ctx.fromCheckpointId : undefined;
 
@@ -176,7 +178,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
       };
       try {
         await repositoriesManager.createBranch({
-          repo: projectPath,
+          repo,
           name: branchName,
           baseRef: defaultBranch,
           signal,
@@ -208,7 +210,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
 
     const { worktree, restoreGitLinks } = yield* prepareSandboxedWorktree({
       host,
-      repo: projectPath,
+      repo,
       entityType: 'task',
       iid: threadId,
       ref: branchName,
@@ -345,18 +347,20 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
         await restoreGitLinks();
       }
 
-      // GitLab rejects a second open MR for the same branch pair, so reuse one if this thread already made it.
+      // A second open MR for the same branch pair is rejected on both providers, so reuse one if this thread already made it.
       const existingThread = await threadsDal.findById(threadId);
       const existingMrIid = existingThread?.metadata
         ?.codeChangeRequestNumber as string | undefined;
       const existingMrUrl = existingThread?.metadata?.codeChangeRequestUrl as
         string | undefined;
+      let openedAsDraft =
+        existingThread?.metadata?.codeChangeRequestOpenedAsDraft === true;
 
       // An existing MR already means an earlier run had changes — never abandon that branch.
       const hasChanges =
         !!existingMrIid ||
         (yield* abandonBranchIfEmpty({
-          repo: projectPath,
+          repo,
           worktreeRepoPath: worktree.repoPath,
           branchName,
           defaultBranch,
@@ -369,15 +373,14 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
 
       if (hasChanges) {
         yield* pushBranch({
-          repo: projectPath,
+          repo,
           worktreeRepoPath: worktree.repoPath,
           branchName,
           expectedSha: worktree.preFetchSha,
           signal,
         });
 
-        let mrUrl: string;
-        ({ mrIid, mrUrl } = yield* createDraftCodeChangeRequest({
+        const created = yield* createDraftCodeChangeRequest({
           host,
           projectPath,
           sourceBranch: branchName,
@@ -389,12 +392,15 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
           existingMrUrl,
           mockIid: `mock-mr-iid-${threadId.slice(0, 8)}`,
           signal,
-        }));
+        });
+        mrIid = created.mrIid;
 
         if (!existingMrIid) {
+          openedAsDraft = created.draft;
           await threadsDal.mergeMetadata(threadId, {
             codeChangeRequestNumber: mrIid,
-            codeChangeRequestUrl: mrUrl,
+            codeChangeRequestUrl: created.mrUrl,
+            codeChangeRequestOpenedAsDraft: openedAsDraft,
           });
         }
       }
@@ -418,9 +424,8 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
             projectPath,
             mrIid,
             description: taskResolveDescription(prompt),
-            ...(completionStatus === CompletionStatus.Done && {
-              draft: false,
-            }),
+            ...(completionStatus === CompletionStatus.Done &&
+              openedAsDraft && { draft: false }),
             completionStatus,
             completionSummary,
           });
@@ -449,6 +454,10 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
                   instructionStatus,
                   completionSummary,
                   threadId,
+                  // Done means ready for review either way, so the draft state only matters before that.
+                  openedAsDraft || completionStatus === CompletionStatus.Done
+                    ? undefined
+                    : notDraftNotice(host),
                 ),
                 noteId,
               );
@@ -480,12 +489,12 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
         );
       }
     } catch (err) {
-      // createBranch already pushed the branch empty; a run that fails before earning an MR would otherwise leave it dangling on GitLab forever.
+      // createBranch already pushed the branch empty; a run that fails before earning an MR would otherwise leave it dangling on the remote forever.
       const thread = await threadsDal.findById(threadId);
       if (!thread?.metadata?.codeChangeRequestNumber) {
         try {
           yield* abandonBranchIfEmpty({
-            repo: projectPath,
+            repo,
             worktreeRepoPath: worktree.repoPath,
             branchName,
             defaultBranch,
@@ -517,7 +526,8 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
     isTimeout: boolean,
   ): Promise<void> => {
     const { id, runId } = ctx;
-    const { projectPath, model } = input;
+    const { provider, projectPath, model } = input;
+    const host = gitHosts[provider];
 
     const thread = await threadsDal.findById(id);
     const mrIid = thread?.metadata?.codeChangeRequestNumber as

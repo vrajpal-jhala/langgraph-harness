@@ -1,6 +1,7 @@
 import { type GitHost, GitProvider } from '#types.js';
 
 import { config } from './config.js';
+import { errors } from './errors.js';
 import * as github from './github.js';
 import * as gitlab from './gitlab.js';
 import { mcpToolName } from './helpers.js';
@@ -28,10 +29,14 @@ export const gitHosts: Record<GitProvider, GitHost> = {
     name: 'GitLab',
     codeChangeRequestName: 'merge request',
     commitIdentity: config.gitlab.commitIdentity,
+    webHost: new URL(config.gitlab.apiUrl).host,
     // Bare path, as before GitHub support, so existing repo state stays valid.
     repoKey: (projectPath) => projectPath,
     remoteUrl: (projectPath) =>
       `https://oauth2:${config.gitlab.pat}@${new URL(config.gitlab.apiUrl).host}/${projectPath}.git`,
+    repoUrl: (projectPath) =>
+      `${new URL(config.gitlab.apiUrl).origin}/${projectPath}`,
+    resolveRepo: gitlab.resolveProject,
     formatAlert: (type, title, body) =>
       `> [!${type.toUpperCase()}] ${title}\n> ${body}`,
     codeChangeRequestIdentifier: (mrIid) => `merge_request_iid ${mrIid}`,
@@ -83,9 +88,12 @@ export const gitHosts: Record<GitProvider, GitHost> = {
     name: 'GitHub',
     codeChangeRequestName: 'pull request',
     commitIdentity: config.github.commitIdentity,
+    webHost: new URL(config.github.webUrl).host,
     repoKey: (projectPath) => `${GITHUB_REPO_KEY_PREFIX}${projectPath}`,
     remoteUrl: (projectPath) =>
       `https://x-access-token:${config.github.pat}@${new URL(config.github.webUrl).host}/${projectPath}.git`,
+    repoUrl: (projectPath) => `${config.github.webUrl}/${projectPath}`,
+    resolveRepo: github.resolveRepo,
     // GitHub only recognises the marker alone on its line — a title after it turns the whole block into a plain quote.
     formatAlert: (type, title, body) =>
       `> [!${type.toUpperCase()}]\n> **${title}**\n>\n> ${body}`,
@@ -141,6 +149,40 @@ export const gitHosts: Record<GitProvider, GitHost> = {
       github.updatePullRequest({ prNumber: mrIid, ...rest }),
   },
 };
+
+export async function resolveRepoFromUrl(
+  url: string,
+  signal?: AbortSignal,
+): Promise<{ host: GitHost; projectPath: string; defaultBranch: string }> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    throw errors.taskResolve.invalidRepo(`Not a valid URL: ${url}`);
+  }
+
+  const enabledHosts = Object.values(gitHosts).filter(
+    (host) => config[host.provider].enabled,
+  );
+  const host = Object.values(gitHosts).find(
+    (candidate) => candidate.webHost === parsed.host,
+  );
+  if (!host) {
+    throw errors.taskResolve.invalidRepo(
+      `Repository must be on ${enabledHosts.map((h) => h.webHost).join(' or ')}, got ${parsed.host || url}`,
+    );
+  }
+  if (!config[host.provider].enabled) {
+    throw errors.taskResolve.invalidRepo(
+      `${host.name} isn't configured on this deployment`,
+    );
+  }
+
+  const urlPath = parsed.pathname
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/\.git$/, '');
+  return { host, ...(await host.resolveRepo(urlPath, signal)) };
+}
 
 export const parseRepoKey = (
   key: string,

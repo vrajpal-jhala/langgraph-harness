@@ -51,6 +51,7 @@ async function drainPendingRerun(job: Job<TaskResolveJob>) {
   const {
     threadId,
     kind,
+    provider,
     title,
     projectPath,
     prompt,
@@ -65,6 +66,7 @@ async function drainPendingRerun(job: Job<TaskResolveJob>) {
 
   const input: TaskResolveRunInput = {
     kind,
+    provider,
     title,
     projectPath,
     prompt,

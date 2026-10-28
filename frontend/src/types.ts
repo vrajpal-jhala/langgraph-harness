@@ -86,6 +86,7 @@ export type WorkItemResolveRunInput = {
 
 export type TaskResolveRunInput = {
   kind: 'task_resolve';
+  provider: GitProvider;
   title: string;
   projectPath: string;
   prompt: string;
@@ -113,6 +114,7 @@ export type ScheduleRecurrence =
 export type TaskSchedule = {
   id: string;
   title: string;
+  provider: GitProvider;
   project_path: string;
   prompt: string;
   default_branch: string;

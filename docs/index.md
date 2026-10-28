@@ -117,7 +117,7 @@ npm run dev
           <h3>Task Resolve</h3>
           <span class="landing-badge">Scheduled</span>
         </span>
-        <p>The same sandboxed loop, started from a free-text instruction instead of a GitLab issue — on demand or on a recurring schedule.</p>
+        <p>The same sandboxed loop, started from a free-text instruction instead of an issue — on demand or on a recurring schedule.</p>
       </label>
       <label class="landing-workflow-tab" for="landing-wf-chat">
         <span class="landing-workflow-tab-head">

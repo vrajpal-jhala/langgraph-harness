@@ -540,6 +540,7 @@ type WorkItemResolveRunInput = {
 };
 type TaskResolveRunInput = {
 	kind: typeof RunKind.TaskResolve;
+	provider: GitProvider;
 	title: string;
 	projectPath: string;
 	prompt: string;
@@ -1874,6 +1875,7 @@ export declare const app: Elysia<"", {
 						id: string;
 						created_at: Date;
 						updated_at: Date;
+						provider: GitProvider;
 						project_path: string;
 						prompt: string;
 						default_branch: string;
@@ -1929,6 +1931,7 @@ export declare const app: Elysia<"", {
 							id: string;
 							created_at: Date;
 							updated_at: Date;
+							provider: GitProvider;
 							project_path: string;
 							prompt: string;
 							default_branch: string;
@@ -1991,6 +1994,7 @@ export declare const app: Elysia<"", {
 						id: string;
 						created_at: Date;
 						updated_at: Date;
+						provider: GitProvider;
 						project_path: string;
 						prompt: string;
 						default_branch: string;
@@ -2055,6 +2059,7 @@ export declare const app: Elysia<"", {
 							id: string;
 							created_at: Date;
 							updated_at: Date;
+							provider: GitProvider;
 							project_path: string;
 							prompt: string;
 							default_branch: string;

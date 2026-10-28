@@ -1,6 +1,6 @@
 import type { Static } from 'elysia';
 
-import type { TaskSchedule } from '#types.js';
+import type { Session, TaskSchedule } from '#types.js';
 import { ScheduleStatus } from '#types.js';
 
 import { threadsDal } from '#components/threads/dal.js';
@@ -14,12 +14,17 @@ import {
   upsertRecurring,
 } from './queue.js';
 import { firstOccurrence, toCronPattern } from './recurrence.js';
-import type { createScheduleSchema } from './validation.js';
+import type {
+  createScheduleSchema,
+  updateScheduleSchema,
+} from './validation.js';
 
+import { providerUsername } from '#utils/auth.js';
 import { errors } from '#utils/errors.js';
-import { projectUrlFromPath, resolveProjectFromUrl } from '#utils/gitlab.js';
+import { gitHosts, resolveRepoFromUrl } from '#utils/git-host.js';
 
-type ScheduleBody = Static<typeof createScheduleSchema>;
+type CreateScheduleBody = Static<typeof createScheduleSchema>;
+type UpdateScheduleBody = Static<typeof updateScheduleSchema>;
 
 async function requireSchedule(id: string): Promise<TaskSchedule> {
   const schedule = await schedulesDal.findById(id);
@@ -49,7 +54,7 @@ async function teardown(schedule: TaskSchedule) {
     : removeOneTime(schedule.id));
 }
 
-function fieldsFromBody(body: ScheduleBody) {
+function fieldsFromBody(body: UpdateScheduleBody) {
   const isRecurring = 'recurrence' in body;
   return {
     title: body.title,
@@ -71,7 +76,7 @@ async function decorate(schedule: TaskSchedule) {
   return {
     ...schedule,
     nextRun,
-    repoUrl: projectUrlFromPath(schedule.project_path),
+    repoUrl: gitHosts[schedule.provider].repoUrl(schedule.project_path),
   };
 }
 
@@ -90,16 +95,17 @@ export const schedulesService = {
     return { ...decorated, runs };
   },
 
-  create: async (body: ScheduleBody, createdBy: string) => {
-    const { projectPath, defaultBranch } = await resolveProjectFromUrl(
+  create: async (body: CreateScheduleBody, session: Session) => {
+    const { host, projectPath, defaultBranch } = await resolveRepoFromUrl(
       body.repoUrl,
     );
 
     const schedule = await schedulesDal.insert({
       ...fieldsFromBody(body),
+      provider: host.provider,
       project_path: projectPath,
       default_branch: defaultBranch,
-      created_by: createdBy,
+      created_by: providerUsername(session, host.provider),
       status: ScheduleStatus.Active,
     });
 
@@ -108,13 +114,13 @@ export const schedulesService = {
   },
 
   // Series-wide only — changes every future occurrence; already-run occurrences are untouched historical thread/run records.
-  update: async (id: string, body: ScheduleBody) => {
+  update: async (id: string, body: UpdateScheduleBody) => {
     const existing = await requireSchedule(id);
     if (existing.status === ScheduleStatus.Cancelled) {
       throw errors.schedules.cancelled();
     }
 
-    const { projectPath, defaultBranch } = await resolveProjectFromUrl(
+    const { host, projectPath, defaultBranch } = await resolveRepoFromUrl(
       body.repoUrl,
     );
 
@@ -122,6 +128,7 @@ export const schedulesService = {
 
     const updated = await schedulesDal.update(id, {
       ...fieldsFromBody(body),
+      provider: host.provider,
       project_path: projectPath,
       default_branch: defaultBranch,
     });
