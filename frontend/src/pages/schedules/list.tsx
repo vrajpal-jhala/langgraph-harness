@@ -2,6 +2,7 @@ import { use, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ActionIcon,
+  Alert,
   Badge,
   Card,
   Center,
@@ -16,6 +17,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import {
+  IconAlertTriangle,
   IconBolt,
   IconCalendarClock,
   IconChevronDown,
@@ -27,7 +29,12 @@ import {
   IconX,
 } from '@tabler/icons-react';
 
-import { type RunStatus, ScheduleStatus, type TaskSchedule } from '@/types';
+import {
+  GitProvider,
+  type RunStatus,
+  ScheduleStatus,
+  type TaskSchedule,
+} from '@/types';
 
 import Icon from '@/components/icon';
 import { describeRecurrence } from './recurrence';
@@ -35,6 +42,7 @@ import { describeRecurrence } from './recurrence';
 import { api } from '@/api';
 import { RUN_STATUS_COLOR } from '@/constants';
 import { Context } from '@/contexts';
+import { useAuth } from '@/hooks/useAuth';
 import { useConfirmAction } from '@/hooks/useConfirmAction';
 import { formatDate } from '@/utils';
 
@@ -120,6 +128,7 @@ const ScheduleCard = ({
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const { handleError } = use(Context);
+  const { providers } = useAuth();
   const cancelSchedule = useConfirmAction<TaskSchedule>({
     title: 'Cancel schedule',
     message: (target) =>
@@ -143,6 +152,9 @@ const ScheduleCard = ({
     schedule.status !== ScheduleStatus.Cancelled &&
     schedule.status !== ScheduleStatus.Completed;
   const canCancel = canEdit;
+  const providerOff = !providers[schedule.provider];
+  const providerName =
+    schedule.provider === GitProvider.GitHub ? 'GitHub' : 'GitLab';
   const canPauseResume =
     !!schedule.recurrence &&
     (schedule.status === ScheduleStatus.Active ||
@@ -170,6 +182,20 @@ const ScheduleCard = ({
           </Text>
         </Group>
 
+        {providerOff && schedule.status !== ScheduleStatus.Cancelled && (
+          <Alert
+            color="yellow"
+            variant="light"
+            p="xs"
+            icon={<Icon as={IconAlertTriangle} size={16} />}
+          >
+            <Text size="sm">
+              {providerName} isn't configured on this deployment, so this
+              schedule's runs can't start.
+            </Text>
+          </Alert>
+        )}
+
         {nextRun && (
           <Tooltip label={nextRun.full}>
             <Text size="sm">
@@ -196,12 +222,20 @@ const ScheduleCard = ({
 
           {canManage && (
             <Group gap="xs">
-              <Tooltip label="Run now">
+              <Tooltip
+                label={
+                  providerOff
+                    ? `${providerName} isn't configured on this deployment`
+                    : 'Run now'
+                }
+              >
                 <ActionIcon
                   variant="subtle"
                   color="gray"
                   loading={busy}
-                  disabled={schedule.status === ScheduleStatus.Cancelled}
+                  disabled={
+                    providerOff || schedule.status === ScheduleStatus.Cancelled
+                  }
                   onClick={() =>
                     runAction(
                       api.schedules({ id: schedule.id })['run-now'].post(),

@@ -90,7 +90,9 @@ export const runsService = {
     const thread = await threadsDal.findById(id);
     if (!thread) throw errors.threads.notFound();
     if (thread.archived_at) throw errors.threads.archived();
-    if (!workflowsService.isEnabled(kind)) throw errors.workflows.disabled();
+    if (!workflowsService.isRunEnabled(kind, input)) {
+      throw errors.workflows.disabled();
+    }
 
     const workflow = workflowsService.forKind(kind);
     const secrets = await resolveSecrets(session);
@@ -118,6 +120,19 @@ export const runsService = {
       // If the run is no longer QUEUED (superseded/deleted), skip silently.
       if (run?.status !== RunStatus.QUEUED) return;
       await publishThreadUpdate(id, RunStatus.QUEUED);
+    }
+
+    // Queued before its provider was switched off; failed here, since onFailure would report through that same provider.
+    if (!workflowsService.isRunEnabled(kind, input)) {
+      await runsDal.update(
+        {
+          status: RunStatus.FAILED,
+          error: errors.workflows.disabled().message,
+        },
+        runId,
+      );
+      await publishThreadUpdate(id, RunStatus.FAILED);
+      return;
     }
 
     return execute(
@@ -150,7 +165,7 @@ export const runsService = {
       throw errors.runs.unknownModel(originalRun.input.model);
     }
 
-    if (!workflowsService.isEnabled(originalRun.kind)) {
+    if (!workflowsService.isRunEnabled(originalRun.kind, originalRun.input)) {
       throw errors.workflows.disabled();
     }
 

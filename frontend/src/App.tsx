@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Button, Center, EmptyState, Loader } from '@mantine/core';
 import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
 
@@ -78,12 +78,6 @@ const RequireAuth = () => {
   );
 };
 
-// TODO - remove, along with the nav's requiresGitlab, once task resolve supports GitHub.
-const RequireGitlab = () => {
-  const { providers } = useAuth();
-  return providers.gitlab ? <Outlet /> : <Navigate to="/threads" replace />;
-};
-
 function App() {
   return (
     <Routes>
@@ -94,10 +88,8 @@ function App() {
         <Route path="threads/:threadId" element={<ThreadDetailPage />} />
         <Route path="chat" element={<ChatListPage />} />
         <Route path="chat/:threadId" element={<ChatPage />} />
-        <Route element={<RequireGitlab />}>
-          <Route path="schedules" element={<SchedulesPage />} />
-          <Route path="schedules/:id" element={<ScheduleDetailPage />} />
-        </Route>
+        <Route path="schedules" element={<SchedulesPage />} />
+        <Route path="schedules/:id" element={<ScheduleDetailPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="workflows" element={<WorkflowsPage />} />
         <Route path="workflows/:workflowId" element={<WorkflowDetailPage />} />

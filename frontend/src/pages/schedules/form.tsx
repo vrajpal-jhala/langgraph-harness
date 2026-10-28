@@ -27,6 +27,7 @@ import { describeRecurrence } from './recurrence';
 
 import { api } from '@/api';
 import { Context } from '@/contexts';
+import { useAuth } from '@/hooks/useAuth';
 
 const TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const DAY_OPTIONS = [
@@ -47,6 +48,7 @@ export const ScheduleForm = ({ schedule }: { schedule?: TaskSchedule }) => {
   const recurrenceIn = schedule?.recurrence;
   const navigate = useNavigate();
   const { handleError } = use(Context);
+  const { providers } = useAuth();
   const [title, setTitle] = useState(schedule?.title ?? '');
   const [repoUrl, setRepoUrl] = useState(schedule?.repoUrl ?? '');
   const [prompt, setPrompt] = useState(schedule?.prompt ?? '');
@@ -144,14 +146,18 @@ export const ScheduleForm = ({ schedule }: { schedule?: TaskSchedule }) => {
 
       <TextInput
         label="Repository"
-        placeholder="https://gitlab.com/group/project"
+        placeholder={
+          providers.gitlab
+            ? 'https://gitlab.com/group/project'
+            : 'https://github.com/owner/repo'
+        }
         value={repoUrl}
         onChange={(e) => setRepoUrl(e.currentTarget.value)}
       />
 
       <Textarea
         label="What should langgraph-harness do?"
-        description="Plain instructions. The agent works in a sandboxed checkout and opens a draft merge request."
+        description="Plain instructions. The agent works in a sandboxed checkout and opens a draft with the change."
         placeholder="Add a health check endpoint that reports database connectivity."
         autosize
         minRows={5}
@@ -260,10 +266,14 @@ export const ScheduleForm = ({ schedule }: { schedule?: TaskSchedule }) => {
         </Button>
       </Group>
 
-      <Alert color="blue" icon={<Icon as={IconInfoCircle} />}>
-        Once the draft MR is open, comment on it mentioning the bot to send a
-        follow-up — each comment runs again against the same branch.
-      </Alert>
+      {/* TODO - show for GitHub too once pull request comments trigger follow-ups. */}
+      {providers.gitlab && (
+        <Alert color="blue" icon={<Icon as={IconInfoCircle} />}>
+          On a GitLab repository, once the draft merge request is open, comment
+          on it mentioning the bot to send a follow-up — each comment runs again
+          against the same branch.
+        </Alert>
+      )}
     </Stack>
   );
 };

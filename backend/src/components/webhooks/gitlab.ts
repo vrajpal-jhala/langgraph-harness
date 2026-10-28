@@ -252,6 +252,7 @@ async function handleNoteEvent(body: any) {
     // The comment itself is the next instruction — unlike work-item-resolve, which re-reads its issue.
     const taskResolveInput = {
       kind: RunKind.TaskResolve,
+      provider: host.provider,
       title: thread.title,
       projectPath,
       prompt: noteText,

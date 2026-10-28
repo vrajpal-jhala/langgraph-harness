@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { errors } from './errors.js';
 import { logger } from './logger.js';
 
 const GITHUB_FETCH_TIMEOUT_MS = 15_000;
@@ -94,6 +95,50 @@ export async function fetchRepoFile(
       return null;
     throw err;
   }
+}
+
+export async function resolveRepo(
+  urlPath: string,
+  signal?: AbortSignal,
+): Promise<{ projectPath: string; defaultBranch: string }> {
+  // Repos are always owner/repo, so anything after is a UI route like /tree/main.
+  const [owner, repo] = urlPath.split('/');
+  if (!owner || !repo) {
+    throw errors.taskResolve.invalidRepo(
+      `URL is not a repository path: ${urlPath}`,
+    );
+  }
+  const unreachable = () =>
+    errors.taskResolve.invalidRepo(
+      `langgraph-harness can't reach ${owner}/${repo} — check the URL and that langgraph-harness has access.`,
+    );
+  // A private repo the bot can't see is indistinguishable from one that doesn't exist — GitHub 404s both.
+  const res = await githubFetch(
+    repoPath(`${owner}/${repo}`),
+    undefined,
+    signal,
+  ).catch(() => {
+    throw unreachable();
+  });
+  const data = (await res.json()) as {
+    full_name: string;
+    default_branch: string;
+  };
+
+  // Unlike GitLab, an empty repo still reports a default branch, so check that the branch exists.
+  await githubFetch(
+    `${repoPath(data.full_name)}/branches/${encodeURIComponent(data.default_branch)}`,
+    undefined,
+    signal,
+  ).catch((err: unknown) => {
+    if (err instanceof Error && err.message.startsWith('GitHub API error 404'))
+      throw errors.taskResolve.invalidRepo(
+        `${data.full_name} has no default branch (is it an empty repository?)`,
+      );
+    throw unreachable();
+  });
+
+  return { projectPath: data.full_name, defaultBranch: data.default_branch };
 }
 
 // Issue comments are edited by their own id, not under the issue.

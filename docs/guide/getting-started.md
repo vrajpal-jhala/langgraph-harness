@@ -28,10 +28,11 @@ Not every feature exists on both yet:
 | Sign-in                                                      | ✓      | ✓      |
 | Issue resolve — assign an issue to the bot, get a draft back | ✓      | ✓      |
 | Merge request review                                         | ✓      | —      |
-| Task resolve — ad-hoc tasks and schedules from the UI        | ✓      | —      |
+| Task resolve — ad-hoc tasks and schedules from the UI        | ✓      | ✓      |
+| Follow-up runs from comments mentioning the bot on its draft | ✓      | —      |
 | Chat's GitLab tools (acting on GitLab as the signed-in user) | ✓      | —      |
 
-Chat itself works with either provider; only its GitLab tools need GitLab. On a GitHub-only deployment, the Schedules page and the GitLab tools toggle in Chat are hidden.
+Chat itself works with either provider; only its GitLab tools need GitLab. On a GitHub-only deployment, the GitLab tools toggle in Chat is hidden.
 
 ## 3a. GitLab setup
 

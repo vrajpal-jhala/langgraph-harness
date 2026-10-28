@@ -394,8 +394,14 @@ export type GitHost = {
   name: string;
   codeChangeRequestName: string;
   commitIdentity: { name: string; email: string };
+  webHost: string;
   repoKey: (projectPath: string) => string;
   remoteUrl: (projectPath: string) => string;
+  repoUrl: (projectPath: string) => string;
+  resolveRepo: (
+    urlPath: string,
+    signal?: AbortSignal,
+  ) => Promise<{ projectPath: string; defaultBranch: string }>;
   formatAlert: (type: AlertType, title: string, body: string) => string;
   repoIdentifiers: (projectPath: string) => string;
   codeChangeRequestIdentifier: (mrIid: string) => string;
@@ -457,6 +463,7 @@ export type WorkItemResolveRunInput = {
 
 export type TaskResolveRunInput = {
   kind: typeof RunKind.TaskResolve;
+  provider: GitProvider;
   title: string;
   projectPath: string;
   prompt: string;
@@ -828,7 +835,7 @@ export type Workflow<TInput, TSecrets = undefined> = {
   kind: RunKind;
   name: string;
   description: string;
-  // TODO - remove once MR review and task resolve support GitHub.
+  // TODO - remove once MR review supports GitHub.
   // Not initialized, listed or started when that provider isn't configured; existing threads stay readable.
   requiresProvider?: GitProvider;
   init: () => Promise<void>;
@@ -1154,6 +1161,7 @@ export type ScheduleRecurrence =
 export interface TaskScheduleTable {
   id: ColumnType<string, never, never>;
   title: string;
+  provider: GitProvider;
   project_path: string;
   prompt: string;
   default_branch: string;
