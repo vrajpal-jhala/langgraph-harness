@@ -39,6 +39,8 @@ async function gitlabFetch(
     GITLAB_FETCH_TIMEOUT_MS,
   );
   const onParentAbort = () => controller.abort(parentSignal!.reason);
+  // An 'abort' listener never fires for a signal that was already aborted.
+  if (parentSignal?.aborted) onParentAbort();
   parentSignal?.addEventListener('abort', onParentAbort, { once: true });
 
   try {
@@ -220,48 +222,29 @@ export async function resolveGitlabUserId(
   return users[0]?.id ?? null;
 }
 
-// Strips the origin and any GitLab-added suffix (/-/tree/main, .git, trailing slash) off a browser URL to leave the project's path_with_namespace.
-function projectPathFromUrl(url: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(url.trim());
-  } catch {
-    throw errors.taskResolve.invalidRepo(`Not a valid URL: ${url}`);
-  }
-
-  const apiHost = new URL(config.gitlab.apiUrl).host;
-  if (parsed.host !== apiHost) {
-    throw errors.taskResolve.invalidRepo(
-      `Repository must be on ${apiHost}, got ${parsed.host || url}`,
-    );
-  }
-
-  const path = parsed.pathname
-    .replace(/\.git$/, '')
-    .replace(/^\/+|\/+$/g, '')
-    .split('/-/')[0];
-
-  if (path.split('/').length < 2) {
-    throw errors.taskResolve.invalidRepo(`URL is not a project path: ${url}`);
-  }
-  return path;
-}
-
-export async function resolveProjectFromUrl(
-  url: string,
+export async function resolveProject(
+  urlPath: string,
   signal?: AbortSignal,
 ): Promise<{ projectPath: string; defaultBranch: string }> {
-  const projectPath = projectPathFromUrl(url);
+  // GitLab puts its UI routes after a /-/ segment, since group nesting makes the project path any length.
+  const projectPath = urlPath.split('/-/')[0];
+  if (projectPath.split('/').length < 2) {
+    throw errors.taskResolve.invalidRepo(
+      `URL is not a project path: ${urlPath}`,
+    );
+  }
   const encoded = encodeURIComponent(projectPath);
   // A project the bot can't see is indistinguishable from one that doesn't exist — GitLab 404s both.
   const res = await gitlabFetch(
     `${config.gitlab.apiUrl}/projects/${encoded}`,
     undefined,
     signal,
-  ).catch(() => {
-    throw errors.taskResolve.invalidRepo(
-      `langgraph-harness can't reach ${projectPath} — check the URL and that langgraph-harness has access.`,
-    );
+  ).catch((err: unknown) => {
+    if (err instanceof Error && err.message.startsWith('GitLab API error 404'))
+      throw errors.taskResolve.invalidRepo(
+        `langgraph-harness can't reach ${projectPath} — check the URL and that langgraph-harness has access.`,
+      );
+    throw err;
   });
   const data = (await res.json()) as {
     path_with_namespace: string;
@@ -278,11 +261,6 @@ export async function resolveProjectFromUrl(
     projectPath: data.path_with_namespace,
     defaultBranch: data.default_branch,
   };
-}
-
-// Inverse of projectPathFromUrl.
-export function projectUrlFromPath(projectPath: string): string {
-  return `${new URL(config.gitlab.apiUrl).origin}/${projectPath}`;
 }
 
 export async function createDraftMergeRequest(params: {

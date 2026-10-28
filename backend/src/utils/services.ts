@@ -45,7 +45,7 @@ export const services = {
     for (const run of [...interruptedRuns, ...orphanedRuns]) {
       // Only workflows defining recoverOrphanedRun participate — a dead chat run just stays failed, never re-run.
       if (
-        !workflowsService.isEnabled(run.kind) ||
+        !workflowsService.isRunEnabled(run.kind, run.input) ||
         !workflowsService.forKind(run.kind).recoverOrphanedRun
       )
         continue;

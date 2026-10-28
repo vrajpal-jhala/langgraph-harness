@@ -30,7 +30,7 @@ Four harnesses, one shared foundation:
 
 - 🔍 **MR Review** — fires on webhook events, reads the diff, drafts comments, publishes them. No polling, no manual trigger.
 - 🛠️ **Work Item Resolve** — assign a GitLab issue or task and get an agent that runs inside its own Kata Containers VM (a dedicated guest kernel per sandbox, not just syscall interception), opens a draft MR, and keeps responding to follow-up comments on the same branch.
-- 📋 **Task Resolve** — the same sandboxed loop, started from a free-text instruction instead of a GitLab issue — on demand or on a recurring schedule.
+- 📋 **Task Resolve** — the same sandboxed loop, started from a free-text instruction instead of an issue — on demand or on a recurring schedule.
 - 💬 **Chat** — an interactive, GitLab-aware assistant with real tool access: GitLab data, a headless browser, its own review/chat history; sensitive tool calls pause for explicit human approval before running.
 
 Shared foundation: every drafted comment is screened before it posts; a run that misbehaves (repeats a call, loops, ends on a question, skips a check) gets caught and corrected mid-run — backed by persistent checkpoints, so a run resumes instead of restarting from scratch.

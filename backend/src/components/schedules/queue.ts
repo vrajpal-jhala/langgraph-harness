@@ -1,12 +1,11 @@
 import { Queue, Worker } from 'bullmq';
 
 import type { TaskResolveRunInput, TaskSchedule } from '#types.js';
-import { GitProvider, RunKind, ScheduleStatus } from '#types.js';
+import { RunKind, ScheduleStatus } from '#types.js';
 
 import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
-import { workflowsService } from '#components/workflows/service.js';
 import { enqueueTaskResolve } from '#components/workflows/task-resolve/queue.js';
 import { schedulesDal } from './dal.js';
 import { firstOccurrence, toCronPattern } from './recurrence.js';
@@ -27,6 +26,7 @@ async function buildRunInput(
 ): Promise<TaskResolveRunInput> {
   return {
     kind: RunKind.TaskResolve,
+    provider: schedule.provider,
     title: schedule.title,
     projectPath: schedule.project_path,
     prompt: schedule.prompt,
@@ -34,7 +34,7 @@ async function buildRunInput(
     submittedBy: schedule.created_by,
     model: llms.find((m) => m.isDefault)?.model ?? llms[0].model,
     config: await parseHarnessYml(
-      gitHosts[GitProvider.GitLab],
+      gitHosts[schedule.provider],
       schedule.project_path,
     ),
   };
@@ -42,8 +42,8 @@ async function buildRunInput(
 
 // Shared by a timer fire and "Run now" — both just materialize one more task-resolve run from the schedule's stored config.
 export async function materializeScheduleRun(schedule: TaskSchedule) {
-  // A schedule made before GitLab was switched off still fires; checked before the thread so none is left empty.
-  if (!workflowsService.isEnabled(RunKind.TaskResolve)) {
+  // A schedule made before its provider was switched off still fires; checked before the thread so none is left empty.
+  if (!config[schedule.provider].enabled) {
     throw errors.workflows.disabled();
   }
   const thread = await threadsService.create(
@@ -52,7 +52,7 @@ export async function materializeScheduleRun(schedule: TaskSchedule) {
     schedule.created_by,
   );
   await threadsDal.mergeMetadata(thread.id, {
-    source: GitProvider.GitLab,
+    source: schedule.provider,
     scheduleId: schedule.id,
     project: schedule.project_path,
   });
@@ -77,11 +77,15 @@ async function processScheduleFire({ scheduleId }: ScheduleJob) {
   const schedule = await schedulesDal.findById(scheduleId);
   // Closes the race between a cancel/pause and a job already sitting in Redis waiting to fire.
   if (!schedule || schedule.status !== ScheduleStatus.Active) return;
-  await materializeScheduleRun(schedule);
-  if (isExhausted(schedule)) {
-    await schedulesDal.update(scheduleId, {
-      status: ScheduleStatus.Completed,
-    });
+  try {
+    await materializeScheduleRun(schedule);
+  } finally {
+    // Completed tracks the schedule's occurrences, not whether the work succeeded — that's on its runs.
+    if (isExhausted(schedule)) {
+      await schedulesDal.update(scheduleId, {
+        status: ScheduleStatus.Completed,
+      });
+    }
   }
 }
 

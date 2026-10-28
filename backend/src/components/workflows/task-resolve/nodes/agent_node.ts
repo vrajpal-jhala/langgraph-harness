@@ -54,7 +54,7 @@ export const agentNode: GraphNode<typeof taskResolveState> = async (
         sandbox,
         workingDirectory,
         worktreePath,
-        projectId: projectPath,
+        projectId: host.repoKey(projectPath),
         issueIid: null,
         mrIid: mrIid ?? null,
         threadId,

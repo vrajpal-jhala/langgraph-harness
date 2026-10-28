@@ -23,27 +23,29 @@ const recurrenceSchema = t.Union([
   }),
 ]);
 
-const oneTimeScheduleSchema = t.Object({
+const oneTimeFields = {
   title: titleSchema,
-  repoUrl: repoUrlSchema,
   prompt: promptSchema,
   timezone: timezoneSchema,
   // ISO instant, already converted to UTC client-side — timezone is irrelevant past this point.
   scheduledFor: t.String({ format: 'date-time' }),
-});
+};
 
-const recurringScheduleSchema = t.Object({
+const recurringFields = {
   title: titleSchema,
-  repoUrl: repoUrlSchema,
   prompt: promptSchema,
   timezone: timezoneSchema,
   recurrence: recurrenceSchema,
   endDate: t.Optional(t.String({ format: 'date-time' })),
-});
+};
 
 export const createScheduleSchema = t.Union([
-  oneTimeScheduleSchema,
-  recurringScheduleSchema,
+  t.Object({ ...oneTimeFields, repoUrl: repoUrlSchema }),
+  t.Object({ ...recurringFields, repoUrl: repoUrlSchema }),
 ]);
 
-export const updateScheduleSchema = createScheduleSchema;
+// The repo is fixed once created, so a schedule's run history never spans two repos.
+export const updateScheduleSchema = t.Union([
+  t.Object(oneTimeFields),
+  t.Object(recurringFields),
+]);
