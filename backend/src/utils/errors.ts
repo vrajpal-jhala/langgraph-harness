@@ -30,6 +30,8 @@ export const errors = {
   chat: {
     missingOpenRouterKey: () =>
       new AppError(400, 'No OpenRouter API key saved — add one in Settings'),
+    gitlabDisabled: () =>
+      new AppError(400, 'GitLab tools are unavailable on this deployment'),
     missingGitlabToken: () =>
       new AppError(400, 'GitLab tools enabled but no linked GitLab token'),
     unsupportedProvider: (model: string) =>
@@ -59,6 +61,11 @@ export const errors = {
   },
   workflows: {
     notFound: () => new AppError(404, 'Workflow not found'),
+    disabled: () =>
+      new AppError(
+        409,
+        'This workflow needs a git provider that this deployment has not configured',
+      ),
   },
   monitoring: {
     forbidden: () => new AppError(403, 'Forbidden'),

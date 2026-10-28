@@ -7,15 +7,21 @@ import { mrReviewWorkflow } from '#components/workflows/mr-review/index.js';
 import { taskResolveWorkflow } from '#components/workflows/task-resolve/index.js';
 import { workItemResolveWorkflow } from '#components/workflows/work-item-resolve/index.js';
 
+import { config } from '#utils/config.js';
 import { errors } from '#utils/errors.js';
 
 // Adding a workflow here is enough — init/shutdown pick it up automatically.
-export const workflows = [
+const allWorkflows = [
   chatWorkflow,
   mrReviewWorkflow,
   workItemResolveWorkflow,
   taskResolveWorkflow,
 ];
+
+const isEnabled = (workflow: (typeof allWorkflows)[number]) =>
+  !workflow.requiresProvider || config[workflow.requiresProvider].enabled;
+
+export const workflows = allWorkflows.filter(isEnabled);
 
 // IDLE has no RunStatus equivalent; the other two reuse RunStatus's own values.
 const WorkflowStatus = {
@@ -49,10 +55,14 @@ const buildWorkflow = async (workflow: (typeof workflows)[number]) => {
 };
 
 export const workflowsService = {
+  // Includes disabled workflows, so their existing threads still pass access checks.
   forKind: (kind: RunKind): Workflow<RunInput, unknown> =>
-    (workflows.find((w) => w.kind === kind) ??
+    (allWorkflows.find((w) => w.kind === kind) ??
       // Widened to unknown: TInput/TSecrets correlation with the run holds only by construction, not provably at compile time.
       mrReviewWorkflow) as unknown as Workflow<RunInput, unknown>,
+
+  isEnabled: (kind: RunKind) =>
+    workflows.some((workflow) => workflow.kind === kind),
 
   list: async () => Promise.all(workflows.map(buildWorkflow)),
 
