@@ -7,9 +7,14 @@ import {
   type SupermemoryProject,
 } from '#types.js';
 
+import { PROVIDER_ENV_VARS } from './env.js';
+
 const redisUrl = new URL(process.env.REDIS_URL || 'redis://localhost:6379');
 const gitlabApiUrl = process.env.GITLAB_API_URL || 'https://gitlab.com/api/v4';
 const githubApiUrl = process.env.GITHUB_API_URL || 'https://api.github.com';
+
+const isProviderEnabled = (vars: readonly string[]) =>
+  vars.every((key) => process.env[key]);
 
 // Comma-separated list of GitLab project-path substrings to restrict workflows to (e.g. "/project-a/,/project-b/")
 const workflowProjectPathFilters = (
@@ -50,9 +55,18 @@ export const config = {
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean),
-    adminGitlabUsernames: (process.env.ADMIN_GITLAB_USERNAMES || '')
+    gitlabAdminUsernames: (process.env.GITLAB_ADMIN_USERNAMES || '')
       .split(',')
-      .map((u) => u.trim())
+      .map((u) => u.trim().toLowerCase())
+      .filter(Boolean),
+    githubAdminUsernames: (process.env.GITHUB_ADMIN_USERNAMES || '')
+      .split(',')
+      .map((u) => u.trim().toLowerCase())
+      .filter(Boolean),
+    // Empty means no restriction — every email domain can sign in.
+    allowedEmailDomains: (process.env.AUTH_ALLOWED_EMAIL_DOMAINS || '')
+      .split(',')
+      .map((d) => d.trim())
       .filter(Boolean),
     trustedOrigins: (process.env.AUTH_TRUSTED_ORIGINS || '')
       .split(',')
@@ -80,6 +94,7 @@ export const config = {
     database: process.env.DB_NAME || 'harness',
   },
   gitlab: {
+    enabled: isProviderEnabled(PROVIDER_ENV_VARS.gitlab),
     pat: process.env.GITLAB_PAT || '',
     apiUrl: gitlabApiUrl,
     mcpUrl: process.env.GITLAB_MCP_URL || 'http://localhost:3002/mcp',
@@ -89,16 +104,12 @@ export const config = {
       email: process.env.GITLAB_BOT_EMAIL || 'bot@example.com',
     },
     oauth: {
-      // Empty means no restriction — every GitLab email domain can sign in.
-      allowedEmailDomains: (process.env.AUTH_ALLOWED_EMAIL_DOMAINS || '')
-        .split(',')
-        .map((d) => d.trim())
-        .filter(Boolean),
       clientId: process.env.GITLAB_OAUTH_CLIENT_ID || '',
       clientSecret: process.env.GITLAB_OAUTH_CLIENT_SECRET || '',
     },
   },
   github: {
+    enabled: isProviderEnabled(PROVIDER_ENV_VARS.github),
     pat: process.env.GITHUB_PAT || '',
     apiUrl: githubApiUrl,
     // github.com serves its API from a separate host; GitHub Enterprise serves it under /api/v3 on the web host.
@@ -111,6 +122,10 @@ export const config = {
     commitIdentity: {
       name: process.env.GITHUB_BOT_NAME || 'langgraph-harness',
       email: process.env.GITHUB_BOT_EMAIL || 'bot@example.com',
+    },
+    oauth: {
+      clientId: process.env.GITHUB_OAUTH_CLIENT_ID || '',
+      clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET || '',
     },
   },
   supermemory: {

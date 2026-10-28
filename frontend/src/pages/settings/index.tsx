@@ -9,24 +9,56 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { IconBrandGitlab, IconKey, IconRefresh } from '@tabler/icons-react';
+import {
+  IconBrandGithub,
+  IconBrandGitlab,
+  IconKey,
+  IconLink,
+  IconRefresh,
+} from '@tabler/icons-react';
+
+import { GitProvider } from '@/types';
 
 import Icon from '@/components/icon';
 
 import { api, authClient } from '@/api';
 import { Context } from '@/contexts';
+import { useAuth } from '@/hooks/useAuth';
 import { useOAuthError } from '@/hooks/useOAuthError';
+
+const CONNECTIONS = [
+  {
+    provider: GitProvider.GitLab,
+    label: 'GitLab',
+    icon: IconBrandGitlab,
+    expiredText: 'Connection expired — reconnect to keep using GitLab tools',
+  },
+  {
+    provider: GitProvider.GitHub,
+    label: 'GitHub',
+    icon: IconBrandGithub,
+    expiredText: 'Connection expired — reconnect it',
+  },
+];
+
+type Connection =
+  | { state: 'loading' }
+  | { state: 'connected'; username: string }
+  | { state: 'not-connected' }
+  | { state: 'expired' }
+  | { state: 'check-failed' };
 
 const SettingsPage = () => {
   const { handleError } = use(Context);
-  const [gitlab, setGitlab] = useState<
-    | { state: 'loading' }
-    | { state: 'connected'; username: string }
-    | { state: 'disconnected' }
-    | { state: 'check-failed' }
-  >({ state: 'loading' });
-  const [reconnecting, setReconnecting] = useState(false);
-  useOAuthError('Failed to reconnect GitLab');
+  const { providers } = useAuth();
+  const enabledConnections = CONNECTIONS.filter(
+    ({ provider }) => providers[provider],
+  );
+  const [connections, setConnections] = useState<
+    Partial<Record<GitProvider, Connection>>
+  >({});
+  const [linking, setLinking] = useState<GitProvider | null>(null);
+  useOAuthError('Failed to connect your account');
 
   const [openRouter, setOpenRouter] = useState<
     | { state: 'loading' }
@@ -53,49 +85,58 @@ const SettingsPage = () => {
   }, [handleError]);
 
   useEffect(() => {
+    const setConnection = (provider: GitProvider, connection: Connection) =>
+      setConnections((prev) => ({ ...prev, [provider]: connection }));
+
     authClient.listAccounts().then(({ data: accounts, error }) => {
       if (error) {
-        handleError(error, 'Failed to check GitLab connection status');
-        setGitlab({ state: 'check-failed' });
+        handleError(error, 'Failed to check connection status');
+        for (const provider of Object.values(GitProvider)) {
+          setConnection(provider, { state: 'check-failed' });
+        }
         return;
       }
 
-      const gitlabAccount = accounts?.find((a) => a.providerId === 'gitlab');
-      if (!gitlabAccount) {
-        setGitlab({ state: 'disconnected' });
-        return;
-      }
+      for (const { provider, label } of CONNECTIONS) {
+        const account = accounts?.find((a) => a.providerId === provider);
+        if (!account) {
+          setConnection(provider, { state: 'not-connected' });
+          continue;
+        }
 
-      authClient
-        .accountInfo({
-          query: { accountId: gitlabAccount.id },
-        })
-        .then(({ data, error }) => {
-          // A stored-but-unusable token (expired/revoked/undecryptable) needs the same fix as never connecting, so both cases route to 'disconnected'.
-          if (error || !data) {
-            setGitlab({ state: 'disconnected' });
-            return;
-          }
-          const profile = data.data as { username?: string };
-          setGitlab({
-            state: 'connected',
-            username: profile.username ?? data.user.name ?? 'GitLab account',
+        authClient
+          .accountInfo({ query: { accountId: account.id } })
+          .then(({ data, error }) => {
+            // Covers an expired, revoked or undecryptable token: all fixed by linking again.
+            if (error || !data) {
+              setConnection(provider, { state: 'expired' });
+              return;
+            }
+            const profile = data.data as { username?: string; login?: string };
+            setConnection(provider, {
+              state: 'connected',
+              username:
+                profile.username ??
+                profile.login ??
+                data.user.name ??
+                `${label} account`,
+            });
           });
-        });
+      }
     });
 
     loadOpenRouterStatus();
   }, [handleError, loadOpenRouterStatus]);
 
-  const handleReconnect = async () => {
-    setReconnecting(true);
+  const handleLink = async (provider: GitProvider, label: string) => {
+    setLinking(provider);
     const { error } = await authClient.linkSocial({
-      provider: 'gitlab',
+      provider,
       callbackURL: `${window.location.origin}/settings`,
       errorCallbackURL: `${window.location.origin}/settings`,
     });
-    if (error) handleError(error, 'Failed to reconnect GitLab');
-    setReconnecting(false);
+    if (error) handleError(error, `Failed to connect ${label}`);
+    setLinking(null);
   };
 
   const handleSaveOpenRouterKey = async () => {
@@ -123,51 +164,75 @@ const SettingsPage = () => {
         Settings
       </Title>
 
-      <Text fw={600}>Connections</Text>
+      {enabledConnections.length > 0 && <Text fw={600}>Connections</Text>}
 
-      <Card withBorder radius="md" className="settings-page__card">
-        <Group justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <Icon as={IconBrandGitlab} size={20} />
-            <Stack gap={0}>
-              <Text fw={600} size="sm">
-                GitLab
-              </Text>
-              {gitlab.state === 'loading' ? (
-                <Text size="xs" c="dimmed">
-                  Checking connection...
-                </Text>
-              ) : gitlab.state === 'connected' ? (
-                <Text size="xs" c="dimmed">
-                  Connected as @{gitlab.username}
-                </Text>
-              ) : gitlab.state === 'check-failed' ? (
-                <Text size="xs" c="dimmed">
-                  Failed to check GitLab connection status
-                </Text>
-              ) : (
-                <Text size="xs" c="red">
-                  Connection expired — reconnect to keep using GitLab tools
-                </Text>
+      {enabledConnections.map(({ provider, label, icon, expiredText }) => {
+        const connection = connections[provider] ?? { state: 'loading' };
+        const canLink =
+          connection.state === 'not-connected' ||
+          connection.state === 'expired';
+
+        return (
+          <Card
+            key={provider}
+            withBorder
+            radius="md"
+            className="settings-page__card"
+          >
+            <Group justify="space-between" wrap="nowrap">
+              <Group gap="sm" wrap="nowrap">
+                <Icon as={icon} size={20} />
+                <Stack gap={0}>
+                  <Text fw={600} size="sm">
+                    {label}
+                  </Text>
+                  {connection.state === 'loading' ? (
+                    <Text size="xs" c="dimmed">
+                      Checking connection...
+                    </Text>
+                  ) : connection.state === 'connected' ? (
+                    <Text size="xs" c="dimmed">
+                      Connected as @{connection.username}
+                    </Text>
+                  ) : connection.state === 'check-failed' ? (
+                    <Text size="xs" c="dimmed">
+                      Failed to check {label} connection status
+                    </Text>
+                  ) : connection.state === 'not-connected' ? (
+                    <Text size="xs" c="dimmed">
+                      Not connected
+                    </Text>
+                  ) : (
+                    <Text size="xs" c="red">
+                      {expiredText}
+                    </Text>
+                  )}
+                </Stack>
+              </Group>
+
+              {canLink && (
+                <Button
+                  size="xs"
+                  variant="default"
+                  leftSection={
+                    <Icon
+                      as={
+                        connection.state === 'expired' ? IconRefresh : IconLink
+                      }
+                      size={16}
+                    />
+                  }
+                  loading={linking === provider}
+                  disabled={linking !== null && linking !== provider}
+                  onClick={() => handleLink(provider, label)}
+                >
+                  {connection.state === 'expired' ? 'Reconnect' : 'Connect'}
+                </Button>
               )}
-            </Stack>
-          </Group>
-
-          {gitlab.state === 'disconnected' && (
-            <Group gap="xs" wrap="nowrap">
-              <Button
-                size="xs"
-                variant="default"
-                leftSection={<Icon as={IconRefresh} size={16} />}
-                loading={reconnecting}
-                onClick={handleReconnect}
-              >
-                Reconnect
-              </Button>
             </Group>
-          )}
-        </Group>
-      </Card>
+          </Card>
+        );
+      })}
 
       <Text fw={600}>API keys</Text>
 

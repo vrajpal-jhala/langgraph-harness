@@ -8,6 +8,8 @@ All notable changes to langgraph-harness are documented here.
 
 - **The GitLab MCP server now runs as its own container** — previously the backend started it itself, and a slow start could crash the backend and leave an orphaned process holding its port, so every later start failed too. Review, issue and chat runs now share one `gitlab-mcp` service that reconnects on its own after a restart. Self-hosters need to start the new service when upgrading.
 - **GitHub issues can now be assigned to the bot** — assigning the bot account to an issue in a GitHub repo starts the same issue-resolving run as on GitLab: it works on a branch, opens a pull request, and keeps one status comment on the issue up to date. Closing the pull request or the issue cleans up its working copy. On a private repo whose GitHub plan doesn't support draft pull requests, it opens a regular one instead and says so on the issue. GitHub support is opt-in; GitLab-only deployments don't need to change anything.
+- **Sign in with GitHub** — the login page shows a GitHub button when a GitHub OAuth app is configured, next to GitLab's when both are. Someone whose GitHub and GitLab accounts share a verified email lands in the same account either way, and anyone can connect the other provider from Settings. Admin rights come from `GITHUB_ADMIN_USERNAMES` for a GitHub sign-in and `GITLAB_ADMIN_USERNAMES` for a GitLab one.
+- **GitLab is no longer required** — a deployment can now run on GitLab, GitHub, or both. Whichever provider isn't configured is switched off, along with its sign-in button, webhook route and the features that need it; merge request review, task resolve and Chat's GitLab tools still need GitLab. Setting only some of a provider's variables stops the backend at startup, naming the ones still missing.
 
 ### Fixes
 
@@ -19,6 +21,7 @@ All notable changes to langgraph-harness are documented here.
 ### Breaking Changes
 
 - **`WEBHOOK_TOKENS` is renamed to `GITLAB_WEBHOOK_TOKENS`** — now that GitHub has its own webhook secrets, the GitLab ones are named for GitLab. Rename the variable in `backend/.env` before upgrading, or GitLab webhooks will be rejected.
+- **`ADMIN_GITLAB_USERNAMES` is renamed to `GITLAB_ADMIN_USERNAMES`** — to match the other provider variables and the new `GITHUB_ADMIN_USERNAMES`. Rename it in `backend/.env` before upgrading, or the backend won't start.
 - **Upgrading needs a short pause in work** — stored run and thread data is rewritten from GitLab-only names to names shared by GitLab and GitHub. Before deploying, wait until no run is active and the queues are empty.
 
 ---

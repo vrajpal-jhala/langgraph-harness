@@ -45,7 +45,7 @@ import { createTaskSchema } from './workflows/task-resolve/validation.js';
 import { getStatus as getWorkItemResolveQueueStatus } from './workflows/work-item-resolve/queue.js';
 
 import { authMacro, isAdmin } from '#utils/auth.js';
-import { llms } from '#utils/config.js';
+import { config, llms } from '#utils/config.js';
 import { errors } from '#utils/errors.js';
 import { gitHosts } from '#utils/git-host.js';
 import { resolveProjectFromUrl } from '#utils/gitlab.js';
@@ -54,6 +54,11 @@ import { parseHarnessYml } from '#utils/harness-config.js';
 // inline routes to auto infer response type
 export const api = new Elysia({ prefix: '/api' })
   .use(authMacro)
+  // Public: the login page needs it before anyone is signed in.
+  .get('/providers', () => ({
+    gitlab: config.gitlab.enabled,
+    github: config.github.enabled,
+  }))
   .guard({ auth: true }, (app) =>
     app
       .use(uploads)
@@ -98,7 +103,7 @@ export const api = new Elysia({ prefix: '/api' })
             await threadsService.assertCanMutate(params.id, session);
             // An MR's author may abort or retry its review, but only an admin can delete it.
             const thread = await threadsDal.findById(params.id);
-            if (thread?.kind === RunKind.MrReview && !isAdmin(session.username))
+            if (thread?.kind === RunKind.MrReview && !isAdmin(session))
               throw errors.runs.forbidden();
             await threadsService.delete(params.id);
             set.status = 204;
@@ -206,7 +211,10 @@ export const api = new Elysia({ prefix: '/api' })
       .group('/task-resolve', (app) =>
         app
           .onBeforeHandle(({ session }) => {
-            if (!isAdmin(session.username)) throw errors.runs.forbidden();
+            if (!isAdmin(session)) throw errors.runs.forbidden();
+            if (!workflowsService.isEnabled(RunKind.TaskResolve)) {
+              throw errors.workflows.disabled();
+            }
           })
           .post(
             '/',
@@ -230,7 +238,8 @@ export const api = new Elysia({ prefix: '/api' })
                 projectPath,
                 prompt: body.prompt,
                 defaultBranch,
-                submittedBy: session.username,
+                // TODO - use the run's provider username once task resolve supports GitHub; empty for a GitHub-only user, so no reviewer is assigned.
+                submittedBy: session.gitlabUsername,
                 model: llms.find((m) => m.isDefault)?.model ?? llms[0].model,
                 config: await parseHarnessYml(
                   gitHosts[GitProvider.GitLab],
@@ -262,13 +271,17 @@ export const api = new Elysia({ prefix: '/api' })
           .get('/:id', ({ params }) => schedulesService.getById(params.id))
           // Everything below mutates — scoped here so it doesn't also gate the reads above.
           .onBeforeHandle(({ session }) => {
-            if (!isAdmin(session.username)) throw errors.runs.forbidden();
+            if (!isAdmin(session)) throw errors.runs.forbidden();
           })
           .post(
             '/',
             ({ body, session, set }) => {
+              if (!workflowsService.isEnabled(RunKind.TaskResolve)) {
+                throw errors.workflows.disabled();
+              }
               set.status = 201;
-              return schedulesService.create(body, session.username);
+              // TODO - same as the task route: a GitHub-only user's schedules get no reviewer.
+              return schedulesService.create(body, session.gitlabUsername);
             },
             { body: createScheduleSchema },
           )
@@ -352,7 +365,7 @@ export const api = new Elysia({ prefix: '/api' })
         memoriesService.personalCount(session.id),
       )
       .delete('/memories/:id', async ({ params, session, set }) => {
-        if (isAdmin(session.username)) {
+        if (isAdmin(session)) {
           await memoriesService.delete(params.id);
         } else {
           await memoriesService.deleteForUser(params.id, session.id);

@@ -20,10 +20,13 @@ export type Role = (typeof Role)[keyof typeof Role];
 
 export type Session = {
   id: string;
-  username: string;
+  // Empty when the user hasn't signed in with (or connected) that provider.
+  gitlabUsername: string;
+  githubUsername: string;
   gitlabId: number | null;
   name: string;
   avatarUrl: string | null;
+  role: Role;
 };
 
 // ─── LLM ──────────────────────────────────────────────────────────────────────
@@ -825,6 +828,9 @@ export type Workflow<TInput, TSecrets = undefined> = {
   kind: RunKind;
   name: string;
   description: string;
+  // TODO - remove once MR review and task resolve support GitHub.
+  // Not initialized, listed or started when that provider isn't configured; existing threads stay readable.
+  requiresProvider?: GitProvider;
   init: () => Promise<void>;
   cleanup: () => void | Promise<void>;
   getGraphMermaid: () => Promise<string>;

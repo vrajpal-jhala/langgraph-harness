@@ -6,12 +6,23 @@ import { Role } from '#types.js';
 import { config } from '#utils/config.js';
 import { pool } from '#utils/db.js';
 
-const GITLAB_CALLBACK_PATH = '/callback/gitlab';
+// Each provider's username field may only be written by that provider's own OAuth callback.
+const USERNAME_FIELD_BY_CALLBACK_PATH: Record<string, string> = {
+  '/callback/gitlab': 'gitlabUsername',
+  '/callback/github': 'githubUsername',
+};
 
-const stripGitlabUsername = (user: Record<string, unknown>) => {
-  if (!('gitlabUsername' in user)) return;
+const stripForeignUsernames = (
+  user: Record<string, unknown>,
+  path: string | undefined,
+) => {
+  const allowed = path ? USERNAME_FIELD_BY_CALLBACK_PATH[path] : undefined;
+  const foreign = Object.values(USERNAME_FIELD_BY_CALLBACK_PATH).filter(
+    (field) => field !== allowed && field in user,
+  );
+  if (!foreign.length) return;
   const rest = { ...user };
-  delete rest.gitlabUsername;
+  for (const field of foreign) delete rest[field];
   return { data: rest };
 };
 
@@ -38,54 +49,64 @@ export const auth = betterAuth({
       trustedProxies: ['127.0.0.1'],
     },
   },
-  // The only client-writable path to additionalFields; nothing here calls it.
-  disabledPaths: ['/update-user'],
+  disabledPaths: [
+    // The only client-writable path to additionalFields; nothing here calls it.
+    '/update-user',
+    // Unlinking would leave the provider's username on the user row, so its admin rights would outlive the link.
+    '/unlink-account',
+  ],
   account: {
     encryptOAuthTokens: true,
+    accountLinking: {
+      // Otherwise linking a second provider from Settings never records that provider's username.
+      updateUserInfoOnLink: true,
+      // Linking requires signing in to the other provider, so the emails needn't match for it to be safe.
+      allowDifferentEmails: true,
+    },
   },
   user: {
     validateUserInfo: ({ user, source }) => {
-      if (source.oauth?.providerId !== 'gitlab') return;
+      // Settings links to a signed-in user and implicit linking needs the user's own email, which passed this check when stored, so a later-tightened allowlist isn't re-applied here.
+      if (!source.oauth || source.action === 'link-account') return;
 
-      // An empty list means no restriction configured — every domain is allowed.
+      const { allowedEmailDomains } = config.auth;
       if (
-        config.gitlab.oauth.allowedEmailDomains.length > 0 &&
-        !config.gitlab.oauth.allowedEmailDomains.some((allowedEmailDomain) =>
+        allowedEmailDomains.length > 0 &&
+        !allowedEmailDomains.some((allowedEmailDomain) =>
           user.email?.endsWith(`@${allowedEmailDomain}`),
         )
       ) {
         return {
           error: 'email_not_allowed',
-          errorDescription: `Use ${config.gitlab.oauth.allowedEmailDomains.length > 1 ? 'one of ' : ''}${config.gitlab.oauth.allowedEmailDomains.join(', ')} email to sign in`,
+          errorDescription: `Use ${allowedEmailDomains.length > 1 ? 'one of ' : ''}${allowedEmailDomains.join(', ')} email to sign in`,
         };
       }
     },
     additionalFields: {
       gitlabUsername: { type: 'string', required: false },
+      githubUsername: { type: 'string', required: false },
     },
   },
   databaseHooks: {
     user: {
-      // Backstop: blocks additionalFields writes outside the GitLab callback.
+      // Backstop: blocks additionalFields writes outside their provider's callback.
       create: {
         before: async (user, context) =>
-          context?.path === GITLAB_CALLBACK_PATH
-            ? undefined
-            : stripGitlabUsername(user),
+          stripForeignUsernames(user, context?.path),
       },
       update: {
         before: async (user, context) =>
-          context?.path === GITLAB_CALLBACK_PATH
-            ? undefined
-            : stripGitlabUsername(user),
+          stripForeignUsernames(user, context?.path),
       },
     },
   },
   plugins: [
     customSession(async ({ user }) => {
-      const gitlabUsername =
-        (user as typeof user & { gitlabUsername?: string }).gitlabUsername ??
-        '';
+      const { gitlabUsername = '', githubUsername = '' } =
+        user as typeof user & {
+          gitlabUsername?: string;
+          githubUsername?: string;
+        };
       // better-auth saves the GitLab user ID as text when the user signs in; MR webhooks send the same ID as a number.
       const { rows } = await pool.query<{ accountId: string }>(
         `SELECT "accountId" FROM account WHERE "userId" = $1 AND "providerId" = 'gitlab' LIMIT 1`,
@@ -94,27 +115,49 @@ export const auth = betterAuth({
 
       return {
         id: user.id,
-        username: gitlabUsername,
+        gitlabUsername,
+        githubUsername,
         gitlabId: rows[0] ? Number(rows[0].accountId) : null,
         name: user.name,
         avatarUrl: user.image ?? null,
-        role: config.auth.adminGitlabUsernames.includes(gitlabUsername)
-          ? Role.Admin
-          : Role.Viewer,
+        // Matched per provider, so a GitHub handle that happens to equal an admin's GitLab handle grants nothing.
+        role:
+          config.auth.gitlabAdminUsernames.includes(
+            gitlabUsername.toLowerCase(),
+          ) ||
+          config.auth.githubAdminUsernames.includes(
+            githubUsername.toLowerCase(),
+          )
+            ? Role.Admin
+            : Role.Viewer,
       };
     }),
   ],
   socialProviders: {
-    gitlab: {
-      clientId: config.gitlab.oauth.clientId,
-      clientSecret: config.gitlab.oauth.clientSecret,
-      scope: ['api'],
-      disableDefaultScope: true,
-      overrideUserInfoOnSignIn: true,
-      mapProfileToUser: (profile) => ({
-        emailVerified: true,
-        gitlabUsername: profile.username,
-      }),
-    },
+    ...(config.gitlab.enabled && {
+      gitlab: {
+        clientId: config.gitlab.oauth.clientId,
+        clientSecret: config.gitlab.oauth.clientSecret,
+        scope: ['api'],
+        disableDefaultScope: true,
+        // Keeps the username current after a rename; the cost is that the stored email follows whichever provider signed in last.
+        overrideUserInfoOnSignIn: true,
+        mapProfileToUser: (profile) => ({
+          emailVerified: true,
+          gitlabUsername: profile.username,
+        }),
+      },
+    }),
+    ...(config.github.enabled && {
+      github: {
+        clientId: config.github.oauth.clientId,
+        clientSecret: config.github.oauth.clientSecret,
+        // Same trade-off as GitLab's.
+        overrideUserInfoOnSignIn: true,
+        mapProfileToUser: (profile) => ({
+          githubUsername: profile.login,
+        }),
+      },
+    }),
   },
 });

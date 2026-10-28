@@ -6,11 +6,13 @@ import { GitProvider, RunKind, ScheduleStatus } from '#types.js';
 import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
+import { workflowsService } from '#components/workflows/service.js';
 import { enqueueTaskResolve } from '#components/workflows/task-resolve/queue.js';
 import { schedulesDal } from './dal.js';
 import { firstOccurrence, toCronPattern } from './recurrence.js';
 
 import { config, llms } from '#utils/config.js';
+import { errors } from '#utils/errors.js';
 import { gitHosts } from '#utils/git-host.js';
 import { parseHarnessYml } from '#utils/harness-config.js';
 import { logger } from '#utils/logger.js';
@@ -40,6 +42,10 @@ async function buildRunInput(
 
 // Shared by a timer fire and "Run now" — both just materialize one more task-resolve run from the schedule's stored config.
 export async function materializeScheduleRun(schedule: TaskSchedule) {
+  // A schedule made before GitLab was switched off still fires; checked before the thread so none is left empty.
+  if (!workflowsService.isEnabled(RunKind.TaskResolve)) {
+    throw errors.workflows.disabled();
+  }
   const thread = await threadsService.create(
     schedule.title,
     RunKind.TaskResolve,

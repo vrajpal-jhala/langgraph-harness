@@ -90,6 +90,7 @@ export const runsService = {
     const thread = await threadsDal.findById(id);
     if (!thread) throw errors.threads.notFound();
     if (thread.archived_at) throw errors.threads.archived();
+    if (!workflowsService.isEnabled(kind)) throw errors.workflows.disabled();
 
     const workflow = workflowsService.forKind(kind);
     const secrets = await resolveSecrets(session);
@@ -147,6 +148,10 @@ export const runsService = {
 
     if (!llms.some((l) => l.model === originalRun.input.model)) {
       throw errors.runs.unknownModel(originalRun.input.model);
+    }
+
+    if (!workflowsService.isEnabled(originalRun.kind)) {
+      throw errors.workflows.disabled();
     }
 
     const workflow = workflowsService.forKind(originalRun.kind);

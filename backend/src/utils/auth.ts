@@ -1,15 +1,14 @@
 import crypto from 'crypto';
 import { Elysia } from 'elysia';
 
-import type { Session } from '#types.js';
+import { Role, type Session } from '#types.js';
 
 import { auth } from '#components/auth/index.js';
 import { config } from './config.js';
 
 import { db } from '#utils/db.js';
 
-export const isAdmin = (username: string) =>
-  config.auth.adminGitlabUsernames.includes(username);
+export const isAdmin = (session: Session) => session.role === Role.Admin;
 
 export const authMacro = new Elysia({ name: 'auth-macro' }).macro({
   auth: {
@@ -66,6 +65,7 @@ const captureRawBody = async (request: Request, contentType: string) => {
 export const githubWebhookAuth = new Elysia({ name: 'github-webhook-auth' })
   .onParse(({ request }, contentType) => captureRawBody(request, contentType))
   .onBeforeHandle(({ headers, status, request }) => {
+    if (!config.github.enabled) return status(404, 'Not Found');
     if (config.mock.webhook) return undefined;
 
     const received = headers['x-hub-signature-256'];
@@ -87,6 +87,7 @@ export const githubWebhookAuth = new Elysia({ name: 'github-webhook-auth' })
 export const gitlabWebhookAuth = new Elysia({ name: 'gitlab-webhook-auth' })
   .onParse(({ request }, contentType) => captureRawBody(request, contentType))
   .onBeforeHandle(({ headers, status, request }) => {
+    if (!config.gitlab.enabled) return status(404, 'Not Found');
     if (config.mock.webhook) return undefined;
 
     const id = headers['webhook-id'];

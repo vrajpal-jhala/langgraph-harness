@@ -194,6 +194,9 @@ export const chatWorkflow: Workflow<
   },
   validateInput: (input, secrets) => {
     if (!secrets.openRouterKey) throw errors.chat.missingOpenRouterKey();
+    if (input.tools.gitlab && !config.gitlab.enabled) {
+      throw errors.chat.gitlabDisabled();
+    }
     if (input.tools.gitlab && !secrets.gitlabToken) {
       throw errors.chat.missingGitlabToken();
     }

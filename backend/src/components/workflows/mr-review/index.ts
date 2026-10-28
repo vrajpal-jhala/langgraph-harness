@@ -8,7 +8,7 @@ import {
   type Workflow,
   WorkflowNode,
 } from '#types.js';
-import { InstructionStatus, RunKind } from '#types.js';
+import { GitProvider, InstructionStatus, RunKind } from '#types.js';
 
 import { repositoriesManager } from '#components/repositories/manager.js';
 import { runsService } from '#components/runs/service.js';
@@ -92,13 +92,14 @@ async function getNoteContext(threadId: string) {
 export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
   id: 'mr-review',
   kind: RunKind.MrReview,
+  requiresProvider: GitProvider.GitLab,
   name: WORKFLOW_NAME,
   description: WORKFLOW_DESCRIPTION,
   checkAccess: (thread, session, action) => {
     const isAuthor =
       session.gitlabId != null &&
       thread.metadata?.mrAuthorId === session.gitlabId;
-    if (action === 'mutate' && !isAdmin(session.username) && !isAuthor) {
+    if (action === 'mutate' && !isAdmin(session) && !isAuthor) {
       throw errors.runs.forbidden();
     }
   },
