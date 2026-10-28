@@ -20,6 +20,7 @@ import {
   createDraftCodeChangeRequest,
   updateCodeChangeRequest,
 } from '#components/workflows/code-change-request.js';
+import { migrateLegacyState } from '#components/workflows/legacy-state-migration.js';
 import {
   createSandbox,
   reclaimSandboxWrites,
@@ -151,8 +152,25 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
     const { id: threadId, runId, signal } = ctx;
     const host = gitHosts[provider];
     const repo = host.repoKey(projectPath);
-    const fromCheckpointId =
+    let fromCheckpointId =
       ctx.mode === 'retry' ? ctx.fromCheckpointId : undefined;
+
+    fromCheckpointId = await migrateLegacyState({
+      graph: compiledWorkflow,
+      threadId,
+      checkpointId: fromCheckpointId,
+      renames: {
+        noteId: 'statusCommentId',
+        lastRunReplyNoteIds: 'lastRunReplyCommentIds',
+        issueIid: 'issueNumber',
+      },
+      nodeOrder: [
+        WorkflowNode.NotifyIssueStart,
+        WorkflowNode.LoadInstructions,
+        WorkflowNode.Agent,
+        WorkflowNode.AssessCompletion,
+      ],
+    });
 
     // Early read only to give the agent's MR tools a target — the authoritative codeChangeRequestNumber read/write stays the block below.
     const threadAtStart = await threadsDal.findById(threadId);
