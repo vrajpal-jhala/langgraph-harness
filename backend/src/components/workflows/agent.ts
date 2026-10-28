@@ -43,7 +43,7 @@ import { llms } from '#utils/config.js';
 import { describeToolCalls } from '#utils/helpers.js';
 import { buildChatModel } from '#utils/llm.js';
 
-const resumeOnMrBlock = (host: GitHost) =>
+const resumeOnCodeChangeRequestBlock = (host: GitHost) =>
   `You're resuming on work that already has an open ${host.codeChangeRequestName} — you may have been resumed because someone (or the review bot) left new feedback on it. Call ${describeToolCalls(host.discussion.codeChangeRequestFeedback)} to read all current ${host.name} feedback before doing anything else. For anything you're not going to act on, ${host.discussion.replyGuidance} to explain why instead of silently ignoring it — a reviewer waiting for a response with neither a fix nor a reply is the failure mode to avoid.`;
 
 const TASK_VERB: Record<(typeof BRANCH_TYPES)[number], string> = {
@@ -281,9 +281,9 @@ export const agent = {
       sandbox: Sandbox;
       workingDirectory: string;
       worktreePath: string;
-      projectId: string;
-      issueIid: string | null;
-      mrIid: string | null;
+      repoKey: string;
+      issueNumber: string | null;
+      codeChangeRequestNumber: string | null;
       threadId: string;
       workflow: SandboxAgentConfigurable['workflow'];
       recursionLimit: number;
@@ -304,9 +304,9 @@ export const agent = {
       sandbox,
       workingDirectory,
       worktreePath,
-      projectId,
-      issueIid,
-      mrIid,
+      repoKey,
+      issueNumber,
+      codeChangeRequestNumber,
       threadId,
       workflow,
       recursionLimit,
@@ -328,14 +328,18 @@ export const agent = {
       taskSource,
       identifiers: [
         identifiers,
-        ...(mrIid ? [host.codeChangeRequestIdentifier(mrIid)] : []),
+        ...(codeChangeRequestNumber
+          ? [host.codeChangeRequestIdentifier(codeChangeRequestNumber)]
+          : []),
       ].join(', '),
       // Resuming on an MR is symmetric across both workflows, unlike the issue-specific pieces above
       extraBlocks: [
         ...(extraBlocks ?? []),
-        ...(mrIid ? [resumeOnMrBlock(host)] : []),
+        ...(codeChangeRequestNumber
+          ? [resumeOnCodeChangeRequestBlock(host)]
+          : []),
       ],
-      projectMemories: await memoriesService.listForProject(projectId),
+      projectMemories: await memoriesService.listForProject(repoKey),
     });
     emitAgentPromptEvent(graphConfig, {
       id: crypto.randomUUID(),
@@ -347,8 +351,8 @@ export const agent = {
       sandbox,
       workingDirectory,
       worktreePath,
-      projectId,
-      mrIid,
+      repoKey,
+      codeChangeRequestNumber,
       threadId,
       toolCallCounts: new Map(),
       toolErrorCounts: new Map(),
@@ -360,10 +364,10 @@ export const agent = {
       discussionCheckNudged: { nudged: false },
       postedReplyNoteIds: [],
     };
-    // issueIid is only null when workflow is 'task-resolve' — the two agent_node callers guarantee the pairing.
+    // issueNumber is only null when workflow is 'task-resolve' — the two agent_node callers guarantee the pairing.
     const configurable: SandboxAgentConfigurable =
       workflow === 'work-item-resolve'
-        ? { ...baseConfigurable, workflow, issueIid: issueIid as string }
+        ? { ...baseConfigurable, workflow, issueNumber: issueNumber as string }
         : { ...baseConfigurable, workflow };
     const response = await sandboxAgent.invoke(
       { messages: updatedMessages },

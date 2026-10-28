@@ -13,7 +13,7 @@ export const notifyIssueStatusNode: GraphNode<typeof workflowState> = async (
   state,
   config,
 ) => {
-  const { projectPath, issueIid, model, statusCommentId } = state;
+  const { projectPath, issueNumber, model, statusCommentId } = state;
   const instructionStatus = state.config.instructions.status;
   const threadId = config.configurable?.thread_id as string | undefined;
   const host = config.configurable?.host as GitHost;
@@ -29,7 +29,7 @@ export const notifyIssueStatusNode: GraphNode<typeof workflowState> = async (
     : await host
         .upsertIssueComment(
           projectPath,
-          issueIid,
+          issueNumber,
           workItemResolveNote.working(host, model, instructionStatus, threadId),
           statusCommentId,
         )

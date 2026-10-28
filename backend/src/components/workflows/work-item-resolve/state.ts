@@ -17,7 +17,7 @@ const repoInstructionsSchema = z.string().max(config.instructions.maxChars);
 
 const workflowStateSchema = z.object({
   projectPath: z.string(),
-  issueIid: z.string(),
+  issueNumber: z.string(),
   issueTitle: z.string(),
   issueDescription: z.string(),
   issueType: z.enum(BRANCH_TYPES),

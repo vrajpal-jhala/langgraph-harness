@@ -12,11 +12,18 @@ export async function* createDraftCodeChangeRequest(params: {
   description: string;
   reviewerUsername: string | null;
   // A second open MR for the same branch pair is rejected on both providers, so a thread that already has one reuses it instead of creating.
-  existingMrIid?: string;
-  existingMrUrl?: string;
-  mockIid: string;
+  existingCodeChangeRequestNumber?: string;
+  existingCodeChangeRequestUrl?: string;
+  mockNumber: string;
   signal?: AbortSignal;
-}): AsyncGenerator<RunEvent, { mrIid: string; mrUrl: string; draft: boolean }> {
+}): AsyncGenerator<
+  RunEvent,
+  {
+    codeChangeRequestNumber: string;
+    codeChangeRequestUrl: string;
+    draft: boolean;
+  }
+> {
   const {
     host,
     projectPath,
@@ -25,16 +32,16 @@ export async function* createDraftCodeChangeRequest(params: {
     title,
     description,
     reviewerUsername,
-    existingMrIid,
-    existingMrUrl,
-    mockIid,
+    existingCodeChangeRequestNumber,
+    existingCodeChangeRequestUrl,
+    mockNumber,
     signal,
   } = params;
 
   const stepId = crypto.randomUUID();
   let error = '';
-  let mrIid = existingMrIid ?? '';
-  let mrUrl = existingMrUrl ?? '';
+  let codeChangeRequestNumber = existingCodeChangeRequestNumber ?? '';
+  let codeChangeRequestUrl = existingCodeChangeRequestUrl ?? '';
   let draft = true;
 
   yield {
@@ -49,20 +56,21 @@ export async function* createDraftCodeChangeRequest(params: {
   };
   try {
     if (!config.mock.workflow) {
-      if (!existingMrIid) {
-        ({ mrIid, mrUrl, draft } = await host.createDraftCodeChangeRequest({
-          projectPath,
-          sourceBranch,
-          targetBranch,
-          title,
-          description,
-          reviewerUsername,
-          signal,
-        }));
+      if (!existingCodeChangeRequestNumber) {
+        ({ codeChangeRequestNumber, codeChangeRequestUrl, draft } =
+          await host.createDraftCodeChangeRequest({
+            projectPath,
+            sourceBranch,
+            targetBranch,
+            title,
+            description,
+            reviewerUsername,
+            signal,
+          }));
       }
-    } else if (!existingMrIid) {
-      mrIid = mockIid;
-      mrUrl = 'https://mock.invalid/mr';
+    } else if (!existingCodeChangeRequestNumber) {
+      codeChangeRequestNumber = mockNumber;
+      codeChangeRequestUrl = 'https://mock.invalid/code-change-request';
     }
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
@@ -73,21 +81,21 @@ export async function* createDraftCodeChangeRequest(params: {
       data: {
         id: stepId,
         step: RunStep.CreateCodeChangeRequest,
-        codeChangeRequestNumber: mrIid,
-        codeChangeRequestUrl: mrUrl,
+        codeChangeRequestNumber: codeChangeRequestNumber,
+        codeChangeRequestUrl: codeChangeRequestUrl,
         error,
         timestamp: Date.now(),
       },
     };
   }
 
-  return { mrIid, mrUrl, draft };
+  return { codeChangeRequestNumber, codeChangeRequestUrl, draft };
 }
 
 export async function* updateCodeChangeRequest(params: {
   host: GitHost;
   projectPath: string;
-  mrIid: string;
+  codeChangeRequestNumber: string;
   description: string;
   draft?: boolean;
   completionStatus: CompletionStatus;
@@ -96,7 +104,7 @@ export async function* updateCodeChangeRequest(params: {
   const {
     host,
     projectPath,
-    mrIid,
+    codeChangeRequestNumber,
     description,
     draft,
     completionStatus,
@@ -118,7 +126,7 @@ export async function* updateCodeChangeRequest(params: {
     if (!config.mock.workflow) {
       await host.updateCodeChangeRequest({
         projectPath,
-        mrIid,
+        codeChangeRequestNumber,
         description,
         ...(draft !== undefined && { draft }),
       });

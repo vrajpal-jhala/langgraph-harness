@@ -16,8 +16,8 @@ import { mcpToolName } from '#utils/helpers.js';
 
 type RunTarget = {
   projectPath: string;
-  issueIid: string | null;
-  mrIid: string | null;
+  issueNumber: string | null;
+  codeChangeRequestNumber: string | null;
 };
 type ToolArgs = Record<string, unknown>;
 
@@ -34,18 +34,21 @@ const targetMatches: Record<
   // A pull request's conversation comments are issue comments on GitHub, so its number is a valid target too.
   [mcpToolName(GitProvider.GitHub, 'add_issue_comment')]: (args, target) =>
     githubRepoMatches(args, target) &&
-    [target.issueIid, target.mrIid].includes(String(args.issue_number)),
+    [target.issueNumber, target.codeChangeRequestNumber].includes(
+      String(args.issue_number),
+    ),
   [mcpToolName(GitProvider.GitHub, 'add_reply_to_pull_request_comment')]: (
     args,
     target,
   ) =>
-    githubRepoMatches(args, target) && String(args.pullNumber) === target.mrIid,
+    githubRepoMatches(args, target) &&
+    String(args.pullNumber) === target.codeChangeRequestNumber,
   [mcpToolName(GitProvider.GitLab, 'create_merge_request_discussion_note')]: (
     args,
     target,
   ) =>
     samePath(decodeURIComponent(String(args.project_id)), target.projectPath) &&
-    String(args.merge_request_iid) === target.mrIid,
+    String(args.merge_request_iid) === target.codeChangeRequestNumber,
 };
 
 export function writeTargetGuardMiddleware() {
@@ -59,27 +62,26 @@ export function writeTargetGuardMiddleware() {
       const isWrite = [...(host?.issueTools.write ?? [])].some(
         (tool) => host && mcpToolName(host.provider, tool) === name,
       );
-      if (!host || !configurable?.projectId || !isWrite)
-        return handler(request);
+      if (!host || !configurable?.repoKey || !isWrite) return handler(request);
 
       const target: RunTarget = {
-        projectPath: parseRepoKey(configurable.projectId).projectPath,
-        issueIid:
+        projectPath: parseRepoKey(configurable.repoKey).projectPath,
+        issueNumber:
           configurable.workflow === 'work-item-resolve'
-            ? (configurable.issueIid ?? null)
+            ? (configurable.issueNumber ?? null)
             : null,
-        mrIid: configurable.mrIid ?? null,
+        codeChangeRequestNumber: configurable.codeChangeRequestNumber ?? null,
       };
       // A write tool with no rule here is refused rather than let through unchecked.
       if (targetMatches[name]?.(args as ToolArgs, target))
         return handler(request);
 
       const allowed = [
-        ...(target.issueIid
-          ? [host.issueIdentifiers(target.projectPath, target.issueIid)]
+        ...(target.issueNumber
+          ? [host.issueIdentifiers(target.projectPath, target.issueNumber)]
           : [host.repoIdentifiers(target.projectPath)]),
-        ...(target.mrIid
-          ? [host.codeChangeRequestIdentifier(target.mrIid)]
+        ...(target.codeChangeRequestNumber
+          ? [host.codeChangeRequestIdentifier(target.codeChangeRequestNumber)]
           : []),
       ].join(', ');
       const content = `Rejected: \`${name}\` can only write to this run's own target (${allowed}). Call it with those identifiers, or don't post.`;

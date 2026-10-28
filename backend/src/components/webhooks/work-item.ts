@@ -13,7 +13,7 @@ const defaultModel = llms.find((m) => m.isDefault)?.model ?? llms[0].model;
 export async function startWorkItemResolveRun(params: {
   host: GitHost;
   projectPath: string;
-  issueIid: string;
+  issueNumber: string;
   issueKind: 'issue' | 'work_item';
   defaultBranch: string;
   assignedBy: string;
@@ -22,7 +22,7 @@ export async function startWorkItemResolveRun(params: {
   const {
     host,
     projectPath,
-    issueIid,
+    issueNumber,
     issueKind,
     defaultBranch,
     assignedBy,
@@ -32,7 +32,7 @@ export async function startWorkItemResolveRun(params: {
   const thread =
     (await threadsDal.findByMetadata(issueMetadata)) ??
     (await threadsDal.insert({
-      title: `${projectPath}#${issueIid}`,
+      title: `${projectPath}#${issueNumber}`,
       kind: RunKind.WorkItemResolve,
       metadata: issueMetadata,
     }));
@@ -51,7 +51,7 @@ export async function startWorkItemResolveRun(params: {
     kind: RunKind.WorkItemResolve,
     provider: host.provider,
     projectPath,
-    issueIid,
+    issueNumber,
     defaultBranch,
     assignedBy,
     model: defaultModel,

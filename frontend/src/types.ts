@@ -78,7 +78,7 @@ export type WorkItemResolveRunInput = {
   kind: 'work_item_resolve';
   provider: GitProvider;
   projectPath: string;
-  issueIid: string;
+  issueNumber: string;
   defaultBranch: string;
   model: string;
   assignedBy: string;
@@ -160,7 +160,7 @@ export type MemoryScope = (typeof MemoryScope)[keyof typeof MemoryScope];
 export type MemorySource =
   | { workflow: 'code-review'; mrIid: string }
   | { workflow: 'chat'; threadId: string }
-  | { workflow: 'work-item-resolve'; issueIid: string };
+  | { workflow: 'work-item-resolve'; issueNumber: string };
 
 export type Memory = {
   id: string;

@@ -9,8 +9,8 @@ type BaseSandboxAgentConfigurable = {
   sandbox: Sandbox;
   workingDirectory: string;
   worktreePath: string;
-  projectId: string;
-  mrIid: string | null;
+  repoKey: string;
+  codeChangeRequestNumber: string | null;
   threadId: string;
   toolCallCounts: Map<string, number>;
   toolErrorCounts: Map<string, number>;
@@ -25,7 +25,7 @@ type BaseSandboxAgentConfigurable = {
 
 export type WorkItemResolveAgentConfigurable = BaseSandboxAgentConfigurable & {
   workflow: 'work-item-resolve';
-  issueIid: string;
+  issueNumber: string;
 };
 
 export type TaskResolveAgentConfigurable = BaseSandboxAgentConfigurable & {

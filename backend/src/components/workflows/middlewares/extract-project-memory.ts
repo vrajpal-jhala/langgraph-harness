@@ -127,7 +127,7 @@ const DecisionSchema = z.discriminatedUnion('action', [
 type Decision = z.infer<typeof DecisionSchema>;
 
 type MemoryConfigurable = {
-  projectId?: string;
+  repoKey?: string;
   memoryCandidates?: MemoryCandidate[];
   memoryReflectNudged?: { nudged: boolean };
 };
@@ -312,7 +312,7 @@ export function extractProjectMemoryMiddleware({
       const configurable = (request.runtime as MemoryRuntime).configurable;
 
       if (
-        !configurable?.projectId ||
+        !configurable?.repoKey ||
         !configurable.memoryCandidates ||
         configurable.memoryCandidates.length ||
         configurable.memoryReflectNudged?.nudged
@@ -354,9 +354,9 @@ export function extractProjectMemoryMiddleware({
       const configurable = (runtime as MemoryRuntime).configurable;
       const candidates = configurable?.memoryCandidates ?? [];
 
-      if (!configurable?.projectId || !candidates.length) return;
+      if (!configurable?.repoKey || !candidates.length) return;
 
-      const projectId = configurable.projectId;
+      const projectId = configurable.repoKey;
       // categories this run's candidates touched
       const touchedCategories = [
         ...new Set(candidates.map((candidate) => candidate.category)),

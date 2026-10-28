@@ -28,7 +28,7 @@ All notable changes to langgraph-harness are documented here.
 
 - **`WEBHOOK_TOKENS` is renamed to `GITLAB_WEBHOOK_TOKENS`** — now that GitHub has its own webhook secrets, the GitLab ones are named for GitLab. Rename the variable in `backend/.env` before upgrading, or GitLab webhooks will be rejected.
 - **`ADMIN_GITLAB_USERNAMES` is renamed to `GITLAB_ADMIN_USERNAMES`** — to match the other provider variables and the new `GITHUB_ADMIN_USERNAMES`. Rename it in `backend/.env` before upgrading, or the backend won't start.
-- **Upgrading needs a short pause in work** — stored run and thread data is rewritten from GitLab-only names to names shared by GitLab and GitHub. Before deploying, wait until no run is active and the queues are empty.
+- **Upgrading needs planned downtime** — stored data is renamed in place and the previous version can't read it. `update.sh` migrates before it restarts the backend, so let active runs finish and run `docker compose stop backend` first. A database backup beforehand is a good precaution.
 
 ---
 
