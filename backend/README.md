@@ -109,6 +109,8 @@ npm run migrate
 | `npm run migrate`      | Apply all pending database migrations |
 | `npm run migrate:down` | Roll back the last migration          |
 
+To reset the database completely, stop the containers and delete `$DATA_PATH/postgres`; the next `npm run dev` recreates it.
+
 ## API
 
 | Method   | Path                                    | Description                                                                                  |
