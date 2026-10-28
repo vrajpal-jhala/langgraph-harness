@@ -25,6 +25,7 @@ import {
   createDraftCodeChangeRequest,
   updateCodeChangeRequest,
 } from '#components/workflows/code-change-request.js';
+import { migrateLegacyState } from '#components/workflows/legacy-state-migration.js';
 import {
   createSandbox,
   reclaimSandboxWrites,
@@ -180,8 +181,20 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
       };
     }
 
-    const fromCheckpointId =
+    let fromCheckpointId =
       ctx.mode === 'retry' ? ctx.fromCheckpointId : undefined;
+
+    fromCheckpointId = await migrateLegacyState({
+      graph: compiledWorkflow,
+      threadId,
+      checkpointId: fromCheckpointId,
+      renames: { lastRunReplyNoteIds: 'lastRunReplyCommentIds' },
+      nodeOrder: [
+        WorkflowNode.LoadInstructions,
+        WorkflowNode.Agent,
+        WorkflowNode.AssessCompletion,
+      ],
+    });
 
     const threadAtStart = await threadsDal.findById(threadId);
     const codeChangeRequestNumberAtStart =
