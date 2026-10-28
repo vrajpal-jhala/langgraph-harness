@@ -77,11 +77,15 @@ async function processScheduleFire({ scheduleId }: ScheduleJob) {
   const schedule = await schedulesDal.findById(scheduleId);
   // Closes the race between a cancel/pause and a job already sitting in Redis waiting to fire.
   if (!schedule || schedule.status !== ScheduleStatus.Active) return;
-  await materializeScheduleRun(schedule);
-  if (isExhausted(schedule)) {
-    await schedulesDal.update(scheduleId, {
-      status: ScheduleStatus.Completed,
-    });
+  try {
+    await materializeScheduleRun(schedule);
+  } finally {
+    // Completed tracks the schedule's occurrences, not whether the work succeeded — that's on its runs.
+    if (isExhausted(schedule)) {
+      await schedulesDal.update(scheduleId, {
+        status: ScheduleStatus.Completed,
+      });
+    }
   }
 }
 
