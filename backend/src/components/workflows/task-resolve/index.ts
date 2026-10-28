@@ -161,6 +161,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
     };
     try {
       if (!config.mock.workflow) {
+        // A renamed repo keeps its old path: both providers redirect it, and it keeps the run's worktree, memory and comment targets stable.
         ({ defaultBranch } = await host.resolveRepo(projectPath, signal));
       }
     } catch (err) {

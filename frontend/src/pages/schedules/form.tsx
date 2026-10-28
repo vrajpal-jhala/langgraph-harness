@@ -144,11 +144,12 @@ export const ScheduleForm = ({ schedule }: { schedule?: TaskSchedule }) => {
 
       <TextInput
         label="Repository"
-        placeholder={
-          providers.gitlab
-            ? 'https://gitlab.com/group/project'
-            : 'https://github.com/owner/repo'
-        }
+        placeholder={[
+          providers.gitlab && 'https://gitlab.com/group/project',
+          providers.github && 'https://github.com/owner/repo',
+        ]
+          .filter(Boolean)
+          .join(' or ')}
         description={
           isEdit
             ? "A schedule's repository can't change — create a new schedule for another one."
