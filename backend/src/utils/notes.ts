@@ -145,7 +145,7 @@ export function workItemResolveDescription(
   );
 }
 
-// task-resolve has no issue to reference, so the prompt itself heads the description; the completion block is appended once assessed, and re-appended (not accumulated) on every later round.
+// task-resolve has no issue to reference, so the task's original prompt heads the description.
 // Status/summary land on the MR note only (see taskResolveNote) — kept out of the description to avoid saying the same thing twice on the same MR.
 export function taskResolveDescription(prompt: string): string {
   return ['**Requested:**', '', prompt].join('\n');
