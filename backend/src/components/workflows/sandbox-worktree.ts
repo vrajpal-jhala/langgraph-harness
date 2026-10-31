@@ -10,7 +10,7 @@ export async function* prepareSandboxedWorktree(params: {
   host: GitHost;
   repo: string;
   entityType: WorktreeEntityType;
-  iid: string;
+  entityId: string;
   ref: string;
   sandboxRepoDir: string;
   sandboxWorktreeDir: string;
@@ -26,7 +26,7 @@ export async function* prepareSandboxedWorktree(params: {
     host,
     repo,
     entityType,
-    iid,
+    entityId,
     ref,
     sandboxRepoDir,
     sandboxWorktreeDir,
@@ -47,7 +47,7 @@ export async function* prepareSandboxedWorktree(params: {
     worktree = await repositoriesManager.acquireWorktree({
       repo,
       entityType,
-      iid,
+      entityId,
       ref,
       detach: false,
       signal,
@@ -183,7 +183,7 @@ export async function* abandonBranchIfEmpty(params: {
   branchName: string;
   defaultBranch: string;
   entityType: WorktreeEntityType;
-  iid: string;
+  entityId: string;
   signal?: AbortSignal;
 }): AsyncGenerator<RunEvent, boolean> {
   const {
@@ -192,7 +192,7 @@ export async function* abandonBranchIfEmpty(params: {
     branchName,
     defaultBranch,
     entityType,
-    iid,
+    entityId,
     signal,
   } = params;
 
@@ -227,7 +227,7 @@ export async function* abandonBranchIfEmpty(params: {
       );
     }
     // Only flags pending_delete — worktree.release() (every caller's own finally) does the actual teardown.
-    await repositoriesManager.cleanupWorktree({ repo, entityType, iid });
+    await repositoriesManager.cleanupWorktree({ repo, entityType, entityId });
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   } finally {

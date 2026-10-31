@@ -130,13 +130,13 @@ const COMPLETION_ALERT: Record<
   [CompletionStatus.Blocked]: { type: 'warning', title: 'Blocked' },
 };
 
-// `#<issueIid>` alone at creation (no closing keyword — merging shouldn't auto-close the issue); the completion block is appended once assessed, and re-appended (not accumulated) on every later round.
+// `#<issueNumber>` alone at creation (no closing keyword — merging shouldn't auto-close the issue); the completion block is appended once assessed, and re-appended (not accumulated) on every later round.
 export function workItemResolveDescription(
   host: GitHost,
-  issueIid: string,
+  issueNumber: string,
   completion?: { status: CompletionStatus; summary: string },
 ): string {
-  const reference = `#${issueIid}`;
+  const reference = `#${issueNumber}`;
   if (!completion) return reference;
 
   const { type, title } = COMPLETION_ALERT[completion.status];
@@ -145,7 +145,7 @@ export function workItemResolveDescription(
   );
 }
 
-// task-resolve has no issue to reference, so the prompt itself heads the description; the completion block is appended once assessed, and re-appended (not accumulated) on every later round.
+// task-resolve has no issue to reference, so the task's original prompt heads the description.
 // Status/summary land on the MR note only (see taskResolveNote) — kept out of the description to avoid saying the same thing twice on the same MR.
 export function taskResolveDescription(prompt: string): string {
   return ['**Requested:**', '', prompt].join('\n');
@@ -203,7 +203,7 @@ export const workItemResolveNote = {
     host: GitHost,
     modelId: string,
     status: InstructionStatus,
-    mrUrl: string,
+    codeChangeRequestUrl: string,
     summary: string,
     threadId?: string,
     notice?: Alert,
@@ -214,13 +214,13 @@ export const workItemResolveNote = {
       {
         type: 'tip',
         title: 'Done',
-        body: `${summary} See the [${host.codeChangeRequestName}](${mrUrl}) for the change.`,
+        body: `${summary} See the [${host.codeChangeRequestName}](${codeChangeRequestUrl}) for the change.`,
       },
       status,
       threadId,
       notice,
     ),
-  // No mrUrl — the run made no commits, so no merge request was ever opened.
+  // No codeChangeRequestUrl — the run made no commits, so no merge request was ever opened.
   noChanges: (
     host: GitHost,
     modelId: string,
@@ -243,7 +243,7 @@ export const workItemResolveNote = {
     host: GitHost,
     modelId: string,
     status: InstructionStatus,
-    mrUrl: string,
+    codeChangeRequestUrl: string,
     summary: string,
     threadId?: string,
     notice?: Alert,
@@ -254,7 +254,7 @@ export const workItemResolveNote = {
       {
         type: 'caution',
         title: 'Partially Done',
-        body: `${summary} See the [${host.codeChangeRequestName}](${mrUrl}) for what's there so far.`,
+        body: `${summary} See the [${host.codeChangeRequestName}](${codeChangeRequestUrl}) for what's there so far.`,
       },
       status,
       threadId,
@@ -264,7 +264,7 @@ export const workItemResolveNote = {
     host: GitHost,
     modelId: string,
     status: InstructionStatus,
-    mrUrl: string,
+    codeChangeRequestUrl: string,
     summary: string,
     threadId?: string,
     notice?: Alert,
@@ -275,7 +275,7 @@ export const workItemResolveNote = {
       {
         type: 'warning',
         title: 'Blocked',
-        body: `${summary} See the [${host.codeChangeRequestName}](${mrUrl}) for what was attempted.`,
+        body: `${summary} See the [${host.codeChangeRequestName}](${codeChangeRequestUrl}) for what was attempted.`,
       },
       status,
       threadId,

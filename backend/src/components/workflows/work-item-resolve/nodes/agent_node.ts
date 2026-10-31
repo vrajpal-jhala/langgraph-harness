@@ -16,7 +16,7 @@ export const agentNode: GraphNode<typeof workflowState> = async (
 ) => {
   const {
     projectPath,
-    issueIid,
+    issueNumber,
     issueTitle,
     issueDescription,
     issueType,
@@ -26,8 +26,13 @@ export const agentNode: GraphNode<typeof workflowState> = async (
   } = state;
   const repoInstructions = workflowConfig.instructions.content;
   const { signal } = config;
-  const { host, sandbox, workingDirectory, worktreePath, mrIid } =
-    config.configurable as Partial<WorkItemResolveAgentConfigurable>;
+  const {
+    host,
+    sandbox,
+    workingDirectory,
+    worktreePath,
+    codeChangeRequestNumber,
+  } = config.configurable as Partial<WorkItemResolveAgentConfigurable>;
   const threadId = config.configurable?.thread_id as string | undefined;
 
   if (!host || !sandbox || !workingDirectory || !worktreePath || !threadId) {
@@ -50,7 +55,7 @@ export const agentNode: GraphNode<typeof workflowState> = async (
         taskType: issueType,
         repoInstructions,
         taskSource: `implementing a ${host.name} issue`,
-        identifiers: host.issueIdentifiers(projectPath, issueIid),
+        identifiers: host.issueIdentifiers(projectPath, issueNumber),
         extraBlocks: [
           `Call ${describeToolCalls(host.discussion.issueComments)} before starting work — someone may have added detail or a correction as a comment on the issue instead of editing its description, and comments can land there at any point, not just when resuming on an existing ${host.codeChangeRequestName}.`,
         ],
@@ -59,9 +64,9 @@ export const agentNode: GraphNode<typeof workflowState> = async (
         sandbox,
         workingDirectory,
         worktreePath,
-        projectId: host.repoKey(projectPath),
-        issueIid,
-        mrIid: mrIid ?? null,
+        repoKey: host.repoKey(projectPath),
+        issueNumber,
+        codeChangeRequestNumber: codeChangeRequestNumber ?? null,
         threadId,
         workflow: 'work-item-resolve',
         recursionLimit: appConfig.workItemResolve.recursionLimit,

@@ -21,7 +21,7 @@ async function pathExists(path: string) {
   }
 }
 
-// repo/iid come from an untyped webhook payload and get joined into fs paths — reject traversal (e.g. "../../../etc") before path.join.
+// repo/entityId come from an untyped webhook payload and get joined into fs paths — reject traversal (e.g. "../../../etc") before path.join.
 function assertSafePathSegment(value: string, label: string) {
   if (!value || value === '.' || value === '..' || /[/\\]/.test(value)) {
     throw new Error(`unsafe ${label}: ${JSON.stringify(value)}`);
@@ -40,18 +40,18 @@ const reposRoot = join(config.dataPath, 'repositories');
 const worktreesRoot = join(config.dataPath, 'worktrees');
 
 const getRepoPath = (repo: string) => join(reposRoot, `${repo}.git`);
-const getWorktreePath = ({ repo, entityType, iid }: WorktreeIdentity) =>
-  join(worktreesRoot, repo, `${entityType}-${iid}`);
+const getWorktreePath = ({ repo, entityType, entityId }: WorktreeIdentity) =>
+  join(worktreesRoot, repo, `${entityType}-${entityId}`);
 
 // The lock key and DB natural key for a worktree — the identity, colon-joined.
-const worktreeKey = ({ repo, entityType, iid }: WorktreeIdentity) =>
-  `${repo}:${entityType}:${iid}`;
+const worktreeKey = ({ repo, entityType, entityId }: WorktreeIdentity) =>
+  `${repo}:${entityType}:${entityId}`;
 
-// worktree_leases rows use snake_case entity_type — map a row to the camelCase identity.
+// worktree_leases rows use snake_case entity_type/entity_id — map a row to the camelCase identity.
 const rowIdentity = (row: WorktreeLease): WorktreeIdentity => ({
   repo: row.repo,
   entityType: row.entity_type,
-  iid: row.iid,
+  entityId: row.entity_id,
 });
 
 // git reports "/" paths even on Windows where join() uses "\" — normalize both before comparing in reconcile().
@@ -158,11 +158,19 @@ export const repositoriesManager = {
       signal?: AbortSignal;
     },
   ) => {
-    const { repo, entityType, iid, ref, sha, signal, detach = true } = params;
+    const {
+      repo,
+      entityType,
+      entityId,
+      ref,
+      sha,
+      signal,
+      detach = true,
+    } = params;
     assertSafeRepo(repo);
-    assertSafePathSegment(iid, 'iid');
+    assertSafePathSegment(entityId, 'entityId');
 
-    const identity: WorktreeIdentity = { repo, entityType, iid };
+    const identity: WorktreeIdentity = { repo, entityType, entityId };
     const key = worktreeKey(identity);
 
     return withLock(key, async () => {
@@ -238,7 +246,7 @@ export const repositoriesManager = {
       const lease = await worktreeLeasesDal.acquire({
         repo,
         entity_type: entityType,
-        iid,
+        entity_id: entityId,
         ref,
         leased: true,
         pending_delete: false,
@@ -299,7 +307,7 @@ export const repositoriesManager = {
 
   cleanupWorktree: async (identity: WorktreeIdentity) => {
     assertSafeRepo(identity.repo);
-    assertSafePathSegment(identity.iid, 'iid');
+    assertSafePathSegment(identity.entityId, 'entityId');
     const key = worktreeKey(identity);
 
     await withLock(key, async () => {

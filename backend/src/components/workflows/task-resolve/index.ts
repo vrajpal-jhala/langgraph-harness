@@ -15,6 +15,7 @@ import {
 } from '#types.js';
 
 import { repositoriesManager } from '#components/repositories/manager.js';
+import { runsDal } from '#components/runs/dal.js';
 import { threadsDal } from '#components/threads/dal.js';
 import {
   classifyBranch,
@@ -25,6 +26,7 @@ import {
   createDraftCodeChangeRequest,
   updateCodeChangeRequest,
 } from '#components/workflows/code-change-request.js';
+import { migrateLegacyState } from '#components/workflows/legacy-state-migration.js';
 import {
   createSandbox,
   reclaimSandboxWrites,
@@ -180,11 +182,27 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
       };
     }
 
-    const fromCheckpointId =
+    let fromCheckpointId =
       ctx.mode === 'retry' ? ctx.fromCheckpointId : undefined;
 
+    fromCheckpointId = await migrateLegacyState({
+      graph: compiledWorkflow,
+      threadId,
+      checkpointId: fromCheckpointId,
+      renames: { lastRunReplyNoteIds: 'lastRunReplyCommentIds' },
+      nodeOrder: [
+        WorkflowNode.LoadInstructions,
+        WorkflowNode.Agent,
+        WorkflowNode.AssessCompletion,
+      ],
+    });
+
     const threadAtStart = await threadsDal.findById(threadId);
-    const mrIidAtStart =
+    // A follow-up's prompt is the comment that triggered it, which the agent reads with the rest of the feedback — its task stays the original request.
+    const firstRun = await runsDal.findFirstByThread(threadId);
+    const requestedPrompt =
+      (firstRun?.input as TaskResolveRunInput | undefined)?.prompt ?? prompt;
+    const codeChangeRequestNumberAtStart =
       (threadAtStart?.metadata?.codeChangeRequestNumber as
         string | undefined) ?? null;
     // Set on the first run and reused after, so a follow-up amends the same branch rather than classifying and branching again.
@@ -196,7 +214,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
         description: prompt,
         model,
       });
-      // Thread id keeps branches from colliding across separate tasks on the same repo; work-item-resolve uses the issue iid in the same slot.
+      // Thread id keeps branches from colliding across separate tasks on the same repo; work-item-resolve uses the issue number in the same slot.
       branchName = `harness/${type}/${threadId.slice(0, 8)}-${slugify(slug)}`;
 
       const createBranchStepId = crypto.randomUUID();
@@ -246,7 +264,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
       host,
       repo,
       entityType: 'task',
-      iid: threadId,
+      entityId: threadId,
       ref: branchName,
       sandboxRepoDir: SANDBOX_REPO_DIR,
       sandboxWorktreeDir: SANDBOX_WORKTREE_DIR,
@@ -315,7 +333,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
               : {
                   title,
                   projectPath,
-                  prompt,
+                  prompt: requestedPrompt,
                   taskType,
                   defaultBranch,
                   model,
@@ -336,7 +354,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
                 sandbox,
                 workingDirectory: SANDBOX_WORKTREE_DIR,
                 worktreePath: worktree.path,
-                mrIid: mrIidAtStart,
+                codeChangeRequestNumber: codeChangeRequestNumberAtStart,
                 host,
               },
               streamMode: ['messages', 'tools', 'custom', 'checkpoints'],
@@ -383,27 +401,27 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
 
       // A second open MR for the same branch pair is rejected on both providers, so reuse one if this thread already made it.
       const existingThread = await threadsDal.findById(threadId);
-      const existingMrIid = existingThread?.metadata
+      const existingCodeChangeRequestNumber = existingThread?.metadata
         ?.codeChangeRequestNumber as string | undefined;
-      const existingMrUrl = existingThread?.metadata?.codeChangeRequestUrl as
-        string | undefined;
+      const existingCodeChangeRequestUrl = existingThread?.metadata
+        ?.codeChangeRequestUrl as string | undefined;
       let openedAsDraft =
         existingThread?.metadata?.codeChangeRequestOpenedAsDraft === true;
 
       // An existing MR already means an earlier run had changes — never abandon that branch.
       const hasChanges =
-        !!existingMrIid ||
+        !!existingCodeChangeRequestNumber ||
         (yield* abandonBranchIfEmpty({
           repo,
           worktreeRepoPath: worktree.repoPath,
           branchName,
           defaultBranch,
           entityType: 'task',
-          iid: threadId,
+          entityId: threadId,
           signal,
         }));
 
-      let mrIid = existingMrIid ?? '';
+      let codeChangeRequestNumber = existingCodeChangeRequestNumber ?? '';
 
       if (hasChanges) {
         yield* pushBranch({
@@ -421,19 +439,21 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
           targetBranch: defaultBranch,
           title,
           description: taskResolveDescription(prompt),
-          reviewerUsername: existingMrIid ? null : submittedBy || null,
-          existingMrIid,
-          existingMrUrl,
-          mockIid: `mock-mr-iid-${threadId.slice(0, 8)}`,
+          reviewerUsername: existingCodeChangeRequestNumber
+            ? null
+            : submittedBy || null,
+          existingCodeChangeRequestNumber,
+          existingCodeChangeRequestUrl,
+          mockNumber: `mock-code-change-request-${threadId.slice(0, 8)}`,
           signal,
         });
-        mrIid = created.mrIid;
+        codeChangeRequestNumber = created.codeChangeRequestNumber;
 
-        if (!existingMrIid) {
+        if (!existingCodeChangeRequestNumber) {
           openedAsDraft = created.draft;
           await threadsDal.mergeMetadata(threadId, {
-            codeChangeRequestNumber: mrIid,
-            codeChangeRequestUrl: created.mrUrl,
+            codeChangeRequestNumber: codeChangeRequestNumber,
+            codeChangeRequestUrl: created.codeChangeRequestUrl,
             codeChangeRequestOpenedAsDraft: openedAsDraft,
           });
         }
@@ -456,8 +476,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
           yield* updateCodeChangeRequest({
             host,
             projectPath,
-            mrIid,
-            description: taskResolveDescription(prompt),
+            codeChangeRequestNumber,
             ...(completionStatus === CompletionStatus.Done &&
               openedAsDraft && { draft: false }),
             completionStatus,
@@ -481,7 +500,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
                 number | undefined;
               const posted = await host.upsertCodeChangeRequestComment(
                 projectPath,
-                mrIid,
+                codeChangeRequestNumber,
                 taskResolveNote[completionStatus](
                   host,
                   model,
@@ -533,7 +552,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
             branchName,
             defaultBranch,
             entityType: 'task',
-            iid: threadId,
+            entityId: threadId,
             signal,
           });
         } catch (cleanupErr) {
@@ -564,10 +583,10 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
     const host = gitHosts[provider];
 
     const thread = await threadsDal.findById(id);
-    const mrIid = thread?.metadata?.codeChangeRequestNumber as
-      string | undefined;
+    const codeChangeRequestNumber = thread?.metadata
+      ?.codeChangeRequestNumber as string | undefined;
     // Nothing to report against until the first run has opened an MR.
-    if (!mrIid) return;
+    if (!codeChangeRequestNumber) return;
 
     const noteId = thread?.metadata?.statusCommentId as number | undefined;
     const instructionStatus = InstructionStatus.Loading;
@@ -578,7 +597,12 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
         : taskResolveNote.failed(host, model, instructionStatus, id);
 
     await host
-      .upsertCodeChangeRequestComment(projectPath, mrIid, noteBody, noteId)
+      .upsertCodeChangeRequestComment(
+        projectPath,
+        codeChangeRequestNumber,
+        noteBody,
+        noteId,
+      )
       .catch((err) => {
         logger.error({ err, runId, id, noteId }, 'Error updating MR note');
       });

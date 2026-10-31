@@ -24,13 +24,13 @@ export const loadInstructionsNode = createLoadInstructionsNode<WorkflowState>({
   },
 
   postNote: async (state, config, status) => {
-    const { projectPath, issueIid, model, statusCommentId } = state;
+    const { projectPath, issueNumber, model, statusCommentId } = state;
     if (!statusCommentId) return;
     const threadId = config.configurable?.thread_id as string | undefined;
     const host = config.configurable?.host as GitHost;
     await host.upsertIssueComment(
       projectPath,
-      issueIid,
+      issueNumber,
       workItemResolveNote.working(host, model, status, threadId),
       statusCommentId,
     );
