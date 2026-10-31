@@ -583,11 +583,11 @@ const ThreadDetailPage = () => {
       : firstInput && isWorkItemResolveRunInput(firstInput)
         ? firstInput.provider === 'github'
           ? {
-              url: `${config.githubUrl}/${firstInput.projectPath}/issues/${firstInput.issueIid}`,
+              url: `${config.githubUrl}/${firstInput.projectPath}/issues/${firstInput.issueNumber}`,
               label: 'Open issue',
             }
           : {
-              url: `${config.gitlabUrl}/${firstInput.projectPath}/-/work_items/${firstInput.issueIid}`,
+              url: `${config.gitlabUrl}/${firstInput.projectPath}/-/work_items/${firstInput.issueNumber}`,
               label: 'Open work item',
             }
         : // No issue behind a task — the MR it opened is the only thing to link to, and only once it exists.

@@ -10,13 +10,13 @@ import { config } from '#utils/config.js';
 import { db } from '#utils/db.js';
 
 export const worktreeLeasesDal = {
-  findByKey: async ({ repo, entityType, iid }: WorktreeIdentity) => {
+  findByKey: async ({ repo, entityType, entityId }: WorktreeIdentity) => {
     return db
       .selectFrom('worktree_leases')
       .selectAll()
       .where('repo', '=', repo)
       .where('entity_type', '=', entityType)
-      .where('iid', '=', iid)
+      .where('entity_id', '=', entityId)
       .executeTakeFirst();
   },
 
@@ -25,7 +25,7 @@ export const worktreeLeasesDal = {
       .insertInto('worktree_leases')
       .values(values)
       .onConflict((oc) =>
-        oc.columns(['repo', 'entity_type', 'iid']).doUpdateSet((eb) => ({
+        oc.columns(['repo', 'entity_type', 'entity_id']).doUpdateSet((eb) => ({
           ref: eb.ref('excluded.ref'),
           leased: true,
           pending_delete: false,

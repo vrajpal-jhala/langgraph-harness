@@ -364,7 +364,7 @@ export function draftIntegrityMiddleware({
         // publishing itself is emulated in mock mode, so nothing real lands — verifying against live GitLab state would just be noise
         if (config.mock.workflow) return result;
 
-        const project_id = configurable.projectId;
+        const project_id = configurable.repoKey;
         const merge_request_iid = configurable.mrIid;
 
         if (!project_id || !merge_request_iid) return result;

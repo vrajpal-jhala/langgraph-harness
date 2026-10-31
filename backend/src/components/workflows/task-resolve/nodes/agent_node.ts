@@ -24,8 +24,13 @@ export const agentNode: GraphNode<typeof taskResolveState> = async (
   } = state;
   const repoInstructions = workflowConfig.instructions.content;
   const { signal } = config;
-  const { host, sandbox, workingDirectory, worktreePath, mrIid } =
-    config.configurable as Partial<TaskResolveAgentConfigurable>;
+  const {
+    host,
+    sandbox,
+    workingDirectory,
+    worktreePath,
+    codeChangeRequestNumber,
+  } = config.configurable as Partial<TaskResolveAgentConfigurable>;
   const threadId = config.configurable?.thread_id as string | undefined;
 
   if (!host || !sandbox || !workingDirectory || !worktreePath || !threadId) {
@@ -54,9 +59,9 @@ export const agentNode: GraphNode<typeof taskResolveState> = async (
         sandbox,
         workingDirectory,
         worktreePath,
-        projectId: host.repoKey(projectPath),
-        issueIid: null,
-        mrIid: mrIid ?? null,
+        repoKey: host.repoKey(projectPath),
+        issueNumber: null,
+        codeChangeRequestNumber: codeChangeRequestNumber ?? null,
         threadId,
         workflow: 'task-resolve',
         recursionLimit: appConfig.taskResolve.recursionLimit,

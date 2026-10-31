@@ -71,7 +71,7 @@ function entryFooterText(entry: Memory): string {
     case 'code-review':
       return `${updatedText} · MR !${entry.source.mrIid}`;
     case 'work-item-resolve':
-      return `${updatedText} · issue #${entry.source.issueIid}`;
+      return `${updatedText} · issue #${entry.source.issueNumber}`;
   }
 }
 

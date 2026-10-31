@@ -121,7 +121,10 @@ const createMemoryCandidate =
     buildSource: (configurable) =>
       configurable.workflow === 'task-resolve'
         ? { workflow: 'task-resolve', threadId: configurable.threadId }
-        : { workflow: 'work-item-resolve', issueIid: configurable.issueIid },
+        : {
+            workflow: 'work-item-resolve',
+            issueNumber: configurable.issueNumber,
+          },
   });
 
 const providerTools: Record<GitProvider, DynamicStructuredTool[]> = {

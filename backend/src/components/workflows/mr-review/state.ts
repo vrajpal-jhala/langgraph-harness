@@ -14,6 +14,7 @@ import type { DiffLineMap } from '#utils/diff.js';
 const repoInstructionsSchema = z.string().max(config.instructions.maxChars);
 
 const workflowStateSchema = z.object({
+  // TODO - rename `projectId` and `mrIid` with GitHub support for MR review; stored checkpoints hold the old names, so guard retries as work-item-resolve does.
   query: z.object({
     note: z.string(),
     projectId: z.string(),
@@ -61,7 +62,7 @@ export type WorkflowConfigurable = {
   memoryReflectNudged: { nudged: boolean };
   noToolCallNudged: { nudged: boolean };
   trailingQuestionNudged: { nudged: boolean };
-  projectId: string;
+  repoKey: string;
   mrIid: string;
   diffLineMapCache: Map<string, DiffLineMap>;
   draftPositions: Map<string, DraftPosition>;

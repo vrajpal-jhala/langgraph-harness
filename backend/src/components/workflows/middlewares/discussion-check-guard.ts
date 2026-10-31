@@ -21,7 +21,7 @@ export function discussionCheckGuardMiddleware() {
       const configurable = (request.runtime as SandboxAgentRuntime)
         .configurable;
       const discussion = configurable?.host?.discussion;
-      const requiredCalls = configurable?.mrIid
+      const requiredCalls = configurable?.codeChangeRequestNumber
         ? discussion?.codeChangeRequestFeedback
         : discussion?.issueComments;
 
@@ -48,7 +48,7 @@ export function discussionCheckGuardMiddleware() {
       if (!discussion || configurable.discussionCheckNudged?.nudged)
         return result;
 
-      const message = configurable.mrIid
+      const message = configurable.codeChangeRequestNumber
         ? `Before concluding, call ${describeToolCalls(discussion.codeChangeRequestFeedback)} to check for any feedback that arrived during this run — someone may have commented while you were working. Address anything unaddressed before finishing.`
         : `Before concluding, call ${describeToolCalls(discussion.issueComments)} to check for any issue comments that arrived during this run before finishing.`;
 
