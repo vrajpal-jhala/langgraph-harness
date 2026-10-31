@@ -468,7 +468,7 @@ export type GitHost = {
   updateCodeChangeRequest: (params: {
     projectPath: string;
     codeChangeRequestNumber: string;
-    description: string;
+    description?: string;
     draft?: boolean;
   }) => Promise<void>;
 };

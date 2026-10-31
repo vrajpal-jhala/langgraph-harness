@@ -96,7 +96,7 @@ export async function* updateCodeChangeRequest(params: {
   host: GitHost;
   projectPath: string;
   codeChangeRequestNumber: string;
-  description: string;
+  description?: string;
   draft?: boolean;
   completionStatus: CompletionStatus;
   completionSummary: string;
@@ -123,11 +123,15 @@ export async function* updateCodeChangeRequest(params: {
     },
   };
   try {
-    if (!config.mock.workflow) {
+    // The step still runs with nothing to send — its end event carries the run's completion status.
+    if (
+      !config.mock.workflow &&
+      (description !== undefined || draft !== undefined)
+    ) {
       await host.updateCodeChangeRequest({
         projectPath,
         codeChangeRequestNumber,
-        description,
+        ...(description !== undefined && { description }),
         ...(draft !== undefined && { draft }),
       });
     }

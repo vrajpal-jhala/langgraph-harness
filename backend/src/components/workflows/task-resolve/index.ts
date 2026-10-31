@@ -15,6 +15,7 @@ import {
 } from '#types.js';
 
 import { repositoriesManager } from '#components/repositories/manager.js';
+import { runsDal } from '#components/runs/dal.js';
 import { threadsDal } from '#components/threads/dal.js';
 import {
   classifyBranch,
@@ -197,6 +198,10 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
     });
 
     const threadAtStart = await threadsDal.findById(threadId);
+    // A follow-up's prompt is the comment that triggered it, which the agent reads with the rest of the feedback — its task stays the original request.
+    const firstRun = await runsDal.findFirstByThread(threadId);
+    const requestedPrompt =
+      (firstRun?.input as TaskResolveRunInput | undefined)?.prompt ?? prompt;
     const codeChangeRequestNumberAtStart =
       (threadAtStart?.metadata?.codeChangeRequestNumber as
         string | undefined) ?? null;
@@ -328,7 +333,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
               : {
                   title,
                   projectPath,
-                  prompt,
+                  prompt: requestedPrompt,
                   taskType,
                   defaultBranch,
                   model,
@@ -472,7 +477,6 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
             host,
             projectPath,
             codeChangeRequestNumber,
-            description: taskResolveDescription(prompt),
             ...(completionStatus === CompletionStatus.Done &&
               openedAsDraft && { draft: false }),
             completionStatus,

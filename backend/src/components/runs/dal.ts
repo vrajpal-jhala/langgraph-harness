@@ -46,6 +46,15 @@ export const runsDal = {
       .executeTakeFirst();
   },
 
+  findFirstByThread: async (threadId: string) => {
+    return db
+      .selectFrom('runs')
+      .selectAll()
+      .where('thread_id', '=', threadId)
+      .orderBy('created_at', 'asc')
+      .executeTakeFirst();
+  },
+
   hasActive: async (threadId: string) => {
     const row = await db
       .selectFrom('runs')
