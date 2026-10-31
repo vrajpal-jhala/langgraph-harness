@@ -174,6 +174,14 @@ async function handleNoteEvent(body: any) {
   )
     return { received: true, status: 'skipped', reason: 'not_mr_comment' };
 
+  // Its worktree is already cleaned up, so a run would recreate it and push to a finished branch.
+  if (merge_request.state !== 'opened')
+    return {
+      received: true,
+      status: 'skipped',
+      reason: 'mr_not_open',
+    };
+
   const isBotAuthored = user?.username === config.gitlab.username;
   const noteText: string = object_attributes?.note ?? '';
 
@@ -202,7 +210,7 @@ async function handleNoteEvent(body: any) {
     return {
       received: true,
       status: 'skipped',
-      reason: 'no_matching_work_item_resolve_thread',
+      reason: 'no_matching_mr_thread',
     };
 
   return startFollowUpRun({ host, thread, projectPath, noteId, noteText });
@@ -285,6 +293,9 @@ async function handleMergeRequestEvent(body: any) {
 
     return { received: true, status: 'accepted', detail: 'worktree_cleanup' };
   }
+
+  if (object_attributes?.state !== 'opened')
+    return { received: true, status: 'skipped', reason: 'mr_not_open' };
 
   if (object_attributes?.draft)
     return { received: true, status: 'skipped', reason: 'draft_mr' };

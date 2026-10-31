@@ -55,7 +55,7 @@ async function handleIssuesEvent(body: any) {
       return {
         received: true,
         status: 'skipped',
-        reason: 'mr_owns_lifecycle',
+        reason: 'pr_owns_lifecycle',
       };
 
     await repositoriesManager.cleanupWorktree({
@@ -142,7 +142,11 @@ async function handlePullRequestEvent(body: any) {
           }
         : undefined;
   if (!target)
-    return { received: true, status: 'skipped', reason: 'no_matching_thread' };
+    return {
+      received: true,
+      status: 'skipped',
+      reason: 'no_matching_pr_thread',
+    };
 
   await repositoriesManager.cleanupWorktree({
     repo: host.repoKey(projectPath),
@@ -153,19 +157,23 @@ async function handlePullRequestEvent(body: any) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleCommentEvent(event: string, body: any) {
-  const { action, comment, repository } = body ?? {};
+  const { action, repository } = body ?? {};
+  const isReview = event === 'pull_request_review';
+  // A review's summary arrives apart from its line comments, which come as `pull_request_review_comment`.
+  const comment = isReview ? body?.review : body?.comment;
   // A PR's conversation comments arrive as `issue_comment`, shared with plain issues; only the ones on a PR can have a follow-up.
-  const prNumber =
-    event === 'pull_request_review_comment'
-      ? body?.pull_request?.number
-      : body?.issue?.pull_request
-        ? body.issue.number
-        : undefined;
+  const pr =
+    event === 'issue_comment'
+      ? body?.issue?.pull_request
+        ? body.issue
+        : undefined
+      : body?.pull_request;
+  const prNumber = pr?.number;
   const projectPath: string | undefined = repository?.full_name;
   const noteId = comment?.id;
 
   if (
-    action !== 'created' ||
+    action !== (isReview ? 'submitted' : 'created') ||
     !prNumber ||
     !projectPath ||
     !noteId ||
@@ -173,11 +181,23 @@ async function handleCommentEvent(event: string, body: any) {
   )
     return { received: true, status: 'skipped', reason: 'not_pr_comment' };
 
+  // Its worktree is already cleaned up, so a run would recreate it and push to a finished branch.
+  if (pr.state !== 'open')
+    return {
+      received: true,
+      status: 'skipped',
+      reason: 'pr_not_open',
+    };
+
   const botUsername = config.github.username.toLowerCase();
   const isBotAuthored =
     ((comment.user as GitHubUser | undefined)?.login ?? '').toLowerCase() ===
     botUsername;
   const noteText: string = comment.body ?? '';
+
+  // GitHub wraps every line comment in a review, so each one also arrives here with no summary — including the bot's own replies, whose review id isn't among its reply ids.
+  if (isReview && !noteText.trim())
+    return { received: true, status: 'skipped', reason: 'empty_pr_review' };
 
   // Same bot identity as the issue-resolve status comment, which would otherwise pass as bot feedback and re-trigger a run on every update.
   if (isBotAuthored && isAutomatedStatusNote(noteText))
@@ -204,7 +224,7 @@ async function handleCommentEvent(event: string, body: any) {
     return {
       received: true,
       status: 'skipped',
-      reason: 'no_matching_work_item_resolve_thread',
+      reason: 'no_matching_pr_thread',
     };
 
   return startFollowUpRun({ host, thread, projectPath, noteId, noteText });
@@ -233,7 +253,8 @@ export const githubWebhook = new Elysia({ prefix: '/webhooks' })
           if (event === 'pull_request') return handlePullRequestEvent(body);
           if (
             event === 'issue_comment' ||
-            event === 'pull_request_review_comment'
+            event === 'pull_request_review_comment' ||
+            event === 'pull_request_review'
           )
             return handleCommentEvent(event, body);
 

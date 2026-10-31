@@ -70,7 +70,7 @@ Either way, add workflow write access (`workflow` scope, or **Workflows** read a
 
 **OAuth app (sign-in).** **Settings → Developer settings → OAuth Apps → New OAuth App**, with the callback URL `http://localhost:5173/auth/callback/github` (again `APP_URL` plus `/auth/callback/github`). Copy the **Client ID** and generate a **Client secret**. Sign-in supports github.com only, not GitHub Enterprise.
 
-**Webhook.** On each repository (**Settings → Webhooks**) or once on the organization, add a webhook pointing at `<your-instance>/webhooks/github`, content type `application/json`, with a secret of your choosing, sending **Issues**, **Pull requests**, **Issue comments** and **Pull request review comments** events.
+**Webhook.** On each repository (**Settings → Webhooks**) or once on the organization, add a webhook pointing at `<your-instance>/webhooks/github`, content type `application/json`, with a secret of your choosing, sending **Issues**, **Pull requests**, **Issue comments**, **Pull request review comments** and **Pull request reviews** events.
 
 For local dev, GitHub can't reach `localhost`, so forward events instead with the [`gh webhook`](https://github.com/cli/gh-webhook) extension:
 
