@@ -42,7 +42,7 @@ const KNOWN_LC_SOURCES = new Set([
 
 const WORKFLOW_NAME = 'MR Review';
 const WORKFLOW_DESCRIPTION =
-  'Reviews GitLab merge requests and posts feedback as comments.';
+  'Reviews merge requests and pull requests and posts feedback as comments.';
 
 async function buildWorkflow() {
   return new StateGraph(workflowState)
@@ -93,13 +93,16 @@ async function getNoteContext(threadId: string) {
 export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
   id: 'mr-review',
   kind: RunKind.MrReview,
-  requiresProvider: GitProvider.GitLab,
   name: WORKFLOW_NAME,
   description: WORKFLOW_DESCRIPTION,
   checkAccess: (thread, session, action) => {
+    const authorAccountId =
+      thread.metadata?.source === GitProvider.GitHub
+        ? session.githubId
+        : session.gitlabId;
     const isAuthor =
-      session.gitlabId != null &&
-      thread.metadata?.codeChangeRequestAuthorId === session.gitlabId;
+      authorAccountId != null &&
+      thread.metadata?.codeChangeRequestAuthorId === authorAccountId;
     if (action === 'mutate' && !isAdmin(session) && !isAuthor) {
       throw errors.runs.forbidden();
     }

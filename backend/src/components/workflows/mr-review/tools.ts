@@ -10,10 +10,15 @@ import {
 import { createAgent } from 'langchain';
 import z from 'zod';
 
-import type { AgentPromptEvent, SubagentErrorEvent } from '#types.js';
+import {
+  type AgentPromptEvent,
+  GitProvider,
+  type SubagentErrorEvent,
+} from '#types.js';
 
 import { createMemoryCandidateTool } from '#components/memories/tool.js';
 import { gitService } from '#components/repositories/service.js';
+import { githubMcp } from '#components/workflows/github-mcp.js';
 import { gitlabMcp } from '#components/workflows/gitlab-mcp.js';
 import {
   contextUsageMiddleware,
@@ -33,7 +38,7 @@ import type {
   WorkflowConfigurable,
 } from './state.js';
 
-import { llms } from '#utils/config.js';
+import { config, llms } from '#utils/config.js';
 import {
   findRepeatedText,
   generationLoopReason,
@@ -55,28 +60,49 @@ type GitToolRuntime = ToolRuntime<unknown, unknown> & {
   configurable?: Partial<WorkflowConfigurable>;
 };
 
-const diffFragmentsPath = join(skillsPath, 'gitlab-mcp/diff-fragments');
+const CODE_REVIEW_SKILL = 'code-review';
+const fragmentsPath = join(skillsPath, CODE_REVIEW_SKILL, 'fragments');
+
+// Steps that name host tools; `{variant}` picks local git or the host's own diff, depending on whether the branch survived.
+const FRAGMENT_FILES = {
+  '{{EXISTING_STATE_STEP}}': 'existing-state',
+  '{{CHANGED_FILES_STEP}}': 'changed-files-{variant}',
+  '{{DIFF_STEP}}': 'diff-{variant}',
+  '{{COMMENT_STEP}}': 'comments',
+  '{{RESOLVE_STEP}}': 'resolve',
+  '{{APPROVE_STEP}}': 'approve',
+};
 
 const loadSkill = tool(
   async ({ path: skillPath }, runtime: GitToolRuntime) => {
     try {
       let content = await readFile(
-        join(skillsPath, `${skillPath}.md`),
+        join(skillsPath, skillPath, `${skillPath}.md`),
         'utf-8',
       );
 
-      // code-review.md's diff steps are toolset-dependent — splice in the fragment matching what dynamicDiffToolsMiddleware actually bound this run.
-      if (skillPath === 'gitlab-mcp/code-review') {
-        const variant = runtime.configurable?.revived ? 'gitlab' : 'local';
-        const variantPath = join(diffFragmentsPath, variant);
-        const [changedFilesStep, diffStep] = await Promise.all([
-          readFile(join(variantPath, 'changed-files.md'), 'utf-8'),
-          readFile(join(variantPath, 'diff.md'), 'utf-8'),
-        ]);
+      if (skillPath === CODE_REVIEW_SKILL) {
+        const { host, revived = false } =
+          runtime.configurable as WorkflowConfigurable;
+        const providerPath = join(fragmentsPath, host.provider);
+        const variant = revived ? 'revived' : 'local';
+        const fragments = await Promise.all(
+          Object.entries(FRAGMENT_FILES).map(async ([placeholder, file]) => {
+            const path = join(
+              providerPath,
+              `${file.replace('{variant}', variant)}.md`,
+            );
+            return [placeholder, (await readFile(path, 'utf-8')).trim()];
+          }),
+        );
 
+        for (const [placeholder, fragment] of fragments) {
+          content = content.replace(placeholder, fragment);
+        }
         content = content
-          .replace('{{CHANGED_FILES_STEP}}', changedFilesStep.trim())
-          .replace('{{DIFF_STEP}}', diffStep.trim());
+          .replaceAll('{{HOST}}', host.name)
+          .replaceAll('{{CODE_CHANGE_REQUEST}}', host.codeChangeRequestName)
+          .replaceAll('{{BOT_USERNAME}}', config[host.provider].username);
       }
 
       return { content };
@@ -84,19 +110,18 @@ const loadSkill = tool(
       logger.error({ err }, `Error loading skill from path ${skillPath}`);
 
       return {
-        error: `Skill not found: ${skillPath}. Available skills: gitlab-mcp/code-review`,
+        error: `Skill not found: ${skillPath}. Available skills: ${CODE_REVIEW_SKILL}`,
       };
     }
   },
   {
     name: 'load_skill',
-    description:
-      'Load step-by-step workflow instructions from a skill file. Call this first when you need guidance on how to perform a specific workflow. Available skills: gitlab-mcp/code-review',
+    description: `Load step-by-step workflow instructions from a skill file. Call this first when you need guidance on how to perform a specific workflow. Available skills: ${CODE_REVIEW_SKILL}`,
     schema: z.object({
       path: z
         .string()
         .describe(
-          'Skill path without .md extension, e.g. "gitlab-mcp/code-review"',
+          `Skill path without .md extension, e.g. "${CODE_REVIEW_SKILL}"`,
         ),
     }),
   },
@@ -719,63 +744,93 @@ const LOCAL_READ_TOOLS = new Set([
   listDirectory.name,
 ]);
 
-// Swapped in for GIT_READ_TOOLS on a revived retry (with dynamicDiffToolsMiddleware).
-const GITLAB_DIFF_TOOLS = new Set([
-  'get_merge_request_diffs',
-  'list_merge_request_changed_files',
-]);
+type ReviewToolSet = {
+  read: Set<string>;
+  // Separate from read so mock mode can emulate them.
+  write: Set<string>;
+  // Swapped in for GIT_READ_TOOLS on a revived retry (with dynamicDiffToolsMiddleware); empty when the host's diff lives in a read tool that's always bound.
+  revivedDiff: Set<string>;
+  // Fetched for middleware to call directly, outside the model's tool loop.
+  internal: Set<string>;
+};
 
-const MR_READ_TOOLS = new Set([
-  // metadata
-  'get_merge_request',
-  'get_merge_request_conflicts',
-  'get_merge_request_approval_state',
-  'mr_discussions',
-  // push history
-  'list_merge_request_versions',
-  // review diff
-  ...GITLAB_DIFF_TOOLS,
-  // review drafting
-  'list_draft_notes',
-]);
+// Derived from the code-review skill. All others (issues, pipelines, projects, branches, etc.) are excluded to keep the context small.
+const REVIEW_TOOLS: Record<GitProvider, ReviewToolSet> = {
+  [GitProvider.GitLab]: {
+    read: new Set([
+      // metadata
+      'get_merge_request',
+      'get_merge_request_conflicts',
+      'get_merge_request_approval_state',
+      'mr_discussions',
+      // push history
+      'list_merge_request_versions',
+      // review drafting
+      'list_draft_notes',
+    ]),
+    write: new Set([
+      // approval
+      'approve_merge_request',
+      'unapprove_merge_request',
+      // review drafting
+      'create_draft_note',
+      'bulk_publish_draft_notes',
+      'publish_draft_note',
+      // resolve threads
+      'resolve_merge_request_thread',
+    ]),
+    revivedDiff: new Set([
+      'get_merge_request_diffs',
+      'list_merge_request_changed_files',
+    ]),
+    internal: new Set([
+      'delete_draft_note',
+      'mr_discussions',
+      'get_merge_request_file_diff',
+    ]),
+  },
+  [GitProvider.GitHub]: {
+    // One tool covers metadata, files, diff, reviews and comments, picked by `method`.
+    read: new Set(['pull_request_read']),
+    write: new Set([
+      // pending review, approval and resolving threads, picked by `method`
+      'pull_request_review_write',
+      'add_comment_to_pending_review',
+      'add_reply_to_pull_request_comment',
+    ]),
+    revivedDiff: new Set(),
+    internal: new Set([
+      'pull_request_read',
+      'add_comment_to_pending_review',
+      'add_reply_to_pull_request_comment',
+    ]),
+  },
+};
 
-// separate list for mocking
-const MR_WRITE_TOOLS = new Set([
-  // approval
-  'approve_merge_request',
-  'unapprove_merge_request',
-  // review drafting
-  'create_draft_note',
-  'bulk_publish_draft_notes',
-  'publish_draft_note',
-  // resolve threads
-  'resolve_merge_request_thread',
-]);
+const allowedFrom = (
+  allTools: DynamicStructuredTool[],
+  provider: GitProvider,
+) => {
+  const { read, write, revivedDiff } = REVIEW_TOOLS[provider];
+  return allTools.filter(
+    mcpToolFilter(new Set([...read, ...write, ...revivedDiff]), provider),
+  );
+};
 
-// MR-related tools derived from the gitlab-mcp/code-review skill. All others (issues, pipelines, projects, branches, etc.) are excluded to keep the context small.
-const MR_TOOL_ALLOWLIST = new Set([...MR_READ_TOOLS, ...MR_WRITE_TOOLS]);
+const providerTools: Record<GitProvider, DynamicStructuredTool[]> = {
+  [GitProvider.GitLab]: [],
+  [GitProvider.GitHub]: [],
+};
+const internalTools = new Map<string, DynamicStructuredTool>();
 
-// Fetched for middleware to call directly, outside the model's tool loop
-const INTERNAL_TOOLS = new Set([
-  'delete_draft_note',
-  'mr_discussions',
-  'get_merge_request_file_diff',
-]);
-
-let mcpTools: DynamicStructuredTool[] = [];
-let internalTools = new Map<string, DynamicStructuredTool>();
+const mcpClients = {
+  [GitProvider.GitLab]: gitlabMcp,
+  [GitProvider.GitHub]: githubMcp,
+};
 
 export const tools = {
   init: async () => {
-    // A failed GitLab MCP connection (bad PAT, no network, npx failure) must
-    // stop the server from booting — the whole workflow is useless without it.
-    const allTools = await gitlabMcp.getTools();
-    internalTools = new Map(
-      allTools
-        .filter(mcpToolFilter(INTERNAL_TOOLS, 'gitlab'))
-        .map((t) => [t.name, t]),
-    );
-    mcpTools = [
+    const baseTools = [
       loadSkill,
       createMemoryCandidate,
       gitChangedFiles,
@@ -786,27 +841,45 @@ export const tools = {
       readMultipleFiles,
       listDirectory,
       spawnSubagent,
-      ...allTools.filter(mcpToolFilter(MR_TOOL_ALLOWLIST, 'gitlab')),
+    ];
+    for (const provider of Object.values(GitProvider)) {
+      if (!config[provider].enabled) continue;
+      // A failed MCP connection (bad token, no network) must stop the server from booting — reviews on that host are useless without it.
+      const allTools = await mcpClients[provider].getTools();
+      for (const t of allTools.filter(
+        mcpToolFilter(REVIEW_TOOLS[provider].internal, provider),
+      )) {
+        internalTools.set(t.name, t);
+      }
+      providerTools[provider] = [
+        ...baseTools,
+        ...allowedFrom(allTools, provider),
+      ];
+    }
+  },
+  getAll: (provider: GitProvider) => providerTools[provider],
+  getMrReadNames: (provider: GitProvider) => {
+    const { read, revivedDiff } = REVIEW_TOOLS[provider];
+    return [
+      ...GIT_READ_TOOLS,
+      ...LOCAL_READ_TOOLS,
+      ...providerTools[provider]
+        .filter(mcpToolFilter(new Set([...read, ...revivedDiff]), provider))
+        .map((t) => t.name),
     ];
   },
-  getAll: () => mcpTools,
-  getMrReadNames: () =>
-    mcpTools
-      .filter(
-        mcpToolFilter(
-          new Set([...MR_READ_TOOLS, ...GIT_READ_TOOLS, ...LOCAL_READ_TOOLS]),
-          'gitlab',
-        ),
-      )
-      .map((t) => t.name),
   getInternal: (name: string) => internalTools.get(name),
-  getDiffToolNames: () => ({
+  getDiffToolNames: (provider: GitProvider) => ({
     localToolNames: GIT_READ_TOOLS,
-    gitlabToolNames: new Set(
-      [...GITLAB_DIFF_TOOLS].map((name) => mcpToolName('gitlab', name)),
+    hostToolNames: new Set(
+      [...REVIEW_TOOLS[provider].revivedDiff].map((name) =>
+        mcpToolName(provider, name),
+      ),
     ),
   }),
-  getMockableNames: () =>
-    mcpTools.filter(mcpToolFilter(MR_WRITE_TOOLS, 'gitlab')).map((t) => t.name),
-  cleanup: () => gitlabMcp.close(),
+  getMockableNames: (provider: GitProvider) =>
+    providerTools[provider]
+      .filter(mcpToolFilter(REVIEW_TOOLS[provider].write, provider))
+      .map((t) => t.name),
+  cleanup: () => Promise.all([gitlabMcp.close(), githubMcp.close()]),
 };

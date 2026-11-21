@@ -2,6 +2,7 @@ import { MessagesValue, StateSchema } from '@langchain/langgraph';
 import { z } from 'zod';
 
 import {
+  type GitHost,
   InstructionStatus,
   type MemoryCandidate,
   type ParsedHarnessConfig,
@@ -61,6 +62,11 @@ export type WorkflowConfigurable = {
   memoryReflectNudged: { nudged: boolean };
   noToolCallNudged: { nudged: boolean };
   trailingQuestionNudged: { nudged: boolean };
+  host: GitHost;
+  heldReviewComments: Map<
+    string,
+    { toolName: string; args: Record<string, unknown> }
+  >;
   repoKey: string;
   projectPath: string;
   codeChangeRequestNumber: string;

@@ -10,7 +10,7 @@ import {
 } from '#components/workflows/emit.js';
 
 import { RunAbortedError } from '#utils/errors.js';
-import { messageContent } from '#utils/helpers.js';
+import { messageContent, toolErrorContent } from '#utils/helpers.js';
 
 type GuardConfigurable = {
   toolCallCounts?: Map<string, number>;
@@ -32,20 +32,6 @@ export function duplicateCallGuardMiddleware({
 }) {
   const toolCallKey = (name: string, args: unknown) =>
     `${name}|${JSON.stringify(args ?? {})}`;
-
-  // Catches a tool (ours or third-party) that reports failure via content instead of status/throw — e.g. an MCP server returning isError:false with an error body.
-  const hasErrorContent = (msg: ToolMessage): boolean => {
-    try {
-      const parsed: unknown = JSON.parse(messageContent(msg.content));
-      return (
-        !!parsed &&
-        typeof parsed === 'object' &&
-        !!(parsed as { error?: unknown }).error
-      );
-    } catch {
-      return false;
-    }
-  };
 
   const correctiveMessage = (
     calls: { name: string; count: number; isRead: boolean }[],
@@ -209,7 +195,7 @@ export function duplicateCallGuardMiddleware({
 
         // this key was cached as a success, but the live re-run itself could still fail — only a real success breaks the error streak
         if (!(
-          ToolMessage.isInstance(liveResult) && hasErrorContent(liveResult)
+          ToolMessage.isInstance(liveResult) && toolErrorContent(liveResult)
         ))
           errors?.clear();
 
@@ -257,7 +243,7 @@ export function duplicateCallGuardMiddleware({
       // a failure the tool returned instead of throwing — mainly the model repeatedly calling a nonexistent tool name (langchain answers with status:"error", not an exception), or a middleware rejecting via a returned ToolMessage rather than a throw; count it so the loop still aborts
       if (
         ToolMessage.isInstance(result) &&
-        (result.status === 'error' || hasErrorContent(result))
+        (result.status === 'error' || toolErrorContent(result))
       ) {
         bumpErrorOrAbort(messageContent(result.content));
         return result;

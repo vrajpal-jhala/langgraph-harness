@@ -97,6 +97,7 @@ declare const auth: import("better-auth").Auth<{
 						gitlabUsername: string;
 						githubUsername: string;
 						gitlabId: number | null;
+						githubId: number | null;
 						name: string;
 						avatarUrl: string | null;
 						role: "admin" | "viewer";
@@ -138,6 +139,7 @@ declare const auth: import("better-auth").Auth<{
 					gitlabUsername: string;
 					githubUsername: string;
 					gitlabId: number | null;
+					githubId: number | null;
 					name: string;
 					avatarUrl: string | null;
 					role: "admin" | "viewer";
@@ -149,6 +151,7 @@ declare const auth: import("better-auth").Auth<{
 					gitlabUsername: string;
 					githubUsername: string;
 					gitlabId: number | null;
+					githubId: number | null;
 					name: string;
 					avatarUrl: string | null;
 					role: "admin" | "viewer";
@@ -228,6 +231,7 @@ type Session = {
 	gitlabUsername: string;
 	githubUsername: string;
 	gitlabId: number | null;
+	githubId: number | null;
 	name: string;
 	avatarUrl: string | null;
 	role: Role;

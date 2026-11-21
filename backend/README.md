@@ -344,8 +344,7 @@ If a run finishes without calling a single tool, it's nudged once to actually ch
 
 Skills in `src/skills/` provide step-by-step workflow instructions loaded at runtime via the `load_skill` tool:
 
-- `gitlab-mcp/code-review` — initial review and re-review workflows, draft note pattern, approval step
-- `gitlab-mcp/merge-requests` — general MR interaction patterns
+- `code-review` — initial review and re-review workflows, the comment-batching pattern, approval step. Steps that name host tools come from `code-review/fragments/<provider>/`, picked by the review's git host.
 
 ## Project Memory
 

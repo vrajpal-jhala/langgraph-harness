@@ -141,6 +141,20 @@ export function wasTruncatedByLength(message: AIMessage): boolean {
   return (meta?.done_reason ?? meta?.finish_reason) === 'length';
 }
 
+// Catches a tool (ours or third-party) that reports failure via content instead of status/throw — e.g. an MCP server returning isError:false with an error body.
+export function toolErrorContent(msg: ToolMessage): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(messageContent(msg.content));
+    const error =
+      parsed && typeof parsed === 'object'
+        ? (parsed as { error?: unknown }).error
+        : undefined;
+    return error ? String(error) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function messageContent(content: ToolMessage['content']): string {
   return typeof content === 'string'
     ? content

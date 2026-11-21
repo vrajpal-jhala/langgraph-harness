@@ -107,17 +107,25 @@ export const auth = betterAuth({
           gitlabUsername?: string;
           githubUsername?: string;
         };
-      // better-auth saves the GitLab user ID as text when the user signs in; MR webhooks send the same ID as a number.
-      const { rows } = await pool.query<{ accountId: string }>(
-        `SELECT "accountId" FROM account WHERE "userId" = $1 AND "providerId" = 'gitlab' LIMIT 1`,
+      // better-auth saves each provider's user ID as text when the user signs in; MR/PR webhooks send the same ID as a number.
+      const { rows } = await pool.query<{
+        providerId: string;
+        accountId: string;
+      }>(
+        `SELECT "providerId", "accountId" FROM account WHERE "userId" = $1 AND "providerId" IN ('gitlab', 'github')`,
         [user.id],
       );
+      const accountId = (providerId: string) => {
+        const row = rows.find((r) => r.providerId === providerId);
+        return row ? Number(row.accountId) : null;
+      };
 
       return {
         id: user.id,
         gitlabUsername,
         githubUsername,
-        gitlabId: rows[0] ? Number(rows[0].accountId) : null,
+        gitlabId: accountId('gitlab'),
+        githubId: accountId('github'),
         name: user.name,
         avatarUrl: user.image ?? null,
         // Matched per provider, so a GitHub handle that happens to equal an admin's GitLab handle grants nothing.

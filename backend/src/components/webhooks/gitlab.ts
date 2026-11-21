@@ -4,26 +4,20 @@ import { GitProvider, RunKind } from '#types.js';
 
 import { analyticsService } from '#components/analytics/service.js';
 import { repositoriesManager } from '#components/repositories/manager.js';
-import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
-import {
-  enqueueMrReview,
-  reviewJobId,
-} from '#components/workflows/mr-review/queue.js';
 import { handleOnce } from './delivery.js';
 import { mentionsUser, startFollowUpRun } from './follow-up.js';
+import { reviewThreadMetadata, startReviewRun } from './review.js';
 import { startWorkItemResolveRun } from './work-item.js';
 
 import { gitlabWebhookAuth } from '#utils/auth.js';
-import { config, isProjectInScope, llms } from '#utils/config.js';
+import { config, isProjectInScope } from '#utils/config.js';
 import { gitHosts } from '#utils/git-host.js';
-import { parseHarnessYml, shouldReviewBranch } from '#utils/harness-config.js';
+import { parseHarnessYml } from '#utils/harness-config.js';
 import { logger } from '#utils/logger.js';
 import { isAutomatedStatusNote } from '#utils/notes.js';
 
-const defaultModel = llms.find((m) => m.isDefault)?.model ?? llms[0].model;
-const stableBranchRegExp = new RegExp(config.mrReview.stableBranchPattern);
 const host = gitHosts[GitProvider.GitLab];
 
 // `assignees`, deprecated `assignee`, and `changes.assignees.previous`/`.current` all carry the same { username } shape.
@@ -234,19 +228,7 @@ async function handleMergeRequestEvent(body: any) {
       reason: 'missing_required_fields',
     };
 
-  if (!isProjectInScope(config.mrReview.projectPathFilters, projectPath))
-    return {
-      received: true,
-      status: 'skipped',
-      reason: 'project_out_of_scope',
-    };
-
-  const mrMetadata = {
-    source: GitProvider.GitLab,
-    type: 'code_change_request',
-    project: projectPath,
-    number: mrIid,
-  };
+  const mrMetadata = reviewThreadMetadata(host, projectPath, mrIid);
 
   // MR lifecycle end — clean up its worktree, independent of the review flow below. No memories cleanup: codeChangeRequestNumber metadata isn't reliably attributable to one MR, and the curator retires stale memories on its own anyway.
   if (action === 'merge' || action === 'close') {
@@ -296,6 +278,13 @@ async function handleMergeRequestEvent(body: any) {
 
     return { received: true, status: 'accepted', detail: 'worktree_cleanup' };
   }
+
+  if (!isProjectInScope(config.mrReview.projectPathFilters, projectPath))
+    return {
+      received: true,
+      status: 'skipped',
+      reason: 'project_out_of_scope',
+    };
 
   if (object_attributes?.state !== 'opened')
     return { received: true, status: 'skipped', reason: 'mr_not_open' };
@@ -366,72 +355,21 @@ async function handleMergeRequestEvent(body: any) {
     }
   }
 
-  if (!shouldReviewBranch(parsed, sourceBranch, targetBranch))
-    return {
-      received: true,
-      status: 'skipped',
-      reason: 'branch_excluded_by_config',
-    };
-
-  // Skip promotion merges between stable branches (dev → stage, stage → master, etc.)
-  if (stableBranchRegExp.test(sourceBranch))
-    return {
-      received: true,
-      status: 'skipped',
-      reason: 'stable_branch_promotion',
-    };
-
-  const thread =
-    (await threadsDal.findByMetadata(mrMetadata)) ??
-    (await threadsDal.insert({
-      title: `${projectPath}!${mrIid}`,
-      kind: RunKind.MrReview,
-      metadata: mrMetadata,
-    }));
-
-  // A push to a dormant MR reuses its archived thread — revive it so runsService.create doesn't reject the new review.
-  if (thread.archived_at) {
-    await threadsDal.update(thread.id, { archived_at: null });
-  }
-
-  // Remember who opened the MR so they can abort or retry its review. Not the top-level `user`, which is whoever triggered this event.
-  const authorId = object_attributes?.author_id;
-  if (
-    typeof authorId === 'number' &&
-    thread.metadata?.codeChangeRequestAuthorId == null
-  ) {
-    await threadsDal.mergeMetadata(thread.id, {
-      codeChangeRequestAuthorId: authorId,
-    });
-  }
-
-  const query = {
-    note: `Perform a code review of MR !${mrIid} in project "${projectPath}".`,
+  return startReviewRun({
+    host,
     projectPath,
-    codeChangeRequestNumber: String(mrIid),
+    codeChangeRequestNumber: mrIid,
     sourceBranch,
     sourceSha,
     targetBranch,
     defaultBranch,
-  };
-  const runInput = {
-    kind: RunKind.MrReview,
-    provider: GitProvider.GitLab,
-    query,
-    model: defaultModel,
-    reasoning: config.generation.reasoning,
-    config: harnessConfig,
-  };
-  const run = await runsService.create(thread.id, RunKind.MrReview, runInput);
-
-  await enqueueMrReview(
-    reviewJobId(GitProvider.GitLab, query),
-    { threadId: thread.id, runId: run.id, ...runInput },
-    isInitial || isMarkedReady ? 0 : undefined,
-  );
-
-  // If replaced, enqueueMrReview deletes the orphaned run; if active, it stays QUEUED for the worker's completed handler to re-enqueue.
-  return { received: true, status: 'accepted', detail: 'review_enqueued' };
+    authorId:
+      typeof object_attributes?.author_id === 'number'
+        ? object_attributes.author_id
+        : undefined,
+    harnessConfig,
+    firstReview: isInitial || isMarkedReady,
+  });
 }
 
 // Epics/Incidents/Test Cases/Requirements/OKRs aren't "write code and open an MR" units of work.

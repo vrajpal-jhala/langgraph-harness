@@ -24,6 +24,7 @@ export type Session = {
   gitlabUsername: string;
   githubUsername: string;
   gitlabId: number | null;
+  githubId: number | null;
   name: string;
   avatarUrl: string | null;
   role: Role;
@@ -426,6 +427,7 @@ export type GitHost = {
   formatAlert: (type: AlertType, title: string, body: string) => string;
   repoIdentifiers: (projectPath: string) => string;
   codeChangeRequestIdentifier: (codeChangeRequestNumber: string) => string;
+  codeChangeRequestRef: (codeChangeRequestNumber: string) => string;
   issueIdentifiers: (projectPath: string, issueNumber: string) => string;
   issueTools: { read: Set<string>; write: Set<string> };
   discussion: {

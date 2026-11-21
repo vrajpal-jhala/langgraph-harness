@@ -1,10 +1,9 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { ToolMessage } from '@langchain/core/messages';
-import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { createMiddleware } from 'langchain';
 import { z } from 'zod';
 
-import type { LLMProvider } from '#types.js';
+import { GitProvider, type LLMProvider } from '#types.js';
 
 import {
   emitCommentCriticEndEvent,
@@ -13,11 +12,11 @@ import {
 import { withBackendLimit } from '#components/workflows/middlewares/llm-backend-limiter.js';
 import type { WorkflowRuntime } from '#components/workflows/mr-review/state.js';
 
-import { config } from '#utils/config.js';
 import {
   mcpToolName,
   messageContent,
   retryWithBackoff,
+  toolErrorContent,
 } from '#utils/helpers.js';
 import { logger } from '#utils/logger.js';
 
@@ -35,8 +34,74 @@ const VerdictSchema = z.object({
   ),
 });
 
-const BULK_PUBLISH_TOOL = mcpToolName('gitlab', 'bulk_publish_draft_notes');
-const SINGLE_PUBLISH_TOOL = mcpToolName('gitlab', 'publish_draft_note');
+type ToolCall = { name: string; id?: string; args: Record<string, unknown> };
+
+type ReviewFlow = {
+  // Lists comments left over from an earlier run, to screen them too.
+  listDrafts?: string;
+  createsDraft: (call: ToolCall) => boolean;
+  draftIdFrom: (call: ToolCall, resultContent: string) => string | undefined;
+  // undefined: not a publish; null: publishes every draft; a string: publishes only that draft.
+  publishTarget: (call: ToolCall) => string | null | undefined;
+  // The arg carrying a review-level summary, which Step 6 forbids — stripped deterministically.
+  summaryArg: (call: ToolCall) => string | undefined;
+};
+
+const GITLAB_BULK_PUBLISH = mcpToolName(
+  GitProvider.GitLab,
+  'bulk_publish_draft_notes',
+);
+const GITLAB_SINGLE_PUBLISH = mcpToolName(
+  GitProvider.GitLab,
+  'publish_draft_note',
+);
+const GITHUB_REVIEW_WRITE = mcpToolName(
+  GitProvider.GitHub,
+  'pull_request_review_write',
+);
+const GITHUB_DRAFT_TOOLS = new Set([
+  mcpToolName(GitProvider.GitHub, 'add_comment_to_pending_review'),
+  mcpToolName(GitProvider.GitHub, 'add_reply_to_pull_request_comment'),
+]);
+
+const REVIEW_FLOWS: Record<GitProvider, ReviewFlow> = {
+  [GitProvider.GitLab]: {
+    listDrafts: mcpToolName(GitProvider.GitLab, 'list_draft_notes'),
+    createsDraft: (call) =>
+      call.name === mcpToolName(GitProvider.GitLab, 'create_draft_note'),
+    draftIdFrom: (_call, content) => {
+      const { id } = JSON.parse(content) as { id?: string | number };
+      return id == null ? undefined : String(id);
+    },
+    publishTarget: (call) =>
+      call.name === GITLAB_BULK_PUBLISH
+        ? null
+        : call.name === GITLAB_SINGLE_PUBLISH
+          ? String(call.args.draft_note_id)
+          : undefined,
+    summaryArg: (call) =>
+      call.name === GITLAB_BULK_PUBLISH || call.name === GITLAB_SINGLE_PUBLISH
+        ? 'note'
+        : undefined,
+  },
+  // Held back by githubPendingReviewMiddleware rather than created on GitHub, so the tool call id is the draft's id.
+  [GitProvider.GitHub]: {
+    createsDraft: (call) => GITHUB_DRAFT_TOOLS.has(call.name),
+    draftIdFrom: (call) => call.id,
+    // create with an event submits a new review in one call, publishing any held replies along with it.
+    publishTarget: (call) =>
+      call.name === GITHUB_REVIEW_WRITE &&
+      (call.args.method === 'submit_pending' ||
+        (call.args.method === 'create' && !!call.args.event))
+        ? null
+        : undefined,
+    // GitHub may require a body to request changes, where it's the one-line reason for withdrawing an approval.
+    summaryArg: (call) =>
+      call.name === GITHUB_REVIEW_WRITE && call.args.event !== 'REQUEST_CHANGES'
+        ? 'body'
+        : undefined,
+  },
+};
 
 const CRITIC_PROMPT =
   `You are a skeptical senior engineer screening draft code review comments ` +
@@ -65,12 +130,15 @@ const CRITIC_PROMPT =
 export function commentCriticMiddleware({
   llm,
   provider,
-  deleteDraftNoteTool,
+  gitProvider,
+  withdrawDraft,
 }: {
   llm: BaseChatModel;
   provider: LLMProvider;
-  deleteDraftNoteTool?: DynamicStructuredTool;
+  gitProvider: GitProvider;
+  withdrawDraft: (draftId: string, runtime: WorkflowRuntime) => Promise<void>;
 }) {
+  const flow = REVIEW_FLOWS[gitProvider];
   // Default structured-output method is silently ignored by Ollama models — force tool-calling instead.
   const critic = llm.withStructuredOutput(VerdictSchema, {
     method: 'functionCalling',
@@ -81,9 +149,10 @@ export function commentCriticMiddleware({
     name: 'CommentCritic',
     wrapToolCall: async (request, handler) => {
       const configurable = (request.runtime as WorkflowRuntime).configurable;
-      const signal = (request.runtime as WorkflowRuntime).signal;
 
-      if (request.toolCall.name === mcpToolName('gitlab', 'list_draft_notes')) {
+      const call = request.toolCall as ToolCall;
+
+      if (flow.listDrafts && call.name === flow.listDrafts) {
         const result = await handler(request);
 
         // Surfaces pre-existing drafts (e.g. left over from an earlier run) into the tracking Map — piggybacks on the model's own mandated first list_draft_notes call instead of listing again.
@@ -112,34 +181,33 @@ export function commentCriticMiddleware({
         return result;
       }
 
-      if (
-        request.toolCall.name === mcpToolName('gitlab', 'create_draft_note')
-      ) {
+      if (flow.createsDraft(call)) {
         const result = await handler(request);
 
-        if (configurable?.draftNotes && ToolMessage.isInstance(result)) {
+        // A rejected draft (e.g. an invalid position) comes back as an error body, never a created draft.
+        if (
+          configurable?.draftNotes &&
+          ToolMessage.isInstance(result) &&
+          result.status !== 'error' &&
+          !toolErrorContent(result)
+        ) {
           try {
-            const { id } = JSON.parse(messageContent(result.content)) as {
-              id?: string | number;
-            };
+            const id = flow.draftIdFrom(call, messageContent(result.content));
 
             if (id == null) {
-              throw new Error('create_draft_note response had no id');
+              throw new Error(`${call.name} response had no id`);
             }
 
             const { body } = (request.toolCall.args ?? {}) as {
               body?: string;
             };
 
-            configurable.draftNotes.set(String(id), {
-              id: String(id),
-              body: body ?? '',
-            });
+            configurable.draftNotes.set(id, { id, body: body ?? '' });
           } catch (err) {
             // draft created but id is missing/unparseable — it'll publish without ever going through the critic
             logger.error(
-              { err },
-              'create_draft_note succeeded but id was missing or unparseable — draft untracked by critic',
+              { err, tool: call.name },
+              'draft created but its id was missing or unparseable — draft untracked by critic',
             );
           }
         }
@@ -147,29 +215,27 @@ export function commentCriticMiddleware({
         return result;
       }
 
-      const toolName = request.toolCall.name;
+      const summaryArg = flow.summaryArg(call);
+      const publishTarget = flow.publishTarget(call);
 
-      if (toolName === BULK_PUBLISH_TOOL || toolName === SINGLE_PUBLISH_TOOL) {
-        // note is always a general MR-level overview, which Step 6 already forbids outright — strip it deterministically, no critic call needed.
-        const { note: noteArg } = (request.toolCall.args ?? {}) as {
-          note?: string;
-        };
+      if (summaryArg || publishTarget !== undefined) {
+        const summary = call.args[summaryArg ?? ''];
         const hasNote =
-          typeof noteArg === 'string' && noteArg.trim().length > 0;
+          typeof summary === 'string' && summary.trim().length > 0;
 
         const effectiveRequest = hasNote
           ? {
               ...request,
               toolCall: {
                 ...request.toolCall,
-                args: { ...request.toolCall.args, note: undefined },
+                args: { ...request.toolCall.args, [summaryArg!]: undefined },
               },
             }
           : request;
 
         const strippedNoteNotice = hasNote
-          ? 'The `note` argument was not posted — bulk_publish_draft_notes never posts a ' +
-            'general MR-level summary; only the individual draft comments were published.'
+          ? `The \`${summaryArg}\` argument was not posted — a review never posts a ` +
+            'general summary; only the individual comments were published.'
           : '';
 
         const attachNote = (
@@ -196,7 +262,7 @@ export function commentCriticMiddleware({
           return result;
         };
 
-        if (!deleteDraftNoteTool || !configurable?.draftNotes?.size) {
+        if (publishTarget === undefined || !configurable?.draftNotes?.size) {
           return attachNote(
             await handler(effectiveRequest),
             strippedNoteNotice,
@@ -204,37 +270,15 @@ export function commentCriticMiddleware({
         }
 
         const screenedIds = configurable.commentCriticScreenedIds;
-        // publish_draft_note only publishes the named draft, so only that one is screened
-        const targetId =
-          toolName === SINGLE_PUBLISH_TOOL
-            ? String(request.toolCall.args.draft_note_id)
-            : undefined;
+        // A single-draft publish only publishes the named draft, so only that one is screened
         const drafts = [...configurable.draftNotes.values()].filter(
           (draft) =>
             !screenedIds?.has(draft.id) &&
-            (targetId === undefined || draft.id === targetId),
+            (publishTarget === null || draft.id === publishTarget),
         );
 
         if (!drafts.length) {
           // every currently-tracked draft has already been screened (first attempt succeeded, or this is a retry of the same batch) — publish as-is
-          return attachNote(
-            await handler(effectiveRequest),
-            strippedNoteNotice,
-          );
-        }
-
-        const project_id = configurable.projectPath;
-        const merge_request_iid = configurable.codeChangeRequestNumber;
-
-        if (!project_id || !merge_request_iid) {
-          logger.error(
-            {
-              projectPath: project_id,
-              codeChangeRequestNumber: merge_request_iid,
-            },
-            'commentCriticMiddleware missing projectPath/codeChangeRequestNumber in configurable — skipping critic',
-          );
-
           return attachNote(
             await handler(effectiveRequest),
             strippedNoteNotice,
@@ -328,27 +372,12 @@ export function commentCriticMiddleware({
           handled.add(verdict.id);
 
           try {
-            if (!config.mock.workflow) {
-              // ToolCall shape (not a bare args object) so LangChain attaches an id to the resulting tool_input/tool_output events
-              await deleteDraftNoteTool.invoke(
-                {
-                  type: 'tool_call',
-                  name: deleteDraftNoteTool.name,
-                  id: crypto.randomUUID(),
-                  args: {
-                    project_id,
-                    merge_request_iid,
-                    draft_note_id: verdict.id,
-                  },
-                },
-                { signal },
-              );
-            }
+            await withdrawDraft(verdict.id, request.runtime as WorkflowRuntime);
             dropped.push({ id: draft.id, body: draft.body });
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err);
             errors.push(`draft ${draft.id}: ${errMsg}`);
-            // delete failed — draft is likely still live on GitLab, so don't report it as withheld
+            // withdraw failed — draft is likely still live on the host, so don't report it as withheld
             failed.push({ id: draft.id, body: draft.body });
           }
         }
