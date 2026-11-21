@@ -125,7 +125,7 @@ npm run dev
           <h3>Chat</h3>
           <span class="landing-badge">Interactive</span>
         </span>
-        <p>A GitLab-aware assistant with full GitLab access, live web fetch, image uploads, and semantic search across past reviews and project history.</p>
+        <p>A GitLab- and GitHub-aware assistant with full GitLab and GitHub access, live web fetch, image uploads, and semantic search across past reviews and project history.</p>
       </label>
     </div>
     <div class="landing-workflow-stage">
