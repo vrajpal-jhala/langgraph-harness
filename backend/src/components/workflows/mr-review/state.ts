@@ -14,11 +14,10 @@ import type { DiffLineMap } from '#utils/diff.js';
 const repoInstructionsSchema = z.string().max(config.instructions.maxChars);
 
 const workflowStateSchema = z.object({
-  // TODO - rename `projectId` and `mrIid` with GitHub support for MR review; stored checkpoints hold the old names, so guard retries as work-item-resolve does.
   query: z.object({
     note: z.string(),
-    projectId: z.string(),
-    mrIid: z.string(),
+    projectPath: z.string(),
+    codeChangeRequestNumber: z.string(),
     sourceBranch: z.string(),
     targetBranch: z.string(),
     defaultBranch: z.string(),
@@ -26,7 +25,7 @@ const workflowStateSchema = z.object({
   reasoning: z.boolean().optional().default(false),
   model: z.enum(llms.map((m) => m.model) as [string, ...string[]]),
   messages: MessagesValue,
-  noteId: z.number().optional(),
+  statusCommentId: z.number().optional(),
   // Repo config + parse status, resolved in the webhook route and passed in as
   // workflow input (checkpointed, so a retry keeps it). The load_instructions
   // node consumes this; it never re-fetches the config.
@@ -63,7 +62,8 @@ export type WorkflowConfigurable = {
   noToolCallNudged: { nudged: boolean };
   trailingQuestionNudged: { nudged: boolean };
   repoKey: string;
-  mrIid: string;
+  projectPath: string;
+  codeChangeRequestNumber: string;
   diffLineMapCache: Map<string, DiffLineMap>;
   draftPositions: Map<string, DraftPosition>;
   draftTrackingStartedAt?: string;

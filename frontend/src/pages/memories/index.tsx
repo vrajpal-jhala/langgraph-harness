@@ -69,7 +69,7 @@ function entryFooterText(entry: Memory): string {
     case 'chat':
       return `${updatedText} · from chat`;
     case 'code-review':
-      return `${updatedText} · MR !${entry.source.mrIid}`;
+      return `${updatedText} · MR !${entry.source.codeChangeRequestNumber}`;
     case 'work-item-resolve':
       return `${updatedText} · issue #${entry.source.issueNumber}`;
   }

@@ -223,13 +223,16 @@ export function commentCriticMiddleware({
           );
         }
 
-        const project_id = configurable.repoKey;
-        const merge_request_iid = configurable.mrIid;
+        const project_id = configurable.projectPath;
+        const merge_request_iid = configurable.codeChangeRequestNumber;
 
         if (!project_id || !merge_request_iid) {
           logger.error(
-            { projectId: project_id, mrIid: merge_request_iid },
-            'commentCriticMiddleware missing repoKey/mrIid in configurable — skipping critic',
+            {
+              projectPath: project_id,
+              codeChangeRequestNumber: merge_request_iid,
+            },
+            'commentCriticMiddleware missing projectPath/codeChangeRequestNumber in configurable — skipping critic',
           );
 
           return attachNote(

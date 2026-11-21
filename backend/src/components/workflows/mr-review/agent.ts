@@ -9,6 +9,7 @@ import {
 } from 'langchain';
 
 import {
+  type GitHost,
   MEMORY_CATEGORIES,
   type MemoryCandidate,
   type MemoryCategoryEntryMap,
@@ -259,7 +260,15 @@ export const agent = {
     repoInstructions?: string,
     signal?: AbortSignal,
   ) {
-    const { note, projectId, mrIid, sourceBranch, targetBranch } = query;
+    const {
+      note,
+      projectPath,
+      codeChangeRequestNumber,
+      sourceBranch,
+      targetBranch,
+    } = query;
+    const host = graphConfig.configurable?.host as GitHost;
+    const repoKey = host.repoKey(projectPath);
     const mrReviewAgent = getAgent(model, reasoning);
     const toolCallCounts = new Map<string, number>();
     const toolErrorCounts = new Map<string, number>();
@@ -278,7 +287,7 @@ export const agent = {
     // Fed to the model via dynamicSystemPromptMiddleware, not spliced into messages — so it never gets baked into checkpointed history.
     const systemPrompt = buildSystemPrompt(
       repoInstructions,
-      await memoriesService.listForProject(projectId),
+      await memoriesService.listForProject(repoKey),
     );
     emitAgentPromptEvent(graphConfig, {
       id: crypto.randomUUID(),
@@ -300,8 +309,9 @@ export const agent = {
           memoryReflectNudged,
           noToolCallNudged,
           trailingQuestionNudged,
-          repoKey: projectId,
-          mrIid,
+          repoKey,
+          projectPath,
+          codeChangeRequestNumber,
           diffLineMapCache,
           draftPositions,
           worktreePath,

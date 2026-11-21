@@ -107,7 +107,7 @@ const createMemoryCandidate = createMemoryCandidateTool<WorkflowConfigurable>({
     'Flag a durable, repo-specific fact worth remembering for future reviews of this repository — a coding convention, a recurring false positive, a team preference surfaced in discussion, or an architectural decision.',
   buildSource: (configurable) => ({
     workflow: 'code-review',
-    mrIid: configurable.mrIid ?? '',
+    codeChangeRequestNumber: configurable.codeChangeRequestNumber ?? '',
   }),
 });
 

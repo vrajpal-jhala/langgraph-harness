@@ -2,12 +2,10 @@ import {
   type AlertType,
   CompletionStatus,
   type GitHost,
-  GitProvider,
   InstructionStatus,
 } from '#types.js';
 
 import { config, llms, noteFooter } from './config.js';
-import { gitHosts } from './git-host.js';
 
 function threadLink(threadId?: string): string {
   return threadId
@@ -15,7 +13,7 @@ function threadLink(threadId?: string): string {
     : '.';
 }
 
-// Only buildMrNoteBody/buildWorkItemResolveNoteBody append this footer — real review comments/replies never do.
+// Only buildReviewNoteBody/buildWorkItemResolveNoteBody append this footer — real review comments/replies never do.
 export function isAutomatedStatusNote(body: string): boolean {
   return body.includes(noteFooter);
 }
@@ -41,7 +39,8 @@ function instructionLine(status: InstructionStatus): string | null {
   }
 }
 
-function buildMrNoteBody(
+function buildReviewNoteBody(
+  host: GitHost,
   modelId: string,
   alert: { type: AlertType; title: string; body: string },
   status: InstructionStatus,
@@ -51,43 +50,56 @@ function buildMrNoteBody(
   const line = instructionLine(status);
 
   return [
-    // mr-review only runs on GitLab so far.
-    gitHosts[GitProvider.GitLab].formatAlert(
-      alert.type,
-      alert.title,
-      alert.body,
-    ),
+    host.formatAlert(alert.type, alert.title, alert.body),
     ...(line ? [`_${line}_`] : []),
     `Reviewed by <small>${modelName}</small>${threadLink(threadId)}`,
     noteFooter,
   ].join('\n\n');
 }
 
-export const mrNote = {
-  inProgress: (modelId: string, status: InstructionStatus, threadId?: string) =>
-    buildMrNoteBody(
+export const reviewNote = {
+  inProgress: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
+    buildReviewNoteBody(
+      host,
       modelId,
       {
         type: 'note',
         title: 'Review in Progress',
-        body: 'The agent is currently analysing this merge request. Comments will appear shortly if any.',
+        body: `The agent is currently analysing this ${host.codeChangeRequestName}. Comments will appear shortly if any.`,
       },
       status,
       threadId,
     ),
-  completed: (modelId: string, status: InstructionStatus, threadId?: string) =>
-    buildMrNoteBody(
+  completed: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
+    buildReviewNoteBody(
+      host,
       modelId,
       {
         type: 'tip',
         title: 'Review Completed',
-        body: 'The agent has finished reviewing this merge request.',
+        body: `The agent has finished reviewing this ${host.codeChangeRequestName}.`,
       },
       status,
       threadId,
     ),
-  failed: (modelId: string, status: InstructionStatus, threadId?: string) =>
-    buildMrNoteBody(
+  failed: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
+    buildReviewNoteBody(
+      host,
       modelId,
       {
         type: 'warning',
@@ -97,8 +109,14 @@ export const mrNote = {
       status,
       threadId,
     ),
-  aborted: (modelId: string, status: InstructionStatus, threadId?: string) =>
-    buildMrNoteBody(
+  aborted: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
+    buildReviewNoteBody(
+      host,
       modelId,
       {
         type: 'caution',
@@ -108,13 +126,19 @@ export const mrNote = {
       status,
       threadId,
     ),
-  timedOut: (modelId: string, status: InstructionStatus, threadId?: string) =>
-    buildMrNoteBody(
+  timedOut: (
+    host: GitHost,
+    modelId: string,
+    status: InstructionStatus,
+    threadId?: string,
+  ) =>
+    buildReviewNoteBody(
+      host,
       modelId,
       {
         type: 'caution',
         title: 'Review Timed Out',
-        body: 'The review took too long and was stopped automatically. Try again, or split the merge request into smaller changes.',
+        body: `The review took too long and was stopped automatically. Try again, or split the ${host.codeChangeRequestName} into smaller changes.`,
       },
       status,
       threadId,

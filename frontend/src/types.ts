@@ -57,10 +57,11 @@ export type Queue = {
 
 export type MrReviewRunInput = {
   kind: 'mr_review';
+  provider: GitProvider;
   query: {
     note: string;
-    projectId: string;
-    mrIid: string;
+    projectPath: string;
+    codeChangeRequestNumber: string;
   };
   model: string;
   reasoning: boolean;
@@ -158,7 +159,7 @@ export const MemoryScope = {
 export type MemoryScope = (typeof MemoryScope)[keyof typeof MemoryScope];
 
 export type MemorySource =
-  | { workflow: 'code-review'; mrIid: string }
+  | { workflow: 'code-review'; codeChangeRequestNumber: string }
   | { workflow: 'chat'; threadId: string }
   | { workflow: 'work-item-resolve'; issueNumber: string };
 

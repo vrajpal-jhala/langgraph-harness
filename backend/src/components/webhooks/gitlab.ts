@@ -7,7 +7,10 @@ import { repositoriesManager } from '#components/repositories/manager.js';
 import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
-import { enqueueMrReview } from '#components/workflows/mr-review/queue.js';
+import {
+  enqueueMrReview,
+  reviewJobId,
+} from '#components/workflows/mr-review/queue.js';
 import { handleOnce } from './delivery.js';
 import { mentionsUser, startFollowUpRun } from './follow-up.js';
 import { startWorkItemResolveRun } from './work-item.js';
@@ -240,16 +243,16 @@ async function handleMergeRequestEvent(body: any) {
 
   const mrMetadata = {
     source: GitProvider.GitLab,
-    type: 'mr',
+    type: 'code_change_request',
     project: projectPath,
     number: mrIid,
   };
 
-  // MR lifecycle end — clean up its worktree, independent of the review flow below. No memories cleanup: mrIid metadata isn't reliably attributable to one MR, and the curator retires stale memories on its own anyway.
+  // MR lifecycle end — clean up its worktree, independent of the review flow below. No memories cleanup: codeChangeRequestNumber metadata isn't reliably attributable to one MR, and the curator retires stale memories on its own anyway.
   if (action === 'merge' || action === 'close') {
     await repositoriesManager.cleanupWorktree({
       repo: host.repoKey(projectPath),
-      entityType: 'mr',
+      entityType: 'code_change_request',
       entityId: String(mrIid),
     });
 
@@ -393,14 +396,19 @@ async function handleMergeRequestEvent(body: any) {
 
   // Remember who opened the MR so they can abort or retry its review. Not the top-level `user`, which is whoever triggered this event.
   const authorId = object_attributes?.author_id;
-  if (typeof authorId === 'number' && thread.metadata?.mrAuthorId == null) {
-    await threadsDal.mergeMetadata(thread.id, { mrAuthorId: authorId });
+  if (
+    typeof authorId === 'number' &&
+    thread.metadata?.codeChangeRequestAuthorId == null
+  ) {
+    await threadsDal.mergeMetadata(thread.id, {
+      codeChangeRequestAuthorId: authorId,
+    });
   }
 
   const query = {
     note: `Perform a code review of MR !${mrIid} in project "${projectPath}".`,
-    projectId: projectPath,
-    mrIid: String(mrIid),
+    projectPath,
+    codeChangeRequestNumber: String(mrIid),
     sourceBranch,
     sourceSha,
     targetBranch,
@@ -408,6 +416,7 @@ async function handleMergeRequestEvent(body: any) {
   };
   const runInput = {
     kind: RunKind.MrReview,
+    provider: GitProvider.GitLab,
     query,
     model: defaultModel,
     reasoning: config.generation.reasoning,
@@ -416,7 +425,7 @@ async function handleMergeRequestEvent(body: any) {
   const run = await runsService.create(thread.id, RunKind.MrReview, runInput);
 
   await enqueueMrReview(
-    `review:${projectPath}:${mrIid}`,
+    reviewJobId(GitProvider.GitLab, query),
     { threadId: thread.id, runId: run.id, ...runInput },
     isInitial || isMarkedReady ? 0 : undefined,
   );

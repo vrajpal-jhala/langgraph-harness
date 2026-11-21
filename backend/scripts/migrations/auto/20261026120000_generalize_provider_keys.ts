@@ -6,13 +6,19 @@ import {
   withoutThreadTouchTrigger,
 } from './helpers.js';
 
-// Thread metadata keys both providers write, renamed from GitLab's terms. mr-review's `type: 'mr'` and `mrAuthorId` stay GitLab-only for now.
+// Thread metadata keys both providers write, renamed from GitLab's terms.
 const METADATA_RENAMES = [
   ['mrIid', 'codeChangeRequestNumber'],
   ['mrUrl', 'codeChangeRequestUrl'],
   ['iid', 'number'],
   ['lastRunReplyNoteIds', 'lastRunReplyCommentIds'],
   ['statusNoteId', 'statusCommentId'],
+  ['mrAuthorId', 'codeChangeRequestAuthorId'],
+] as const;
+
+const MR_REVIEW_QUERY_RENAMES = [
+  ['projectId', 'projectPath'],
+  ['mrIid', 'codeChangeRequestNumber'],
 ] as const;
 
 // Also moves the sandbox steps to the action-first names every other step uses.
@@ -130,7 +136,7 @@ async function renameStepDataKeys(
   return total;
 }
 
-// A work-item run's input and a memory's provenance name an issue's number `issueNumber`, like the thread metadata's `number`; mr-review's `mrIid` stays GitLab-only.
+// A work-item run's input and a memory's provenance name an issue's number `issueNumber`, like the thread metadata's `number`.
 async function renameRunInputKey(
   db: Kysely<any>,
   from: string,
@@ -150,8 +156,31 @@ async function renameRunInputKey(
   return Number(numUpdatedRows);
 }
 
+async function renameMrReviewQueryKeys(
+  db: Kysely<any>,
+  renames: readonly (readonly [string, string])[],
+): Promise<number> {
+  let total = 0;
+  for (const [from, to] of renames) {
+    const { numUpdatedRows } = await db
+      .updateTable('runs')
+      .set({
+        input: sql`jsonb_set(input, '{query}', ((input -> 'query') - ${from}::text) || jsonb_build_object(${to}::text, input -> 'query' -> ${from}::text))`,
+      })
+      .where('kind', '=', 'mr_review')
+      .where(sql<boolean>`input -> 'query' -> ${from}::text IS NOT NULL`)
+      .executeTakeFirst();
+    console.log(
+      `[generalize-provider-keys] run input query.${from} → query.${to}: ${numUpdatedRows} run(s)`,
+    );
+    total += Number(numUpdatedRows);
+  }
+  return total;
+}
+
 async function renameMemorySourceKey(
   db: Kysely<any>,
+  workflow: string,
   from: string,
   to: string,
 ): Promise<number> {
@@ -160,11 +189,47 @@ async function renameMemorySourceKey(
     .set({
       source: sql`(source - ${from}::text) || jsonb_build_object(${to}::text, source -> ${from}::text)`,
     })
-    .where(sql<boolean>`source ->> 'workflow' = 'work-item-resolve'`)
+    .where(sql<boolean>`source ->> 'workflow' = ${workflow}`)
     .where(sql<boolean>`source -> ${from}::text IS NOT NULL`)
     .executeTakeFirst();
   console.log(
-    `[generalize-provider-keys] memory source ${from} → ${to}: ${numUpdatedRows} memor(ies)`,
+    `[generalize-provider-keys] ${workflow} memory source ${from} → ${to}: ${numUpdatedRows} memor(ies)`,
+  );
+  return Number(numUpdatedRows);
+}
+
+async function renameMrReviewThreadType(
+  db: Kysely<any>,
+  from: string,
+  to: string,
+): Promise<number> {
+  const { numUpdatedRows } = await db
+    .updateTable('threads')
+    .set({
+      metadata: sql`jsonb_set(metadata, '{type}', to_jsonb(${to}::text))`,
+    })
+    .where('kind', '=', 'mr_review')
+    .where(sql<boolean>`metadata ->> 'type' = ${from}`)
+    .executeTakeFirst();
+  console.log(
+    `[generalize-provider-keys] mr_review metadata type ${from} → ${to}: ${numUpdatedRows} thread(s)`,
+  );
+  return Number(numUpdatedRows);
+}
+
+// The worktree directory is named after the entity type, so the old `mr-<n>` directory is left behind — startup reconcile drops the row (its new path doesn't exist) and removes the directory as an orphan.
+async function renameWorktreeEntityType(
+  db: Kysely<any>,
+  from: string,
+  to: string,
+): Promise<number> {
+  const { numUpdatedRows } = await db
+    .updateTable('worktree_leases')
+    .set({ entity_type: to })
+    .where('entity_type', '=', from)
+    .executeTakeFirst();
+  console.log(
+    `[generalize-provider-keys] worktree entity_type ${from} → ${to}: ${numUpdatedRows} lease(s)`,
   );
   return Number(numUpdatedRows);
 }
@@ -208,6 +273,8 @@ export async function up(db: Kysely<any>): Promise<void> {
     );
     total += Number(numUpdatedRows);
 
+    total += await renameMrReviewThreadType(db, 'mr', 'code_change_request');
+
     // Every merge request opened before GitHub's draft fallback was a draft; runs after the rename, which it matches on.
     const { numUpdatedRows: draftRows } = await db
       .updateTable('threads')
@@ -228,7 +295,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     const { numUpdatedRows } = await db
       .updateTable('runs')
       .set({ input: sql`input || '{"provider": "gitlab"}'::jsonb` })
-      .where('kind', '=', 'work_item_resolve')
+      .where('kind', 'in', ['work_item_resolve', 'mr_review'])
       .where(sql<boolean>`input -> 'provider' IS NULL`)
       .executeTakeFirst();
     console.log(
@@ -243,10 +310,22 @@ export async function up(db: Kysely<any>): Promise<void> {
       STEP_DATA_RENAMES,
     );
     total += await renameRunInputKey(db, 'issueIid', 'issueNumber');
+    total += await renameMrReviewQueryKeys(db, MR_REVIEW_QUERY_RENAMES);
   });
 
   await withoutMemoryTouchTrigger(db, async () => {
-    total += await renameMemorySourceKey(db, 'issueIid', 'issueNumber');
+    total += await renameMemorySourceKey(
+      db,
+      'work-item-resolve',
+      'issueIid',
+      'issueNumber',
+    );
+    total += await renameMemorySourceKey(
+      db,
+      'code-review',
+      'mrIid',
+      'codeChangeRequestNumber',
+    );
   });
 
   await renameWorktreeKeyColumn(
@@ -256,6 +335,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     'worktree_leases_repo_entity_iid',
     'worktree_leases_repo_entity_id',
   );
+  total += await renameWorktreeEntityType(db, 'mr', 'code_change_request');
 
   console.log(
     `[generalize-provider-keys] done — ${total} row update(s) in total`,
@@ -270,6 +350,7 @@ export async function down(db: Kysely<any>): Promise<void> {
 
   await withoutThreadTouchTrigger(db, async () => {
     await renameMetadataKeys(db, reversed(METADATA_RENAMES));
+    await renameMrReviewThreadType(db, 'code_change_request', 'mr');
   });
   await withoutRunTouchTriggers(db, async () => {
     await renameStepDataKeys(
@@ -279,10 +360,23 @@ export async function down(db: Kysely<any>): Promise<void> {
     );
     await renameStepValues(db, reversed(STEP_RENAMES));
     await renameRunInputKey(db, 'issueNumber', 'issueIid');
+    await renameMrReviewQueryKeys(db, reversed(MR_REVIEW_QUERY_RENAMES));
   });
   await withoutMemoryTouchTrigger(db, async () => {
-    await renameMemorySourceKey(db, 'issueNumber', 'issueIid');
+    await renameMemorySourceKey(
+      db,
+      'work-item-resolve',
+      'issueNumber',
+      'issueIid',
+    );
+    await renameMemorySourceKey(
+      db,
+      'code-review',
+      'codeChangeRequestNumber',
+      'mrIid',
+    );
   });
+  await renameWorktreeEntityType(db, 'code_change_request', 'mr');
   await renameWorktreeKeyColumn(
     db,
     'entity_id',

@@ -376,10 +376,11 @@ export type RunKind = (typeof RunKind)[keyof typeof RunKind];
 
 export type MrReviewRunInput = {
   kind: typeof RunKind.MrReview;
+  provider: GitProvider;
   query: {
     note: string;
-    projectId: string;
-    mrIid: string;
+    projectPath: string;
+    codeChangeRequestNumber: string;
     sourceBranch: string;
     sourceSha: string;
     targetBranch: string;
@@ -1139,8 +1140,7 @@ export interface MemoryTable {
   updated_at: Timestamp;
 }
 
-// TODO - rename 'mr' once MR review supports GitHub; it's persisted in worktree_leases and in worktree directory names.
-export type WorktreeEntityType = 'mr' | 'issue' | 'task';
+export type WorktreeEntityType = 'code_change_request' | 'issue' | 'task';
 
 export type WorktreeIdentity = {
   repo: string;

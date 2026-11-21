@@ -134,7 +134,8 @@ const ThreadDetailPage = () => {
   // Only hides the buttons; the server still checks every abort and retry.
   const canMutate =
     user?.role === Role.Admin ||
-    (user?.gitlabId != null && thread?.metadata?.mrAuthorId === user.gitlabId);
+    (user?.gitlabId != null &&
+      thread?.metadata?.codeChangeRequestAuthorId === user.gitlabId);
   const retryRun = useConfirmAction({
     title: 'Retry run',
     message: 'Retry this run from this checkpoint?',
@@ -577,7 +578,7 @@ const ThreadDetailPage = () => {
   const externalLink =
     firstInput && isMrReviewRunInput(firstInput)
       ? {
-          url: `${config.gitlabUrl}/${firstInput.query.projectId}/-/merge_requests/${firstInput.query.mrIid}`,
+          url: `${config.gitlabUrl}/${firstInput.query.projectPath}/-/merge_requests/${firstInput.query.codeChangeRequestNumber}`,
           label: 'Open merge request',
         }
       : firstInput && isWorkItemResolveRunInput(firstInput)

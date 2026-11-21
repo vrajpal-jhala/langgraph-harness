@@ -187,7 +187,7 @@ declare class AppError extends Error {
 declare const MemorySourceSchema: z$1.ZodDiscriminatedUnion<[
 	z$1.ZodObject<{
 		workflow: z$1.ZodLiteral<"code-review">;
-		mrIid: z$1.ZodString;
+		codeChangeRequestNumber: z$1.ZodString;
 	}, z$1.z.core.$strip>,
 	z$1.ZodObject<{
 		workflow: z$1.ZodLiteral<"chat">;
@@ -513,10 +513,11 @@ declare const RunKind: {
 type RunKind = (typeof RunKind)[keyof typeof RunKind];
 type MrReviewRunInput = {
 	kind: typeof RunKind.MrReview;
+	provider: GitProvider;
 	query: {
 		note: string;
-		projectId: string;
-		mrIid: string;
+		projectPath: string;
+		codeChangeRequestNumber: string;
 		sourceBranch: string;
 		sourceSha: string;
 		targetBranch: string;
