@@ -92,6 +92,14 @@ consistent across 30+ releases:
 - One bullet per distinct change.
 - `**Bold one-line hook naming the symptom or capability**` — em dash — plain-
   prose explanation of the fix/behavior in user terms.
+- End the bullet with a link to the GitHub issue it resolves, or to its PR
+  when there's no issue: ` ([#62](https://github.com/vrajpal-jhala/langgraph-harness/issues/62))`
+  or `.../pull/71`. Use a full URL, not a bare `#62`: release notes autolink
+  `#62` but `CHANGELOG.md` viewed on GitHub or the docs site doesn't. Prefer
+  the issue only when it's specific to this entry; an umbrella issue that
+  several entries share gets each entry's own PR instead. Two PRs are fine
+  when one entry genuinely spans both. The PR number isn't known before the
+  PR exists, so add it once it's opened, before merge.
 - No internal file paths, function names, or variable names in the prose.
   Describe outcomes ("the run now retries once before giving up"), not
   implementation ("wrapped the call in `retryWithBackoff`").
@@ -108,18 +116,18 @@ consistent across 30+ releases:
 
 ## 3. Pick the version bump
 
-This repo has only ever done patch and minor bumps (still on major `1`) — but
-apply real semver:
+This repo is still pre-1.0 (`0.x`), where a breaking change bumps the minor
+version, not the major one. Otherwise apply semver:
 
 - **Patch** (`x.y.Z+1`): only `### Fixes` in this release.
 - **Minor** (`x.Y+1.0`): any `### Features` present, even alongside fixes.
-- **Major** (`X+1.0.0`): a breaking change — something existing users/configs
-  must change to keep working (removed capability, incompatible data/config
-  format, changed default that alters existing behavior) — goes in its own
-  `### Breaking Changes` section at the end of the entry (see step 2), which
-  is what actually triggers the major bump. Flag this explicitly to the user before bumping
-  major; don't do it silently, since a major bump is an unusual call in this
-  repo's history.
+- **Breaking** — something existing users/configs must change to keep
+  working (removed capability, incompatible data/config format, changed
+  default that alters existing behavior) — goes in its own
+  `### Breaking Changes` section at the end of the entry (see step 2). On
+  `0.x` it's a minor bump like a feature; only after 1.0 does it bump the
+  major. Going to `1.0.0` is the user's call (it promises stable config and
+  data formats), so never do it unprompted.
 
 Insert the new block at the top of `CHANGELOG.md`, dated with today's actual
 date (never fabricate — get it from the environment), then bump
