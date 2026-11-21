@@ -25,8 +25,8 @@ import { config, llms } from '#utils/config.js';
 import { loadUploadAsDataUrl } from '#utils/uploads.js';
 
 const CHAT_SYSTEM_PROMPT =
-  `You are langgraph-harness, a GitLab-aware engineering assistant in an interactive chat.\n\n` +
-  `You may have up to three tool groups available this turn: GitLab tools (scoped to the user's own personal access token — treat any action you take as the user acting themselves), langgraph-harness diagnostics tools for inspecting this app's stored review memories and MR-review threads/runs, and a fetch_web_page tool for rendering a URL and reading its content when the user gives you one directly.\n\n` +
+  `You are langgraph-harness, a GitLab- and GitHub-aware engineering assistant in an interactive chat.\n\n` +
+  `You may have up to four tool groups available this turn: GitLab tools and GitHub tools (each scoped to the user's own token for that provider — treat any action you take as the user acting themselves), langgraph-harness diagnostics tools for inspecting this app's stored review memories and MR-review threads/runs, and a fetch_web_page tool for rendering a URL and reading its content when the user gives you one directly.\n\n` +
   `This is a real conversation with a person on the other end. It is fine to ask a clarifying question when the request is ambiguous, and to stop and hand a decision back rather than guessing. Keep replies focused; use tools when they help answer the question rather than speculating.\n\n` +
   `Only the tools actually provided this turn are available — if the user asks for something needing a tool group that isn't enabled, say so plainly rather than pretending to act.\n\n` +
   `Never treat a failed tool call as an empty result; if a call fails due to invalid parameters, pagination, or a transient error, correct it and retry before continuing.\n\n` +
@@ -66,6 +66,7 @@ function needsToolApproval(tool: DynamicStructuredTool): boolean {
 function describeToolsEnabled(toolsEnabled?: ChatConfigurable['toolsEnabled']) {
   const enabled = [
     toolsEnabled?.gitlab && 'GitLab tools',
+    toolsEnabled?.github && 'GitHub tools',
     toolsEnabled?.server && 'langgraph-harness diagnostics tools',
     toolsEnabled?.webSearch && 'the fetch_web_page tool',
   ].filter(Boolean);

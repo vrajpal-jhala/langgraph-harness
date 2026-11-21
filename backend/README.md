@@ -1,12 +1,12 @@
 # langgraph-harness Backend
 
-Elysia API server powering the langgraph-harness agent. Runs LangGraph workflows with GitLab MCP tools, persists conversation threads in PostgreSQL, and streams run events over SSE. MR reviews are triggered automatically via GitLab webhooks and debounced through a BullMQ queue; Chat runs are started directly by the user and can pause mid-run for tool-call approval.
+Elysia API server powering the langgraph-harness agent. Runs LangGraph workflows with GitLab and GitHub MCP tools, persists conversation threads in PostgreSQL, and streams run events over SSE. Merge and pull request reviews are triggered automatically via GitLab and GitHub webhooks and debounced through a BullMQ queue; Chat runs are started directly by the user and can pause mid-run for tool-call approval.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    GL[GitLab MR Event] --> WH[Webhook Endpoint]
+    GL[GitLab / GitHub event] --> WH[Webhook Endpoint]
     WH --> Q[BullMQ Queue]
     Q -->|debounce 5 min| AG[LangGraph Agent]
     AG -->|MCP tools| GL
@@ -30,42 +30,68 @@ npm install
 cp .env.example .env
 ```
 
-| Variable                        | Required       | Default                     | Description                                                                                                                                                            |
-| ------------------------------- | -------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GITLAB_PAT`                    | Yes            | —                           | GitLab personal access token (`api` scope)                                                                                                                             |
-| `WEBHOOK_TOKENS`                | Yes            | —                           | Secret(s) for validating incoming GitLab webhook requests; comma-separated for multiple webhooks                                                                       |
-| `GITLAB_OAUTH_CLIENT_ID`        | Yes            | —                           | GitLab OAuth application client ID, for login                                                                                                                          |
-| `GITLAB_OAUTH_CLIENT_SECRET`    | Yes            | —                           | GitLab OAuth application client secret, for login                                                                                                                      |
-| `SESSION_SECRET`                | Yes            | —                           | Signing secret for session cookies; also the key better-auth encrypts stored GitLab OAuth tokens with — rotating it forces every user to reconnect GitLab              |
-| `SECRETS_ENCRYPTION_KEY`        | Yes            | —                           | Key for encrypting app-managed secrets at rest (e.g. per-user OpenRouter keys) — kept separate from `SESSION_SECRET` so rotating one doesn't break the other           |
-| `ADMIN_GITLAB_USERNAMES`        | Yes            | —                           | Comma-separated GitLab @handles allowed to perform destructive actions (an MR's author can also abort/retry its own review)                                            |
-| `AUTH_TRUSTED_ORIGINS`          | No             | —                           | Comma-separated additional origins allowed as post-login redirect targets and OAuth hosts (e.g. a LAN IP) — each must also be a registered GitLab OAuth redirect URI   |
-| `GITLAB_API_URL`                | No             | `https://gitlab.com/api/v4` | GitLab API base URL (override for self-hosted)                                                                                                                         |
-| `GITLAB_BOT_USERNAME`           | No             | —                           | Username of the GitLab account `GITLAB_PAT` belongs to — lets analytics tell the bot's own review comments apart from a human's when computing comment acceptance rate |
-| `GITLAB_BOT_NAME`               | No             | `langgraph-harness`         | Git commit author name used for commits the bot makes                                                                                                                  |
-| `GITLAB_BOT_EMAIL`              | No             | `bot@example.com`           | Git commit author email used for commits the bot makes                                                                                                                 |
-| `WORKFLOW_PROJECT_PATH_FILTERS` | No             | —                           | Comma-separated GitLab project-path substrings to restrict MR review/work-item workflows to. Empty means no restriction — every project is in scope                    |
-| `AUTH_ALLOWED_EMAIL_DOMAINS`    | No             | —                           | Comma-separated email domains allowed to sign in via GitLab OAuth. Empty means no restriction                                                                          |
-| `ISSUE_TRACKER_URL`             | No             | this repo's GitHub issues   | Link shown in the "file an issue" footer on AI-authored MR/thread notes                                                                                                |
-| `OPENROUTER_API_KEY`            | One of         | —                           | For cloud LLMs (GPT, Claude) in MR review. Chat instead uses each user's own key, saved (encrypted) from the Settings page — this env var doesn't cover it.            |
-| `OLLAMA_BASE_URL`               | One of         | `http://localhost:11434`    | For local LLMs                                                                                                                                                         |
-| `OLLAMA_API_KEY`                | No             | —                           | Bearer token sent to Ollama, for authenticated/hosted Ollama endpoints                                                                                                 |
-| `SGLANG_BASE_URL`               | One of         | `http://localhost:30000`    | For local LLMs served via sglang                                                                                                                                       |
-| `SGLANG_API_KEY`                | No             | —                           | Bearer token sent to sglang, for authenticated/hosted sglang endpoints                                                                                                 |
-| `GEMINI_API_KEY`                | One of         | —                           | Free-tier Google AI Studio key, for MR review. Chat doesn't support this provider (see `OPENROUTER_API_KEY` above)                                                     |
-| `GROQ_API_KEY`                  | One of         | —                           | Free-tier Groq key, for MR review. Chat doesn't support this provider (see `OPENROUTER_API_KEY` above)                                                                 |
-| `DB_HOST`                       | No             | `localhost`                 | PostgreSQL host                                                                                                                                                        |
-| `DB_PORT`                       | No             | `5432`                      | PostgreSQL port                                                                                                                                                        |
-| `DB_USER`                       | No             | `postgres`                  | PostgreSQL user                                                                                                                                                        |
-| `DB_PASSWORD`                   | No             | `postgres`                  | PostgreSQL password                                                                                                                                                    |
-| `DB_NAME`                       | No             | `harness`                   | PostgreSQL database name                                                                                                                                               |
-| `REDIS_URL`                     | No             | `redis://localhost:6379`    | Redis connection URL (used by both ioredis and BullMQ)                                                                                                                 |
-| `LIGHTPANDA_CDP_URL`            | No             | `http://localhost:9222`     | CDP endpoint for the Lightpanda headless browser, used by chat's `fetch_web_page` tool                                                                                 |
-| `SUPERMEMORY_URL`               | No             | `http://localhost:6767`     | URL of the self-hosted supermemory server, used by chat's `list_projects`/`search_project_history`/`get_project_issue` tools                                           |
-| `SUPERMEMORY_API_KEY`           | For chat tools | —                           | Supermemory API key. Ingested projects themselves are configured in `utils/config.ts`'s `supermemoryProjects`, not via env vars                                        |
-| `MONITORING_URL`                | No             | `http://localhost:4100`     | URL of the standalone monitoring service backing the admin-only `/monitoring` page                                                                                     |
-| `MONITORING_API_KEY`            | For monitoring | —                           | Shared key presented to the monitoring service on every request; must match its own `MONITORING_API_KEY`                                                               |
-| `LOG_LEVEL`                     | No             | `info`                      | Log verbosity: `debug`, `info`, `warn`, `error`                                                                                                                        |
+Configure **GitLab, GitHub, or both**. Each provider's "Yes" variables are all-or-nothing: set every one to enable that provider, or none to leave it off. The backend refuses to start if no provider is fully configured, or if one is only partly configured, and names the missing variables.
+
+**Shared**
+
+| Variable                        | Required       | Default                   | Description                                                                                                                                                                                                  |
+| ------------------------------- | -------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SESSION_SECRET`                | Yes            | —                         | Signing secret for session cookies; also the key better-auth encrypts stored GitLab and GitHub OAuth tokens with — rotating it forces every user to reconnect them                                           |
+| `SECRETS_ENCRYPTION_KEY`        | Yes            | —                         | Key for encrypting app-managed secrets at rest (e.g. per-user OpenRouter keys) — kept separate from `SESSION_SECRET` so rotating one doesn't break the other                                                 |
+| `AUTH_TRUSTED_ORIGINS`          | No             | —                         | Comma-separated additional origins allowed as post-login redirect targets and OAuth hosts (e.g. a LAN IP) — each must also be registered as a callback URL on your OAuth app(s)                              |
+| `WORKFLOW_PROJECT_PATH_FILTERS` | No             | —                         | Comma-separated project/repository-path substrings to restrict the git workflows to. Empty means no restriction — every project is in scope                                                                  |
+| `AUTH_ALLOWED_EMAIL_DOMAINS`    | No             | —                         | Comma-separated email domains allowed to sign in, via GitLab or GitHub. A provider connected from Settings can have any email, but signing in with it still needs an allowed one. Empty means no restriction |
+| `ISSUE_TRACKER_URL`             | No             | this repo's GitHub issues | Link shown in the "file an issue" footer on AI-authored notes and comments                                                                                                                                   |
+| `OPENROUTER_API_KEY`            | One of         | —                         | For cloud LLMs (GPT, Claude) in MR review. Chat instead uses each user's own key, saved (encrypted) from the Settings page — this env var doesn't cover it.                                                  |
+| `OLLAMA_BASE_URL`               | One of         | `http://localhost:11434`  | For local LLMs                                                                                                                                                                                               |
+| `OLLAMA_API_KEY`                | No             | —                         | Bearer token sent to Ollama, for authenticated/hosted Ollama endpoints                                                                                                                                       |
+| `SGLANG_BASE_URL`               | One of         | `http://localhost:30000`  | For local LLMs served via sglang                                                                                                                                                                             |
+| `SGLANG_API_KEY`                | No             | —                         | Bearer token sent to sglang, for authenticated/hosted sglang endpoints                                                                                                                                       |
+| `GEMINI_API_KEY`                | One of         | —                         | Free-tier Google AI Studio key, for MR review. Chat doesn't support this provider (see `OPENROUTER_API_KEY` above)                                                                                           |
+| `GROQ_API_KEY`                  | One of         | —                         | Free-tier Groq key, for MR review. Chat doesn't support this provider (see `OPENROUTER_API_KEY` above)                                                                                                       |
+| `DB_HOST`                       | No             | `localhost`               | PostgreSQL host                                                                                                                                                                                              |
+| `DB_PORT`                       | No             | `5432`                    | PostgreSQL port                                                                                                                                                                                              |
+| `DB_USER`                       | No             | `postgres`                | PostgreSQL user                                                                                                                                                                                              |
+| `DB_PASSWORD`                   | No             | `postgres`                | PostgreSQL password                                                                                                                                                                                          |
+| `DB_NAME`                       | No             | `harness`                 | PostgreSQL database name                                                                                                                                                                                     |
+| `REDIS_URL`                     | No             | `redis://localhost:6379`  | Redis connection URL (used by both ioredis and BullMQ)                                                                                                                                                       |
+| `LIGHTPANDA_CDP_URL`            | No             | `http://localhost:9222`   | CDP endpoint for the Lightpanda headless browser, used by chat's `fetch_web_page` tool                                                                                                                       |
+| `SUPERMEMORY_URL`               | No             | `http://localhost:6767`   | URL of the self-hosted supermemory server, used by chat's `list_projects`/`search_project_history`/`get_project_issue` tools                                                                                 |
+| `SUPERMEMORY_API_KEY`           | For chat tools | —                         | Supermemory API key. Ingested projects themselves are configured in `utils/config.ts`'s `supermemoryProjects`, not via env vars                                                                              |
+| `MONITORING_URL`                | No             | `http://localhost:4100`   | URL of the standalone monitoring service backing the admin-only `/monitoring` page                                                                                                                           |
+| `MONITORING_API_KEY`            | For monitoring | —                         | Shared key presented to the monitoring service on every request; must match its own `MONITORING_API_KEY`                                                                                                     |
+| `LOG_LEVEL`                     | No             | `info`                    | Log verbosity: `debug`, `info`, `warn`, `error`                                                                                                                                                              |
+
+**GitLab**
+
+| Variable                     | Required | Default                     | Description                                                                                                                                                                             |
+| ---------------------------- | -------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITLAB_PAT`                 | Yes      | —                           | GitLab personal access token (`api` scope)                                                                                                                                              |
+| `GITLAB_BOT_USERNAME`        | Yes      | —                           | Username of the GitLab account `GITLAB_PAT` belongs to — used to recognize the bot's own notes and issue assignments, and to tell its review comments apart from a human's in analytics |
+| `GITLAB_WEBHOOK_TOKENS`      | Yes      | —                           | Signing token(s) of the GitLab webhooks (generated by GitLab, `whsec_...`), used to verify each delivery's signature; comma-separated for multiple webhooks                             |
+| `GITLAB_OAUTH_CLIENT_ID`     | Yes      | —                           | GitLab OAuth application client ID, for sign-in                                                                                                                                         |
+| `GITLAB_OAUTH_CLIENT_SECRET` | Yes      | —                           | GitLab OAuth application client secret, for sign-in                                                                                                                                     |
+| `GITLAB_ADMIN_USERNAMES`     | Yes      | —                           | Comma-separated GitLab @handles allowed to perform destructive actions (a merge request's author can also abort/retry its own review)                                                   |
+| `GITLAB_API_URL`             | No       | `https://gitlab.com/api/v4` | GitLab API base URL (override for self-hosted)                                                                                                                                          |
+| `GITLAB_MCP_URL`             | No       | `http://localhost:3002/mcp` | URL of the GitLab MCP server (the `gitlab-mcp` compose service). `docker-compose.yml` points the backend container at `http://gitlab-mcp:3002/mcp`                                      |
+| `GITLAB_BOT_NAME`            | No       | `langgraph-harness`         | Git commit author name used for commits the bot makes                                                                                                                                   |
+| `GITLAB_BOT_EMAIL`           | No       | `bot@example.com`           | Git commit author email used for commits the bot makes                                                                                                                                  |
+
+**GitHub**
+
+| Variable                     | Required | Default                     | Description                                                                                                                                                     |
+| ---------------------------- | -------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_PAT`                 | Yes      | —                           | GitHub token for the bot account: classic with `repo` scope, or fine-grained with Contents, Issues and Pull requests read/write                                 |
+| `GITHUB_BOT_USERNAME`        | Yes      | —                           | Login of the GitHub account `GITHUB_PAT` belongs to — issues assigned to it start a run, and its own comments are ignored                                       |
+| `GITHUB_WEBHOOK_TOKENS`      | Yes      | —                           | Secret(s) for verifying GitHub webhook signatures; comma-separated for multiple webhooks                                                                        |
+| `GITHUB_OAUTH_CLIENT_ID`     | Yes      | —                           | GitHub OAuth app client ID, for sign-in (github.com only)                                                                                                       |
+| `GITHUB_OAUTH_CLIENT_SECRET` | Yes      | —                           | GitHub OAuth app client secret, for sign-in                                                                                                                     |
+| `GITHUB_ADMIN_USERNAMES`     | Yes      | —                           | Comma-separated GitHub logins with the same admin rights as `GITLAB_ADMIN_USERNAMES`. Matched only against a user's GitHub sign-in, never their GitLab username |
+| `GITHUB_API_URL`             | No       | `https://api.github.com`    | GitHub API base URL; for GitHub Enterprise Server use `https://<host>/api/v3` (also set `GITHUB_HOST`)                                                          |
+| `GITHUB_HOST`                | No       | —                           | GitHub Enterprise only: the instance URL (e.g. `https://github.example.com`), passed to the `github-mcp` service. Empty means github.com                        |
+| `GITHUB_MCP_URL`             | No       | `http://localhost:8082/mcp` | URL of the GitHub MCP server (the `github-mcp` compose service). `docker-compose.yml` points the backend container at `http://github-mcp:8082/mcp`              |
+| `GITHUB_BOT_NAME`            | No       | `langgraph-harness`         | Git commit author name used for commits the bot makes                                                                                                           |
+| `GITHUB_BOT_EMAIL`           | No       | `bot@example.com`           | Git commit author email used for commits the bot makes — the account's `<id>+<login>@users.noreply.github.com` address links them to the bot's profile          |
 
 **3. Run database migrations**
 
@@ -82,6 +108,8 @@ npm run migrate
 | `npm run preview`      | Run compiled build in production mode |
 | `npm run migrate`      | Apply all pending database migrations |
 | `npm run migrate:down` | Roll back the last migration          |
+
+To reset the database completely, stop the containers and delete `$DATA_PATH/postgres`; the next `npm run dev` recreates it.
 
 ## API
 
@@ -214,71 +242,72 @@ Work-item-resolve is triggered by assigning the bot to a GitLab Issue or Task �
 - **URL**: `https://<your-host>/webhooks/gitlab`
 - **Triggers**: Issue events, Comment events, Work item events
 
-| Event                                       | Behaviour                                             |
-| ------------------------------------------- | ----------------------------------------------------- |
-| Issue/Task assigned to the bot              | Starts a run                                          |
-| Issue/Task opened/reopened already assigned | Starts a run                                          |
-| Issue/Task unassigned from the bot          | Ignored                                               |
-| Issue/Task closed, no MR ever opened        | Cleans up the issue's git worktree; no run            |
-| Issue/Task closed, MR already exists        | Ignored — the MR's own merge/close event owns cleanup |
-| Human comment tagging the bot on the MR     | Starts a fresh run against the issue's current state  |
-| The bot's own status comment on the MR      | Ignored — never mistaken for reviewer feedback        |
+| Event                                       | Behaviour                                                  |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| Issue/Task assigned to the bot              | Starts a run                                               |
+| Issue/Task opened/reopened already assigned | Starts a run                                               |
+| Issue/Task unassigned from the bot          | Stops any run                                              |
+| Issue/Task closed, no MR ever opened        | Stops any run; cleans up the issue's git worktree          |
+| Issue/Task closed, MR already exists        | Stops any run; the MR's own merge/close event owns cleanup |
+| Human comment tagging the bot on the MR     | Starts a fresh run against the issue's current state       |
+| The bot's own status comment on the MR      | Ignored — never mistaken for reviewer feedback             |
 
-Incoming webhooks are filtered by project path (`workItemResolve.projectPathFilters` in `config.ts`, matched by substring, shared with MR review). A thread stops accepting new runs once it hits `workItemResolve.runCap` (default: 10).
+A delivery GitLab resends (same `Idempotency-Key`) within a day is ignored. Incoming webhooks are filtered by project path (`workItemResolve.projectPathFilters` in `config.ts`, matched by substring, shared with MR review). A thread stops accepting new runs once it hits `workItemResolve.runCap` (default: 10).
 
 > **Sandbox network egress isn't enforced.** `Sandbox.create()` doesn't pass a `networkPolicy` — confirmed non-functional under this deployment's Docker backend (`opensandbox/sandbox.toml`'s `docker_runtime = "kata"`), not just untested. OpenSandbox's egress sidecar only intercepts a sandbox's traffic if both containers share one Kata guest VM, which requires Kubernetes' `RuntimeClass`-driven pod-sandbox grouping (a CRI-level mechanism); the Docker backend has no equivalent, so the sidecar and sandbox end up as two independent Kata VMs and the sidecar's policy never sees real sandbox traffic (see `docs/deployment.md#opensandbox`). `allowedEgressDomains` (`commonEgressDomains`/`PROJECT_EGRESS_DOMAINS`) has been removed entirely — the agent receives no network domain guidance at all. Lateral movement is still out of scope regardless: sandboxes run on Kata's own per-sandbox networking, routed through a dedicated `docker-kata` daemon and bridge (`172.20.0.0/16`), a separate daemon and network entirely from the compose stack's `harness_default` (`172.18.0.0/16`) where `docker-socket-proxy-kata`/`postgres`/`redis`/`backend` live — no route between them, so any exposure is bounded to arbitrary internet egress, not access to the rest of the infrastructure.
 
 ## Task Resolve
 
-Task Resolve has no issue and no assignment webhook — an admin submits a free-text prompt plus a repo URL via `POST /api/task-resolve` (`isAdmin`-gated), which resolves the repo and opens a draft MR directly on that first run. The same prompt/repo pair can instead be saved as a schedule (`POST /api/schedules`, also `isAdmin`-gated) that fires later via BullMQ — one-time via a delayed job, or recurring (daily/weekly/monthly, in a chosen timezone) via a BullMQ job scheduler — each fire materializes a fresh Task Resolve thread/run identical to a direct API submission. Pause, resume, cancel, and run-now controls (`/api/schedules/:id/{pause,resume,cancel,run-now}`) act on the schedule directly.
+Task Resolve has no issue and no assignment webhook — an admin submits a free-text prompt plus a repo URL via `POST /api/task-resolve` (`isAdmin`-gated), which resolves the repo and opens a draft MR directly on that first run. The URL's host picks the provider: a GitLab URL opens a merge request, a GitHub one a pull request, and a schedule stores its provider alongside the project path. The same prompt/repo pair can instead be saved as a schedule (`POST /api/schedules`, also `isAdmin`-gated) that fires later via BullMQ — one-time via a delayed job, or recurring (daily/weekly/monthly, in a chosen timezone) via a BullMQ job scheduler — each fire materializes a fresh Task Resolve thread/run identical to a direct API submission. Pause, resume, cancel, and run-now controls (`/api/schedules/:id/{pause,resume,cancel,run-now}`) act on the schedule directly.
 
-Follow-up MR comments on a Task Resolve MR reuse Work Item Resolve's existing note webhook path unchanged — a thread is matched by `{project, mrIid}`, not by workflow kind, so no separate trigger exists.
+Follow-up comments on a Task Resolve MR or PR go through Work Item Resolve's same follow-up path (GitLab note events; GitHub `issue_comment`, `pull_request_review_comment` and `pull_request_review` events) — a thread is matched by `{project, codeChangeRequestNumber}` and its provider, not by workflow kind, so no separate trigger exists. Closing or merging the MR or PR cleans up the task's worktree.
 
 Task Resolve runs on the exact same compiled agent as Work Item Resolve (`agent.ts`), with an identical middleware stack and sandbox tool surface — the only per-workflow difference is the system prompt's intro line and identifiers block.
 
 ## Repository Configuration
 
-A repository can opt into per-repo review behavior with a `.harness.yml` file at its **root on the default branch**. It's resolved once per review from the default branch; the MR's own branch cannot override it. Everything is optional — a missing, invalid, or unsupported-version file just means the MR is reviewed with defaults. A ready-to-copy example lives at [`docs/harness-config/v1.example.yml`](../docs/harness-config/v1.example.yml).
+A repository can opt into per-repo behavior with a `.harness.yml` file at its **root on the default branch**. It's resolved once per run from the default branch; a merge or pull request's own branch cannot override it. Every section is optional — a missing file means defaults. An invalid file, including one with an unknown key or an unsupported version, also runs with defaults, and the run's timeline (linked from the status comment) shows what's wrong. A ready-to-copy example lives at [`docs/harness-config/v2.example.yml`](../docs/harness-config/v2.example.yml).
 
 ```yaml
 # .harness.yml
-version: 1
+version: 2
 
-# Instruction docs fed to the reviewer. Each entry has a `path` (read from the
-# default branch). Add `match` globs to attach a doc only when the MR changes a
-# matching file; omit `match` to always attach it.
-mr_review_instructions:
-  - path: docs/review-guidelines.md # always attached
-  - path: docs/typescript.md
-    match: ['**/*.ts', '**/*.tsx'] # only when the MR touches TS files
+review:
+  # Instruction docs fed to the reviewer. Each entry has a `path` (read from the
+  # default branch). Add `match` globs to attach a doc only when the change
+  # touches a matching file; omit `match` to always attach it.
+  instructions:
+    - path: docs/review-guidelines.md # always attached
+    - path: docs/typescript.md
+      match: ['**/*.ts', '**/*.tsx'] # only when the change touches TS files
 
-# Same shape as above, fed to the work-item-resolve agent instead.
-work_item_resolve_instructions:
-  - path: docs/work-item-resolve-guidelines.md
+  # Skip review when the source or target branch matches a glob.
+  exclude_branches:
+    source: ['release/*', 'wip/**']
+    target: ['staging']
 
-# Skip review when the source or target branch matches a glob.
-exclude_branches:
-  source: ['release/*', 'wip/**']
-  target: ['staging']
+  # Only review once the bot is one of the reviewers; default false reviews every change.
+  requires_reviewer: false
 
-# Only review an MR once the bot is one of its reviewers; default false reviews as today.
-mr_review_requires_harness_reviewer: false
+# Issue runs and tasks.
+resolve:
+  instructions:
+    - path: docs/contributing.md
 ```
 
-| Key                                      | Type     | Default | Description                                                                                                                    |
-| ---------------------------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `version`                                | number   | `1`     | Config schema version. Only `1` is supported; other values skip instructions.                                                  |
-| `mr_review_instructions[].path`          | string   | —       | Repo-relative path to an instruction doc, read from the default branch. Missing docs are skipped with a warning.               |
-| `mr_review_instructions[].match`         | string[] | —       | Globs; the doc is attached only when the MR changes a matching file. Omit to always attach.                                    |
-| `work_item_resolve_instructions[].path`  | string   | —       | Same as `mr_review_instructions[].path`, fed to the work-item-resolve agent instead.                                           |
-| `work_item_resolve_instructions[].match` | string[] | —       | Same as `mr_review_instructions[].match`, fed to the work-item-resolve agent instead.                                          |
-| `exclude_branches.source`                | string[] | `[]`    | Branch-name globs; an MR whose **source** branch matches is not reviewed.                                                      |
-| `exclude_branches.target`                | string[] | `[]`    | Branch-name globs; an MR whose **target** branch matches is not reviewed.                                                      |
-| `mr_review_requires_harness_reviewer`    | boolean  | `false` | Only review an MR once the bot's username is one of its reviewers. A reviewer change that adds the bot also triggers a review. |
+| Key                              | Type     | Default | Description                                                                                                       |
+| -------------------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `version`                        | number   | —       | Required; must be `2`. Any other value, or none, makes the file invalid.                                          |
+| `review.instructions[].path`     | string   | —       | Repo-relative path to an instruction doc, read from the default branch. Missing docs are skipped with a warning.  |
+| `review.instructions[].match`    | string[] | —       | Globs; the doc is attached only when the change touches a matching file. Omit to always attach.                   |
+| `review.exclude_branches.source` | string[] | `[]`    | Branch-name globs; a merge or pull request whose **source** branch matches is not reviewed.                       |
+| `review.exclude_branches.target` | string[] | `[]`    | Branch-name globs; a merge or pull request whose **target** branch matches is not reviewed.                       |
+| `review.requires_reviewer`       | boolean  | `false` | Only review once the bot's username is one of the reviewers. Adding the bot as a reviewer also triggers a review. |
+| `resolve.instructions[].path`    | string   | —       | Same as `review.instructions[].path`, fed to issue and task runs instead.                                         |
 
-Branch and file patterns are matched with [micromatch](https://github.com/micromatch/micromatch): `*` matches within one path segment, `**` across segments. If the MR's changed-file list can't be fetched, all instruction docs are attached (fail-open).
+Branch and file patterns are matched with [micromatch](https://github.com/micromatch/micromatch): `*` matches within one path segment, `**` across segments. If the changed-file list can't be fetched, all instruction docs are attached (fail-open).
 
-> **Migrating an existing `.harness.yml`:** the `instructions` key was renamed to `mr_review_instructions` — repos still using the old name will have those instructions silently stop applying.
+> **Upgrading from version 1:** every key was renamed and version 1 files are no longer read — see the [upgrade table](https://vrajpal-jhala.github.io/langgraph-harness/guide/configuration#upgrading-from-version-1).
 
 **Instruction size cap** — the concatenated instruction block is capped at 32,000 characters (a rough token-budget proxy) and truncated with a notice when exceeded. Instructions are injected inside a `<repository_instructions>` block so the model treats them as review guidance, not as overrides to its core behavior. The `load_instructions` node also updates the review comment to note whether instructions were applied, missing, or failed to load.
 
@@ -306,7 +335,7 @@ Failure handling isn't a graph node — it's a `try`/`catch` around the whole wo
 
 A run's `started_at` and `completed_at` are maintained entirely by database triggers (set on the `queued` → `running` transition and on the transition into a terminal status, respectively) rather than by application code, and duration is always computed from that pair — this keeps it consistent, non-negative, and unaffected by unrelated later writes such as archiving. A thread's `updated_at` is touched the same way by any insert/update/delete of its runs, except archiving, which explicitly skips it so it doesn't misrepresent the thread's last real activity.
 
-Before publishing (via either `bulk_publish_draft_notes` or `publish_draft_note`), draft review comments pass through a **comment critic** middleware: an LLM judges each draft and silently withholds low-value ones (hedged non-issues, diff restatements, unsupported speculation, style opinions dressed up as bugs, stale "still not addressed" reposts, garbled or unfinished text), while keeping comments that describe genuine new progress or flag out-of-scope changes. The critic retries a failed screening attempt before giving up, and publishes the batch unscreened rather than withholding everything if it still can't produce a verdict.
+Before publishing (via `bulk_publish_draft_notes` or `publish_draft_note` on GitLab, or `submit_review` on GitHub), draft review comments pass through a **comment critic** middleware: an LLM judges each draft and silently withholds low-value ones (hedged non-issues, diff restatements, unsupported speculation, style opinions dressed up as bugs, stale "still not addressed" reposts, garbled or unfinished text), while keeping comments that describe genuine new progress or flag out-of-scope changes. The critic retries a failed screening attempt before giving up, and publishes the batch unscreened rather than withholding everything if it still can't produce a verdict.
 
 If a run finishes without calling a single tool, it's nudged once to actually check the merge request's current state (new commits, diff, open discussions) before concluding — this catches a re-review that would otherwise just restate a previous run's summary as if nothing needed a fresh look.
 
@@ -316,8 +345,7 @@ If a run finishes without calling a single tool, it's nudged once to actually ch
 
 Skills in `src/skills/` provide step-by-step workflow instructions loaded at runtime via the `load_skill` tool:
 
-- `gitlab-mcp/code-review` — initial review and re-review workflows, draft note pattern, approval step
-- `gitlab-mcp/merge-requests` — general MR interaction patterns
+- `code-review` — initial review and re-review workflows, the comment-batching pattern, approval step. Steps that name host tools come from `code-review/fragments/<provider>/`, picked by the review's git host.
 
 ## Project Memory
 

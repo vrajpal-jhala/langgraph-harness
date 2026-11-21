@@ -13,6 +13,13 @@ export const RunKind = {
 } as const;
 export type RunKind = (typeof RunKind)[keyof typeof RunKind];
 
+export const GitProvider = {
+  GitLab: 'gitlab',
+  GitHub: 'github',
+} as const;
+
+export type GitProvider = (typeof GitProvider)[keyof typeof GitProvider];
+
 export type Thread = {
   id: string;
   title: string;
@@ -50,10 +57,11 @@ export type Queue = {
 
 export type MrReviewRunInput = {
   kind: 'mr_review';
+  provider: GitProvider;
   query: {
     note: string;
-    projectId: string;
-    mrIid: string;
+    projectPath: string;
+    codeChangeRequestNumber: string;
   };
   model: string;
   reasoning: boolean;
@@ -64,13 +72,19 @@ export type ChatRunInput = {
   query: { message: string; images?: string[] };
   model: string;
   reasoning: boolean;
-  tools: { server: boolean; gitlab: boolean; webSearch: boolean };
+  tools: {
+    server: boolean;
+    gitlab: boolean;
+    github: boolean;
+    webSearch: boolean;
+  };
 };
 
 export type WorkItemResolveRunInput = {
   kind: 'work_item_resolve';
+  provider: GitProvider;
   projectPath: string;
-  issueIid: string;
+  issueNumber: string;
   defaultBranch: string;
   model: string;
   assignedBy: string;
@@ -78,6 +92,7 @@ export type WorkItemResolveRunInput = {
 
 export type TaskResolveRunInput = {
   kind: 'task_resolve';
+  provider: GitProvider;
   title: string;
   projectPath: string;
   prompt: string;
@@ -105,6 +120,7 @@ export type ScheduleRecurrence =
 export type TaskSchedule = {
   id: string;
   title: string;
+  provider: GitProvider;
   project_path: string;
   prompt: string;
   default_branch: string;
@@ -148,9 +164,9 @@ export const MemoryScope = {
 export type MemoryScope = (typeof MemoryScope)[keyof typeof MemoryScope];
 
 export type MemorySource =
-  | { workflow: 'code-review'; mrIid: string }
+  | { workflow: 'code-review'; codeChangeRequestNumber: string }
   | { workflow: 'chat'; threadId: string }
-  | { workflow: 'work-item-resolve'; issueIid: string };
+  | { workflow: 'work-item-resolve'; issueNumber: string };
 
 export type Memory = {
   id: string;
@@ -171,10 +187,12 @@ export type LoadInstructionsNodePayload = {
   status: string;
   parsed: {
     version: number;
-    mr_review_instructions: { path: string; match?: string[] }[];
-    work_item_resolve_instructions: { path: string; match?: string[] }[];
-    exclude_branches: { source: string[]; target: string[] };
-    mr_review_requires_harness_reviewer: boolean;
+    review: {
+      instructions: { path: string; match?: string[] }[];
+      exclude_branches: { source: string[]; target: string[] };
+      requires_reviewer: boolean;
+    };
+    resolve: { instructions: { path: string }[] };
   } | null;
   instructions: { status: string; content: string };
   error: string;
@@ -209,7 +227,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: 'sandbox_create';
+        step: 'create_sandbox';
         image: string;
         timestamp: number;
       };
@@ -218,7 +236,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: 'sandbox_kill';
+        step: 'kill_sandbox';
         sandboxId: string;
         timestamp: number;
       };
@@ -229,6 +247,15 @@ export type RunStepStartEvent =
         id: string;
         step: 'classify_issue';
         prompt: string;
+        timestamp: number;
+      };
+    }
+  | {
+      event: 'run_step_start';
+      data: {
+        id: string;
+        step: 'resolve_repo';
+        projectPath: string;
         timestamp: number;
       };
     }
@@ -254,7 +281,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: 'mr_create';
+        step: 'create_code_change_request';
         sourceBranch: string;
         targetBranch: string;
         timestamp: number;
@@ -282,7 +309,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: 'update_merge_request';
+        step: 'update_code_change_request';
         timestamp: number;
       };
     };
@@ -325,7 +352,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: 'sandbox_create';
+        step: 'create_sandbox';
         sandboxId: string;
         error: string;
         timestamp: number;
@@ -335,7 +362,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: 'sandbox_kill';
+        step: 'kill_sandbox';
         error: string;
         timestamp: number;
       };
@@ -350,6 +377,16 @@ export type RunStepEndEvent =
         error: string;
         retries: number;
         maxRetries: number;
+        timestamp: number;
+      };
+    }
+  | {
+      event: 'run_step_end';
+      data: {
+        id: string;
+        step: 'resolve_repo';
+        defaultBranch: string;
+        error: string;
         timestamp: number;
       };
     }
@@ -377,9 +414,9 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: 'mr_create';
-        mrIid: string;
-        mrUrl: string;
+        step: 'create_code_change_request';
+        codeChangeRequestNumber: string;
+        codeChangeRequestUrl: string;
         error: string;
         timestamp: number;
       };
@@ -410,7 +447,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: 'update_merge_request';
+        step: 'update_code_change_request';
         completionStatus: 'done' | 'partial' | 'blocked';
         completionSummary: string;
         error: string;
@@ -634,6 +671,7 @@ export type WorkflowEvent =
           | 'TrailingQuestionGuard'
           | 'NoToolCallGuard'
           | 'DiscussionCheckGuard'
+          | 'WriteTargetGuard'
           | 'HumanApproval';
         prompt: string;
         timestamp: number;

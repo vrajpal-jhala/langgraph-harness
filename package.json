@@ -1,11 +1,14 @@
 {
   "name": "langgraph-harness",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "author": "Vrajpal Jhala",
-  "description": "Self-hosted AI coding agent platform for GitLab, built with LangGraph. Reviews merge requests, resolves issues autonomously, and chats with full project context.",
+  "description": "Self-hosted AI coding agent platform for GitLab and GitHub, built with LangGraph. An open-source alternative to the code review and coding agents in GitLab Duo and GitHub Copilot: reviews merge and pull requests, resolves issues autonomously, and chats with full project context.",
   "keywords": [
     "langgraph",
     "gitlab",
+    "github",
+    "gitlab-duo-alternative",
+    "copilot-alternative",
     "ai-agent",
     "coding-agent",
     "code-review",
@@ -34,7 +37,9 @@
     "format:check": "prettier --check ."
   },
   "lint-staged": {
-    "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,vue,json,css,scss,md,yml,yaml}": "prettier --write"
+    "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,vue,json,css,scss,md,yml,yaml}": "prettier --write",
+    "backend/**/*.{ts,mts,cts,js,mjs,cjs}": "backend/node_modules/.bin/eslint --fix --no-warn-ignored",
+    "frontend/**/*.{ts,tsx,js,jsx,mjs,cjs}": "frontend/node_modules/.bin/eslint --fix --no-warn-ignored"
   },
   "devDependencies": {
     "husky": "9.1.7",

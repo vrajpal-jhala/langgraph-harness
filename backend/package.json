@@ -24,6 +24,7 @@
   "dependencies": {
     "@alibaba-group/opensandbox": "1.1.1",
     "@better-auth/kysely-adapter": "1.7.11",
+    "@cfworker/json-schema": "4.1.1",
     "@elysiajs/cors": "1.4.2",
     "@elysiajs/node": "1.4.5",
     "@huggingface/transformers": "4.3.1",
@@ -35,7 +36,6 @@
     "@langchain/openai": "1.6.2",
     "@langchain/openrouter": "0.4.17",
     "@mozilla/readability": "0.6.0",
-    "@zereight/mcp-gitlab": "2.3.4",
     "better-auth": "1.7.11",
     "bullmq": "6.3.17",
     "busboy": "1.6.0",

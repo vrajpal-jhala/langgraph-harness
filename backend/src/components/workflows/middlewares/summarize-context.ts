@@ -39,7 +39,7 @@ const MAX_SUMMARIZE_RETRIES = 3;
 
 // Replaces LangChain's default prompt, which produced inconsistent summaries (raw tool_call dumps, stale error sections) — with explicit extraction rules.
 const SUMMARY_PROMPT = `<role>
-You are summarizing the working history of langgraph-harness, a GitLab-aware engineering assistant reviewing merge requests.
+You are summarizing the working history of langgraph-harness, a GitLab- and GitHub-aware engineering assistant reviewing merge and pull requests.
 </role>
 
 <context>

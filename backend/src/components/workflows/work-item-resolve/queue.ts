@@ -54,8 +54,9 @@ async function drainPendingRerun(job: Job<WorkItemResolveJob>) {
   const {
     threadId,
     kind,
+    provider,
     projectPath,
-    issueIid,
+    issueNumber,
     defaultBranch,
     assignedBy,
     model,
@@ -68,8 +69,9 @@ async function drainPendingRerun(job: Job<WorkItemResolveJob>) {
 
   const input: WorkItemResolveRunInput = {
     kind,
+    provider,
     projectPath,
-    issueIid,
+    issueNumber,
     defaultBranch,
     assignedBy,
     model,

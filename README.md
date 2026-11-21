@@ -4,9 +4,9 @@
 
 # langgraph-harness
 
-**Self-hosted AI coding agent platform for GitLab, built with LangGraph**
+**Self-hosted AI coding agent platform for GitLab and GitHub, built with LangGraph**
 
-Reviews merge requests, resolves work items and tasks autonomously, and chats with full project context — remembering what matters so every run builds on the last.
+Reviews merge and pull requests, resolves issues and tasks autonomously, and chats with full project context — remembering what matters so every run builds on the last. An open-source alternative to the code review and coding agents in GitLab Duo and GitHub Copilot, running on your own infrastructure.
 
 Battle-tested in production since mid-2026 — **133 releases**, 1k+ reviews, 67% comment acceptance rate (Sept 29 2026, [see snapshot](#screenshots)). [Development history →](CHANGELOG.md) every failure and fix, documented.
 
@@ -30,8 +30,8 @@ Four harnesses, one shared foundation:
 
 - 🔍 **MR Review** — fires on webhook events, reads the diff, drafts comments, publishes them. No polling, no manual trigger.
 - 🛠️ **Work Item Resolve** — assign a GitLab issue or task and get an agent that runs inside its own Kata Containers VM (a dedicated guest kernel per sandbox, not just syscall interception), opens a draft MR, and keeps responding to follow-up comments on the same branch.
-- 📋 **Task Resolve** — the same sandboxed loop, started from a free-text instruction instead of a GitLab issue — on demand or on a recurring schedule.
-- 💬 **Chat** — an interactive, GitLab-aware assistant with real tool access: GitLab data, a headless browser, its own review/chat history; sensitive tool calls pause for explicit human approval before running.
+- 📋 **Task Resolve** — the same sandboxed loop, started from a free-text instruction instead of an issue — on demand or on a recurring schedule.
+- 💬 **Chat** — an interactive, GitLab- and GitHub-aware assistant with real tool access: GitLab and GitHub data, a headless browser, its own review/chat history; sensitive tool calls pause for explicit human approval before running.
 
 Shared foundation: every drafted comment is screened before it posts; a run that misbehaves (repeats a call, loops, ends on a question, skips a check) gets caught and corrected mid-run — backed by persistent checkpoints, so a run resumes instead of restarting from scratch.
 
@@ -49,10 +49,10 @@ More in the [screenshots gallery](https://vrajpal-jhala.github.io/langgraph-harn
 ## Roadmap
 
 - [x] Automatic MR reviews, issue-to-draft-MR, on-demand tasks, and a GitLab-aware chat
+- [x] GitHub support: pull request reviews, issue-to-draft-PR, tasks, schedules and chat tools ([#35](https://github.com/vrajpal-jhala/langgraph-harness/issues/35))
 - [x] Isolated sandbox for code-changing runs, with human approval before Chat takes sensitive actions
 - [x] Project memory that carries across reviews, and crashed runs that resume instead of restarting
 - [x] Recurring scheduled tasks
-- [ ] GitHub support: assign an issue to the bot, get a draft PR ([#35](https://github.com/vrajpal-jhala/langgraph-harness/issues/35))
 - [ ] Project memory that keeps itself up to date, with visibility into what it learned ([#2](https://github.com/vrajpal-jhala/langgraph-harness/issues/2))
 - [ ] A self-hosted memory engine that links related facts and retrieves them by relevance ([#1](https://github.com/vrajpal-jhala/langgraph-harness/issues/1))
 - [ ] Web search, so agents can look things up instead of only fetching a known page ([#24](https://github.com/vrajpal-jhala/langgraph-harness/issues/24))
@@ -63,25 +63,25 @@ Everything else is tracked in [open issues](https://github.com/vrajpal-jhala/lan
 
 - **Frontend** — React admin UI (Dashboard, Threads, Chat, Workflows) for monitoring runs and chatting directly with the agent
 - **Backend** — Elysia API server running a LangGraph agent with persistent checkpoints
-- **Agent** — Multi-provider LLM (OpenRouter, Gemini, Groq, Ollama, or sglang) with GitLab MCP tools and skill-based workflows
+- **Agent** — Multi-provider LLM (OpenRouter, Gemini, Groq, Ollama, or sglang) with GitLab and GitHub MCP tools and skill-based workflows
 - **Queue** — BullMQ; debounced re-reviews, capped concurrency, live queue state in the UI
-- **Memory** — context engineering for GitLab: durable, project-scoped facts learned across reviews; personal memory in Chat
+- **Memory** — context engineering for GitLab and GitHub repos: durable, project-scoped facts learned across reviews; personal memory in Chat
 
 ## Quick Start
 
-**Prerequisites:** Node.js 22+, Docker, a GitLab PAT (`api` scope), a GitLab OAuth app, and an OpenRouter/Gemini/Groq key or a local Ollama/sglang instance.
+**Prerequisites:** Node.js 22+, Docker, a bot account and OAuth app on GitLab, GitHub, or both, and an OpenRouter/Gemini/Groq key or a local Ollama/sglang instance.
 
 ```bash
 npm install
 cp backend/.env.example backend/.env
-# fill in GITLAB_PAT, GITLAB_OAUTH_CLIENT_ID/SECRET, SESSION_SECRET, SECRETS_ENCRYPTION_KEY,
-# ADMIN_GITLAB_USERNAMES, and one of OPENROUTER_API_KEY / GEMINI_API_KEY / GROQ_API_KEY / OLLAMA_BASE_URL / SGLANG_BASE_URL
+# fill in SESSION_SECRET, SECRETS_ENCRYPTION_KEY, one of OPENROUTER_API_KEY / GEMINI_API_KEY /
+# GROQ_API_KEY / OLLAMA_BASE_URL / SGLANG_BASE_URL, and your provider's variables
 npm run dev
 ```
 
 Frontend at `http://localhost:5173`, API at `http://localhost:3698`.
 
-Full walkthrough — GitLab OAuth app setup, webhook config, per-repo `.harness.yml`: [Getting Started](https://vrajpal-jhala.github.io/langgraph-harness/guide/getting-started).
+Full walkthrough — choosing GitLab or GitHub, bot tokens, OAuth apps, webhooks, per-repo `.harness.yml`: [Getting Started](https://vrajpal-jhala.github.io/langgraph-harness/guide/getting-started).
 
 ## Deployment & CI/CD
 

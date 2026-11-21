@@ -69,9 +69,12 @@ function entryFooterText(entry: Memory): string {
     case 'chat':
       return `${updatedText} · from chat`;
     case 'code-review':
-      return `${updatedText} · MR !${entry.source.mrIid}`;
+      // GitHub repo keys carry this prefix; GitLab's are the bare project path.
+      return entry.project_id?.startsWith('@github/')
+        ? `${updatedText} · PR #${entry.source.codeChangeRequestNumber}`
+        : `${updatedText} · MR !${entry.source.codeChangeRequestNumber}`;
     case 'work-item-resolve':
-      return `${updatedText} · issue #${entry.source.issueIid}`;
+      return `${updatedText} · issue #${entry.source.issueNumber}`;
   }
 }
 

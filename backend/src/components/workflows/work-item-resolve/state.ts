@@ -17,15 +17,15 @@ const repoInstructionsSchema = z.string().max(config.instructions.maxChars);
 
 const workflowStateSchema = z.object({
   projectPath: z.string(),
-  issueIid: z.string(),
+  issueNumber: z.string(),
   issueTitle: z.string(),
   issueDescription: z.string(),
   issueType: z.enum(BRANCH_TYPES),
   defaultBranch: z.string(),
   model: z.enum(llms.map((m) => m.model)),
   messages: MessagesValue,
-  noteId: z.number().optional(),
-  lastRunReplyNoteIds: z.array(z.string()).optional().default([]),
+  statusCommentId: z.number().optional(),
+  lastRunReplyCommentIds: z.array(z.string()).optional().default([]),
   completionStatus: z.enum(CompletionStatus).optional(),
   completionSummary: z.string().optional(),
   // Repo config + parse status, resolved in the webhook route and passed in as
@@ -34,6 +34,7 @@ const workflowStateSchema = z.object({
   config: z.object({
     status: z.custom<ParsedHarnessConfig['status']>(),
     parsed: z.custom<ParsedHarnessConfig['parsed']>(),
+    error: z.string().optional(),
     instructions: z.object({
       status: z.enum(InstructionStatus),
       content: repoInstructionsSchema.optional().default(''),

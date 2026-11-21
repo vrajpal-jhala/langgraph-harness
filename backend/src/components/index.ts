@@ -44,15 +44,20 @@ import {
 import { createTaskSchema } from './workflows/task-resolve/validation.js';
 import { getStatus as getWorkItemResolveQueueStatus } from './workflows/work-item-resolve/queue.js';
 
-import { authMacro, isAdmin } from '#utils/auth.js';
-import { llms } from '#utils/config.js';
+import { authMacro, isAdmin, providerUsername } from '#utils/auth.js';
+import { config, llms } from '#utils/config.js';
 import { errors } from '#utils/errors.js';
-import { resolveProjectFromUrl } from '#utils/gitlab.js';
+import { resolveRepoFromUrl } from '#utils/git-host.js';
 import { parseHarnessYml } from '#utils/harness-config.js';
 
 // inline routes to auto infer response type
 export const api = new Elysia({ prefix: '/api' })
   .use(authMacro)
+  // Public: the login page needs it before anyone is signed in.
+  .get('/providers', () => ({
+    gitlab: config.gitlab.enabled,
+    github: config.github.enabled,
+  }))
   .guard({ auth: true }, (app) =>
     app
       .use(uploads)
@@ -97,7 +102,7 @@ export const api = new Elysia({ prefix: '/api' })
             await threadsService.assertCanMutate(params.id, session);
             // An MR's author may abort or retry its review, but only an admin can delete it.
             const thread = await threadsDal.findById(params.id);
-            if (thread?.kind === RunKind.MrReview && !isAdmin(session.username))
+            if (thread?.kind === RunKind.MrReview && !isAdmin(session))
               throw errors.runs.forbidden();
             await threadsService.delete(params.id);
             set.status = 204;
@@ -205,13 +210,13 @@ export const api = new Elysia({ prefix: '/api' })
       .group('/task-resolve', (app) =>
         app
           .onBeforeHandle(({ session }) => {
-            if (!isAdmin(session.username)) throw errors.runs.forbidden();
+            if (!isAdmin(session)) throw errors.runs.forbidden();
           })
           .post(
             '/',
             async ({ body, session, set }) => {
-              const { projectPath, defaultBranch } =
-                await resolveProjectFromUrl(body.repoUrl);
+              const { host, projectPath, defaultBranch } =
+                await resolveRepoFromUrl(body.repoUrl);
 
               const thread = await threadsService.create(
                 body.title,
@@ -219,18 +224,20 @@ export const api = new Elysia({ prefix: '/api' })
                 session.id,
               );
               await threadsDal.mergeMetadata(thread.id, {
+                source: host.provider,
                 project: projectPath,
               });
 
               const input: TaskResolveRunInput = {
                 kind: RunKind.TaskResolve,
+                provider: host.provider,
                 title: body.title,
                 projectPath,
                 prompt: body.prompt,
                 defaultBranch,
-                submittedBy: session.username,
+                submittedBy: providerUsername(session, host.provider),
                 model: llms.find((m) => m.isDefault)?.model ?? llms[0].model,
-                config: await parseHarnessYml(projectPath),
+                config: await parseHarnessYml(host, projectPath),
               };
 
               const run = await runsService.create(
@@ -257,13 +264,13 @@ export const api = new Elysia({ prefix: '/api' })
           .get('/:id', ({ params }) => schedulesService.getById(params.id))
           // Everything below mutates — scoped here so it doesn't also gate the reads above.
           .onBeforeHandle(({ session }) => {
-            if (!isAdmin(session.username)) throw errors.runs.forbidden();
+            if (!isAdmin(session)) throw errors.runs.forbidden();
           })
           .post(
             '/',
             ({ body, session, set }) => {
               set.status = 201;
-              return schedulesService.create(body, session.username);
+              return schedulesService.create(body, session);
             },
             { body: createScheduleSchema },
           )
@@ -347,7 +354,7 @@ export const api = new Elysia({ prefix: '/api' })
         memoriesService.personalCount(session.id),
       )
       .delete('/memories/:id', async ({ params, session, set }) => {
-        if (isAdmin(session.username)) {
+        if (isAdmin(session)) {
           await memoriesService.delete(params.id);
         } else {
           await memoriesService.deleteForUser(params.id, session.id);

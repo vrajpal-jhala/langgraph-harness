@@ -3,9 +3,15 @@ import z from 'zod';
 import { MEMORY_CATEGORIES } from '#types.js';
 
 export const MemorySourceSchema = z.discriminatedUnion('workflow', [
-  z.object({ workflow: z.literal('code-review'), mrIid: z.string() }),
+  z.object({
+    workflow: z.literal('code-review'),
+    codeChangeRequestNumber: z.string(),
+  }),
   z.object({ workflow: z.literal('chat'), threadId: z.string() }),
-  z.object({ workflow: z.literal('work-item-resolve'), issueIid: z.string() }),
+  z.object({
+    workflow: z.literal('work-item-resolve'),
+    issueNumber: z.string(),
+  }),
   z.object({ workflow: z.literal('task-resolve'), threadId: z.string() }),
 ]);
 

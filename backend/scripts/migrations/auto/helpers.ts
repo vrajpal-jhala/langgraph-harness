@@ -30,3 +30,19 @@ export async function withoutThreadTouchTrigger(
     );
   }
 }
+
+export async function withoutMemoryTouchTrigger(
+  db: Kysely<any>,
+  fn: () => Promise<void>,
+): Promise<void> {
+  await sql`ALTER TABLE memories DISABLE TRIGGER memories_set_updated_at`.execute(
+    db,
+  );
+  try {
+    await fn();
+  } finally {
+    await sql`ALTER TABLE memories ENABLE TRIGGER memories_set_updated_at`.execute(
+      db,
+    );
+  }
+}

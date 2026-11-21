@@ -11,7 +11,7 @@ import type {
   Workflow,
   WorkItemResolveRunInput,
 } from '#types.js';
-import { RunKind, RunStatus } from '#types.js';
+import { GitProvider, RunKind, RunStatus } from '#types.js';
 
 import { analyticsService } from '#components/analytics/service.js';
 import { settingsService } from '#components/settings/service.js';
@@ -24,7 +24,7 @@ import { broadcast } from '#components/ws/index.js';
 import { runsDal } from './dal.js';
 import { runPubSub } from './pubsub.js';
 
-import { getGitlabAccessToken } from '#utils/auth.js';
+import { getAccessToken } from '#utils/auth.js';
 import { config, llms } from '#utils/config.js';
 import { errors, RunAbortedError } from '#utils/errors.js';
 import {
@@ -74,7 +74,8 @@ function recordRunSummary(
 async function resolveSecrets(session?: Session) {
   if (!session) return undefined;
   return {
-    gitlabToken: await getGitlabAccessToken(session.id),
+    gitlabToken: await getAccessToken(session.id, GitProvider.GitLab),
+    githubToken: await getAccessToken(session.id, GitProvider.GitHub),
     openRouterKey: await settingsService.getOpenRouterKey(session.id),
     userId: session.id,
   };
@@ -90,6 +91,9 @@ export const runsService = {
     const thread = await threadsDal.findById(id);
     if (!thread) throw errors.threads.notFound();
     if (thread.archived_at) throw errors.threads.archived();
+    if (!workflowsService.isRunEnabled(kind, input)) {
+      throw errors.workflows.disabled();
+    }
 
     const workflow = workflowsService.forKind(kind);
     const secrets = await resolveSecrets(session);
@@ -117,6 +121,19 @@ export const runsService = {
       // If the run is no longer QUEUED (superseded/deleted), skip silently.
       if (run?.status !== RunStatus.QUEUED) return;
       await publishThreadUpdate(id, RunStatus.QUEUED);
+    }
+
+    // Queued before its provider was switched off; failed here, since onFailure would report through that same provider.
+    if (!workflowsService.isRunEnabled(kind, input)) {
+      await runsDal.update(
+        {
+          status: RunStatus.FAILED,
+          error: errors.workflows.disabled().message,
+        },
+        runId,
+      );
+      await publishThreadUpdate(id, RunStatus.FAILED);
+      return;
     }
 
     return execute(
@@ -147,6 +164,10 @@ export const runsService = {
 
     if (!llms.some((l) => l.model === originalRun.input.model)) {
       throw errors.runs.unknownModel(originalRun.input.model);
+    }
+
+    if (!workflowsService.isRunEnabled(originalRun.kind, originalRun.input)) {
+      throw errors.workflows.disabled();
     }
 
     const workflow = workflowsService.forKind(originalRun.kind);

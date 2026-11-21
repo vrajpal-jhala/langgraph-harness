@@ -15,10 +15,10 @@ import { logger } from '#utils/logger.js';
 export type InstructionDoc = { path: string; match?: string[] };
 
 type LoadInstructionsState = {
-  noteId?: number;
   config: {
     status: ParsedHarnessConfig['status'];
     parsed: ParsedHarnessConfig['parsed'];
+    error?: string;
     instructions: { status: InstructionStatus; content: string };
   };
 };
@@ -51,7 +51,7 @@ export function createLoadInstructionsNode<
   config: LangGraphRunnableConfig,
 ) => Promise<{ config: TState['config'] }> {
   return async (state, config) => {
-    const { noteId, config: workflowConfig } = state;
+    const { config: workflowConfig } = state;
     const { status: repoConfigStatus, parsed: repoConfig } = workflowConfig;
 
     emitNodeLifecycleEvents(config, {
@@ -67,11 +67,13 @@ export function createLoadInstructionsNode<
     // that the notify-start node writes; this node always resolves to a
     // terminal status.
     let instructionStatus: InstructionStatus;
-    const docs = repoConfig ? options.getDocs(repoConfig) : [];
+    // A run retried from before version 2 still carries the old shape in its stored input — it goes without instructions rather than crashing.
+    const docs = repoConfig?.version === 2 ? options.getDocs(repoConfig) : [];
 
     if (repoConfigStatus === HarnessConfigStatus.Invalid) {
       // Config existed but couldn't be parsed/validated (logged already where it was fetched).
       instructionStatus = InstructionStatus.Failed;
+      error = workflowConfig.error ?? '';
     } else if (!docs.length) {
       // No config, or config present but no instruction docs — nothing to attach.
       instructionStatus = InstructionStatus.Missing;
@@ -89,12 +91,12 @@ export function createLoadInstructionsNode<
     }
 
     // Reuse the note opened by the workflow's own notify-start node to surface instruction status.
-    if (!appConfig.mock.workflow && noteId && options.postNote) {
+    if (!appConfig.mock.workflow && options.postNote) {
       await options
         .postNote(state, config, instructionStatus)
         .catch((err) =>
           logger.error(
-            { err, noteId },
+            { err },
             'Failed to update note with instruction status',
           ),
         );

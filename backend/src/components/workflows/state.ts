@@ -1,15 +1,16 @@
 import type { Sandbox } from '@alibaba-group/opensandbox';
 import { z } from 'zod';
 
-import type { MemoryCandidate } from '#types.js';
+import type { GitHost, MemoryCandidate } from '#types.js';
 
 // Mutable per-run scratch state shared by the sandboxed resolve workflows — reset fresh on every invoke, discarded after; never checkpointed or inspected later.
 type BaseSandboxAgentConfigurable = {
+  host: GitHost;
   sandbox: Sandbox;
   workingDirectory: string;
   worktreePath: string;
-  projectId: string;
-  mrIid: string | null;
+  repoKey: string;
+  codeChangeRequestNumber: string | null;
   threadId: string;
   toolCallCounts: Map<string, number>;
   toolErrorCounts: Map<string, number>;
@@ -24,7 +25,7 @@ type BaseSandboxAgentConfigurable = {
 
 export type WorkItemResolveAgentConfigurable = BaseSandboxAgentConfigurable & {
   workflow: 'work-item-resolve';
-  issueIid: string;
+  issueNumber: string;
 };
 
 export type TaskResolveAgentConfigurable = BaseSandboxAgentConfigurable & {

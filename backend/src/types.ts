@@ -20,10 +20,14 @@ export type Role = (typeof Role)[keyof typeof Role];
 
 export type Session = {
   id: string;
-  username: string;
+  // Empty when the user hasn't signed in with (or connected) that provider.
+  gitlabUsername: string;
+  githubUsername: string;
   gitlabId: number | null;
+  githubId: number | null;
   name: string;
   avatarUrl: string | null;
+  role: Role;
 };
 
 // ─── LLM ──────────────────────────────────────────────────────────────────────
@@ -114,16 +118,17 @@ export type CompletionStatus =
 export const RunStep = {
   PrepareWorktree: 'prepare_worktree',
   SetGitIdentity: 'set_git_identity',
-  SandboxCreate: 'sandbox_create',
-  SandboxKill: 'sandbox_kill',
+  CreateSandbox: 'create_sandbox',
+  KillSandbox: 'kill_sandbox',
   ClassifyIssue: 'classify_issue',
+  ResolveRepo: 'resolve_repo',
   CreateBranch: 'create_branch',
   Push: 'push',
-  MrCreate: 'mr_create',
+  CreateCodeChangeRequest: 'create_code_change_request',
   NoChanges: 'no_changes',
   AssessCompletion: 'assess_completion',
   NotifyIssueEnd: 'notify_issue_end',
-  UpdateMergeRequest: 'update_merge_request',
+  UpdateCodeChangeRequest: 'update_code_change_request',
 } as const;
 export type RunStep = (typeof RunStep)[keyof typeof RunStep];
 
@@ -148,7 +153,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: typeof RunStep.SandboxCreate;
+        step: typeof RunStep.CreateSandbox;
         image: string;
         timestamp: number;
       };
@@ -157,7 +162,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: typeof RunStep.SandboxKill;
+        step: typeof RunStep.KillSandbox;
         sandboxId: string;
         timestamp: number;
       };
@@ -168,6 +173,15 @@ export type RunStepStartEvent =
         id: string;
         step: typeof RunStep.ClassifyIssue;
         prompt: string;
+        timestamp: number;
+      };
+    }
+  | {
+      event: 'run_step_start';
+      data: {
+        id: string;
+        step: typeof RunStep.ResolveRepo;
+        projectPath: string;
         timestamp: number;
       };
     }
@@ -193,7 +207,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: typeof RunStep.MrCreate;
+        step: typeof RunStep.CreateCodeChangeRequest;
         sourceBranch: string;
         targetBranch: string;
         timestamp: number;
@@ -220,7 +234,7 @@ export type RunStepStartEvent =
       event: 'run_step_start';
       data: {
         id: string;
-        step: typeof RunStep.UpdateMergeRequest;
+        step: typeof RunStep.UpdateCodeChangeRequest;
         timestamp: number;
       };
     };
@@ -254,7 +268,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: typeof RunStep.SandboxCreate;
+        step: typeof RunStep.CreateSandbox;
         sandboxId: string;
         error: string;
         timestamp: number;
@@ -264,7 +278,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: typeof RunStep.SandboxKill;
+        step: typeof RunStep.KillSandbox;
         error: string;
         timestamp: number;
       };
@@ -279,6 +293,16 @@ export type RunStepEndEvent =
         error: string;
         retries: number;
         maxRetries: number;
+        timestamp: number;
+      };
+    }
+  | {
+      event: 'run_step_end';
+      data: {
+        id: string;
+        step: typeof RunStep.ResolveRepo;
+        defaultBranch: string;
+        error: string;
         timestamp: number;
       };
     }
@@ -306,9 +330,9 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: typeof RunStep.MrCreate;
-        mrIid: string;
-        mrUrl: string;
+        step: typeof RunStep.CreateCodeChangeRequest;
+        codeChangeRequestNumber: string;
+        codeChangeRequestUrl: string;
         error: string;
         timestamp: number;
       };
@@ -335,7 +359,7 @@ export type RunStepEndEvent =
       event: 'run_step_end';
       data: {
         id: string;
-        step: typeof RunStep.UpdateMergeRequest;
+        step: typeof RunStep.UpdateCodeChangeRequest;
         completionStatus: CompletionStatus;
         completionSummary: string;
         error: string;
@@ -353,10 +377,11 @@ export type RunKind = (typeof RunKind)[keyof typeof RunKind];
 
 export type MrReviewRunInput = {
   kind: typeof RunKind.MrReview;
+  provider: GitProvider;
   query: {
     note: string;
-    projectId: string;
-    mrIid: string;
+    projectPath: string;
+    codeChangeRequestNumber: string;
     sourceBranch: string;
     sourceSha: string;
     targetBranch: string;
@@ -372,13 +397,100 @@ export type ChatRunInput = {
   query: { message: string; images?: string[] };
   model: ModelName;
   reasoning: boolean;
-  tools: { server: boolean; gitlab: boolean; webSearch: boolean };
+  tools: {
+    server: boolean;
+    gitlab: boolean;
+    github: boolean;
+    webSearch: boolean;
+  };
+};
+
+export const GitProvider = {
+  GitLab: 'gitlab',
+  GitHub: 'github',
+} as const;
+
+export type GitProvider = (typeof GitProvider)[keyof typeof GitProvider];
+
+export type AlertType = 'note' | 'caution' | 'tip' | 'warning';
+
+export type ToolCallSpec = { name: string; method?: string };
+
+export type GitHost = {
+  provider: GitProvider;
+  name: string;
+  codeChangeRequestName: string;
+  commitIdentity: { name: string; email: string };
+  webHost: string;
+  repoKey: (projectPath: string) => string;
+  remoteUrl: (projectPath: string) => string;
+  repoUrl: (projectPath: string) => string;
+  resolveRepo: (
+    urlPath: string,
+    signal?: AbortSignal,
+  ) => Promise<{ projectPath: string; defaultBranch: string }>;
+  formatAlert: (type: AlertType, title: string, body: string) => string;
+  repoIdentifiers: (projectPath: string) => string;
+  codeChangeRequestIdentifier: (codeChangeRequestNumber: string) => string;
+  codeChangeRequestRef: (codeChangeRequestNumber: string) => string;
+  issueIdentifiers: (projectPath: string, issueNumber: string) => string;
+  issueTools: { read: Set<string>; write: Set<string> };
+  discussion: {
+    issueComments: ToolCallSpec[];
+    codeChangeRequestFeedback: ToolCallSpec[];
+    replies: string[];
+    replyGuidance: string;
+  };
+  fetchIssue: (
+    projectPath: string,
+    issueNumber: string,
+    issueKind: 'issue' | 'work_item',
+    signal?: AbortSignal,
+  ) => Promise<{ title: string; description: string; labels: string[] }>;
+  fetchRepoFile: (projectPath: string, path: string) => Promise<string | null>;
+  upsertIssueComment: (
+    projectPath: string,
+    issueNumber: string,
+    body: string,
+    commentId?: number,
+  ) => Promise<number>;
+  upsertCodeChangeRequestComment: (
+    projectPath: string,
+    codeChangeRequestNumber: string,
+    body: string,
+    commentId?: number,
+  ) => Promise<number>;
+  // JSON in the shape of the provider's own MCP thread-listing tool, so analytics parses both the same way.
+  fetchReviewThreads: (
+    projectPath: string,
+    codeChangeRequestNumber: string,
+  ) => Promise<string>;
+  createDraftCodeChangeRequest: (params: {
+    projectPath: string;
+    sourceBranch: string;
+    targetBranch: string;
+    title: string;
+    description: string;
+    reviewerUsername: string | null;
+    signal?: AbortSignal;
+  }) => Promise<{
+    codeChangeRequestNumber: string;
+    codeChangeRequestUrl: string;
+    draft: boolean;
+  }>;
+  updateCodeChangeRequest: (params: {
+    projectPath: string;
+    codeChangeRequestNumber: string;
+    description?: string;
+    draft?: boolean;
+  }) => Promise<void>;
 };
 
 export type WorkItemResolveRunInput = {
   kind: typeof RunKind.WorkItemResolve;
+  provider: GitProvider;
   projectPath: string;
-  issueIid: string;
+  issueNumber: string;
   defaultBranch: string;
   assignedBy: string;
   model: ModelName;
@@ -388,6 +500,7 @@ export type WorkItemResolveRunInput = {
 
 export type TaskResolveRunInput = {
   kind: typeof RunKind.TaskResolve;
+  provider: GitProvider;
   title: string;
   projectPath: string;
   prompt: string;
@@ -535,6 +648,7 @@ export type CorrectiveNudgeStartEvent = {
       | 'TrailingQuestionGuard'
       | 'NoToolCallGuard'
       | 'DiscussionCheckGuard'
+      | 'WriteTargetGuard'
       | 'HumanApproval';
     prompt: string;
     timestamp: number;
@@ -758,6 +872,9 @@ export type Workflow<TInput, TSecrets = undefined> = {
   kind: RunKind;
   name: string;
   description: string;
+  // TODO - remove once MR review supports GitHub.
+  // Not initialized, listed or started when that provider isn't configured; existing threads stay readable.
+  requiresProvider?: GitProvider;
   init: () => Promise<void>;
   cleanup: () => void | Promise<void>;
   getGraphMermaid: () => Promise<string>;
@@ -1035,19 +1152,19 @@ export interface MemoryTable {
   updated_at: Timestamp;
 }
 
-export type WorktreeEntityType = 'mr' | 'issue' | 'task';
+export type WorktreeEntityType = 'code_change_request' | 'issue' | 'task';
 
 export type WorktreeIdentity = {
   repo: string;
   entityType: WorktreeEntityType;
-  iid: string;
+  entityId: string;
 };
 
 export interface WorktreeLeaseTable {
   id: ColumnType<string, never, never>;
   repo: string;
   entity_type: WorktreeEntityType;
-  iid: string;
+  entity_id: string;
   ref: string;
   leased: ColumnType<boolean>;
   pending_delete: ColumnType<boolean>;
@@ -1081,6 +1198,7 @@ export type ScheduleRecurrence =
 export interface TaskScheduleTable {
   id: ColumnType<string, never, never>;
   title: string;
+  provider: GitProvider;
   project_path: string;
   prompt: string;
   default_branch: string;
@@ -1171,6 +1289,7 @@ export type HarnessConfigStatus =
 export type ParsedHarnessConfig = {
   parsed: HarnessConfig | null;
   status: HarnessConfigStatus;
+  error?: string;
 };
 
 export type InstructionDoc = { path: string; match?: string[] };

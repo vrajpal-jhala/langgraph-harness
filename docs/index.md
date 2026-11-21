@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: langgraph-harness
-  text: AI coding agent platform for GitLab
-  tagline: Self-hosted, built with LangGraph. Reviews merge requests, resolves work items and tasks autonomously, and chats with full project context — remembering what matters so every run builds on the last.
+  text: AI coding agent platform for GitLab and GitHub
+  tagline: Self-hosted, built with LangGraph. Reviews merge and pull requests, resolves issues and tasks autonomously, and chats with full project context — remembering what matters so every run builds on the last.
   image:
     src: /logo.svg
     alt: langgraph-harness
@@ -27,7 +27,7 @@ import { withBase } from 'vitepress'
 
 <section class="landing-section landing-section--intro-center">
   <p class="landing-eyebrow">See it in action</p>
-  <h2>Assign an issue. Get a merge request.</h2>
+  <h2>Assign an issue. Get a merge or pull request.</h2>
 
   <div class="landing-video">
     <Screencast
@@ -57,7 +57,7 @@ npm install
 
 ```bash [2. Configure]
 cp backend/.env.example backend/.env
-# add a GitLab PAT, a GitLab OAuth app, and an LLM backend key
+# add a bot token and OAuth app for GitLab, GitHub or both, and an LLM backend key
 ```
 
 ```bash [3. Run]
@@ -109,7 +109,7 @@ npm run dev
           <h3>Work Item Resolve</h3>
           <span class="landing-badge">Work Item</span>
         </span>
-        <p>Assign an issue and the agent implements the fix in a sandboxed checkout, opens a draft MR, and keeps responding to follow-up comments.</p>
+        <p>Assign an issue and the agent implements the fix in a sandboxed checkout, opens a draft merge or pull request, and keeps responding to follow-up comments.</p>
       </label>
       <label class="landing-workflow-tab" for="landing-wf-task">
         <span class="landing-workflow-tab-head">
@@ -117,7 +117,7 @@ npm run dev
           <h3>Task Resolve</h3>
           <span class="landing-badge">Scheduled</span>
         </span>
-        <p>The same sandboxed loop, started from a free-text instruction instead of a GitLab issue — on demand or on a recurring schedule.</p>
+        <p>The same sandboxed loop, started from a free-text instruction instead of an issue — on demand or on a recurring schedule.</p>
       </label>
       <label class="landing-workflow-tab" for="landing-wf-chat">
         <span class="landing-workflow-tab-head">
@@ -125,7 +125,7 @@ npm run dev
           <h3>Chat</h3>
           <span class="landing-badge">Interactive</span>
         </span>
-        <p>A GitLab-aware assistant with full GitLab access, live web fetch, image uploads, and semantic search across past reviews and project history.</p>
+        <p>A GitLab- and GitHub-aware assistant with full GitLab and GitHub access, live web fetch, image uploads, and semantic search across past reviews and project history.</p>
       </label>
     </div>
     <div class="landing-workflow-stage">
@@ -191,7 +191,7 @@ npm run dev
         <span class="landing-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2" /><rect width="20" height="8" x="2" y="14" rx="2" ry="2" /><line x1="6" x2="6.01" y1="6" y2="6" /><line x1="6" x2="6.01" y1="18" y2="18" /></svg></span>
         <h3>Self-Hostable</h3>
       </div>
-      <p>A single Docker Compose stack. Bring your own GitLab instance, your own LLM backend (OpenRouter, Gemini, Groq, Ollama, or sglang), and your own data.</p>
+      <p>A single Docker Compose stack. Bring your own GitLab instance or GitHub repos, your own LLM backend (OpenRouter, Gemini, Groq, Ollama, or sglang), and your own data.</p>
     </div>
   </div>
 </section>

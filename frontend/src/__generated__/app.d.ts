@@ -27,6 +27,10 @@ declare const auth: import("better-auth").Auth<{
 	disabledPaths: string[];
 	account: {
 		encryptOAuthTokens: true;
+		accountLinking: {
+			updateUserInfoOnLink: true;
+			allowDifferentEmails: true;
+		};
 	};
 	user: {
 		validateUserInfo: ({ user, source }: {
@@ -38,6 +42,10 @@ declare const auth: import("better-auth").Auth<{
 		} | undefined;
 		additionalFields: {
 			gitlabUsername: {
+				type: "string";
+				required: false;
+			};
+			githubUsername: {
 				type: "string";
 				required: false;
 			};
@@ -86,8 +94,10 @@ declare const auth: import("better-auth").Auth<{
 					matcher: (ctx: import("better-auth").HookEndpointContext) => boolean;
 					handler: import("better-auth").Middleware<import("better-auth").MiddlewareOptions, (inputContext: import("better-auth").MiddlewareInputContext<import("better-auth").MiddlewareOptions>) => Promise<{
 						id: string;
-						username: string;
+						gitlabUsername: string;
+						githubUsername: string;
 						gitlabId: number | null;
+						githubId: number | null;
 						name: string;
 						avatarUrl: string | null;
 						role: "admin" | "viewer";
@@ -126,8 +136,10 @@ declare const auth: import("better-auth").Auth<{
 					requireHeaders: true;
 				}, {
 					id: string;
-					username: string;
+					gitlabUsername: string;
+					githubUsername: string;
 					gitlabId: number | null;
+					githubId: number | null;
 					name: string;
 					avatarUrl: string | null;
 					role: "admin" | "viewer";
@@ -136,8 +148,10 @@ declare const auth: import("better-auth").Auth<{
 			$Infer: {
 				Session: {
 					id: string;
-					username: string;
+					gitlabUsername: string;
+					githubUsername: string;
 					gitlabId: number | null;
+					githubId: number | null;
 					name: string;
 					avatarUrl: string | null;
 					role: "admin" | "viewer";
@@ -147,7 +161,16 @@ declare const auth: import("better-auth").Auth<{
 		}
 	];
 	socialProviders: {
-		gitlab: {
+		github?: {
+			clientId: string;
+			clientSecret: string;
+			scope: string[];
+			overrideUserInfoOnSignIn: true;
+			mapProfileToUser: (profile: import("better-auth").GithubProfile) => {
+				githubUsername: string;
+			};
+		} | undefined;
+		gitlab?: {
 			clientId: string;
 			clientSecret: string;
 			scope: string[];
@@ -157,7 +180,7 @@ declare const auth: import("better-auth").Auth<{
 				emailVerified: true;
 				gitlabUsername: string;
 			};
-		};
+		} | undefined;
 	};
 }>;
 declare class AppError extends Error {
@@ -168,7 +191,7 @@ declare class AppError extends Error {
 declare const MemorySourceSchema: z$1.ZodDiscriminatedUnion<[
 	z$1.ZodObject<{
 		workflow: z$1.ZodLiteral<"code-review">;
-		mrIid: z$1.ZodString;
+		codeChangeRequestNumber: z$1.ZodString;
 	}, z$1.z.core.$strip>,
 	z$1.ZodObject<{
 		workflow: z$1.ZodLiteral<"chat">;
@@ -176,7 +199,7 @@ declare const MemorySourceSchema: z$1.ZodDiscriminatedUnion<[
 	}, z$1.z.core.$strip>,
 	z$1.ZodObject<{
 		workflow: z$1.ZodLiteral<"work-item-resolve">;
-		issueIid: z$1.ZodString;
+		issueNumber: z$1.ZodString;
 	}, z$1.z.core.$strip>,
 	z$1.ZodObject<{
 		workflow: z$1.ZodLiteral<"task-resolve">;
@@ -184,27 +207,38 @@ declare const MemorySourceSchema: z$1.ZodDiscriminatedUnion<[
 	}, z$1.z.core.$strip>
 ], "workflow">;
 declare const harnessConfigSchema: z.ZodObject<{
-	version: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
-	mr_review_instructions: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodObject<{
-		path: z.ZodString;
-		match: z.ZodOptional<z.ZodArray<z.ZodString>>;
-	}, z.core.$strip>>>>;
-	work_item_resolve_instructions: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodObject<{
-		path: z.ZodString;
-		match: z.ZodOptional<z.ZodArray<z.ZodString>>;
-	}, z.core.$strip>>>>;
-	exclude_branches: z.ZodDefault<z.ZodOptional<z.ZodObject<{
-		source: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodString>>>;
-		target: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodString>>>;
-	}, z.core.$strip>>>;
-	mr_review_requires_harness_reviewer: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
-}, z.core.$strip>;
+	version: z.ZodLiteral<2>;
+	review: z.ZodPrefault<z.ZodObject<{
+		instructions: z.ZodDefault<z.ZodArray<z.ZodObject<{
+			path: z.ZodString;
+			match: z.ZodOptional<z.ZodArray<z.ZodString>>;
+		}, z.core.$strict>>>;
+		exclude_branches: z.ZodPrefault<z.ZodObject<{
+			source: z.ZodDefault<z.ZodArray<z.ZodString>>;
+			target: z.ZodDefault<z.ZodArray<z.ZodString>>;
+		}, z.core.$strict>>;
+		requires_reviewer: z.ZodDefault<z.ZodBoolean>;
+	}, z.core.$strict>>;
+	resolve: z.ZodPrefault<z.ZodObject<{
+		instructions: z.ZodDefault<z.ZodArray<z.ZodObject<{
+			path: z.ZodString;
+		}, z.core.$strict>>>;
+	}, z.core.$strict>>;
+}, z.core.$strict>;
+declare const Role: {
+	readonly Admin: "admin";
+	readonly Viewer: "viewer";
+};
+type Role = (typeof Role)[keyof typeof Role];
 type Session = {
 	id: string;
-	username: string;
+	gitlabUsername: string;
+	githubUsername: string;
 	gitlabId: number | null;
+	githubId: number | null;
 	name: string;
 	avatarUrl: string | null;
+	role: Role;
 };
 declare const LLMProvider: {
 	readonly OpenRouter: "openrouter";
@@ -256,16 +290,17 @@ type CompletionStatus = (typeof CompletionStatus)[keyof typeof CompletionStatus]
 declare const RunStep: {
 	readonly PrepareWorktree: "prepare_worktree";
 	readonly SetGitIdentity: "set_git_identity";
-	readonly SandboxCreate: "sandbox_create";
-	readonly SandboxKill: "sandbox_kill";
+	readonly CreateSandbox: "create_sandbox";
+	readonly KillSandbox: "kill_sandbox";
 	readonly ClassifyIssue: "classify_issue";
+	readonly ResolveRepo: "resolve_repo";
 	readonly CreateBranch: "create_branch";
 	readonly Push: "push";
-	readonly MrCreate: "mr_create";
+	readonly CreateCodeChangeRequest: "create_code_change_request";
 	readonly NoChanges: "no_changes";
 	readonly AssessCompletion: "assess_completion";
 	readonly NotifyIssueEnd: "notify_issue_end";
-	readonly UpdateMergeRequest: "update_merge_request";
+	readonly UpdateCodeChangeRequest: "update_code_change_request";
 };
 type RunStep = (typeof RunStep)[keyof typeof RunStep];
 type RunStepStartEvent = {
@@ -286,7 +321,7 @@ type RunStepStartEvent = {
 	event: "run_step_start";
 	data: {
 		id: string;
-		step: typeof RunStep.SandboxCreate;
+		step: typeof RunStep.CreateSandbox;
 		image: string;
 		timestamp: number;
 	};
@@ -294,7 +329,7 @@ type RunStepStartEvent = {
 	event: "run_step_start";
 	data: {
 		id: string;
-		step: typeof RunStep.SandboxKill;
+		step: typeof RunStep.KillSandbox;
 		sandboxId: string;
 		timestamp: number;
 	};
@@ -304,6 +339,14 @@ type RunStepStartEvent = {
 		id: string;
 		step: typeof RunStep.ClassifyIssue;
 		prompt: string;
+		timestamp: number;
+	};
+} | {
+	event: "run_step_start";
+	data: {
+		id: string;
+		step: typeof RunStep.ResolveRepo;
+		projectPath: string;
 		timestamp: number;
 	};
 } | {
@@ -326,7 +369,7 @@ type RunStepStartEvent = {
 	event: "run_step_start";
 	data: {
 		id: string;
-		step: typeof RunStep.MrCreate;
+		step: typeof RunStep.CreateCodeChangeRequest;
 		sourceBranch: string;
 		targetBranch: string;
 		timestamp: number;
@@ -350,7 +393,7 @@ type RunStepStartEvent = {
 	event: "run_step_start";
 	data: {
 		id: string;
-		step: typeof RunStep.UpdateMergeRequest;
+		step: typeof RunStep.UpdateCodeChangeRequest;
 		timestamp: number;
 	};
 };
@@ -380,7 +423,7 @@ type RunStepEndEvent = {
 	event: "run_step_end";
 	data: {
 		id: string;
-		step: typeof RunStep.SandboxCreate;
+		step: typeof RunStep.CreateSandbox;
 		sandboxId: string;
 		error: string;
 		timestamp: number;
@@ -389,7 +432,7 @@ type RunStepEndEvent = {
 	event: "run_step_end";
 	data: {
 		id: string;
-		step: typeof RunStep.SandboxKill;
+		step: typeof RunStep.KillSandbox;
 		error: string;
 		timestamp: number;
 	};
@@ -403,6 +446,15 @@ type RunStepEndEvent = {
 		error: string;
 		retries: number;
 		maxRetries: number;
+		timestamp: number;
+	};
+} | {
+	event: "run_step_end";
+	data: {
+		id: string;
+		step: typeof RunStep.ResolveRepo;
+		defaultBranch: string;
+		error: string;
 		timestamp: number;
 	};
 } | {
@@ -427,9 +479,9 @@ type RunStepEndEvent = {
 	event: "run_step_end";
 	data: {
 		id: string;
-		step: typeof RunStep.MrCreate;
-		mrIid: string;
-		mrUrl: string;
+		step: typeof RunStep.CreateCodeChangeRequest;
+		codeChangeRequestNumber: string;
+		codeChangeRequestUrl: string;
 		error: string;
 		timestamp: number;
 	};
@@ -453,7 +505,7 @@ type RunStepEndEvent = {
 	event: "run_step_end";
 	data: {
 		id: string;
-		step: typeof RunStep.UpdateMergeRequest;
+		step: typeof RunStep.UpdateCodeChangeRequest;
 		completionStatus: CompletionStatus;
 		completionSummary: string;
 		error: string;
@@ -469,10 +521,11 @@ declare const RunKind: {
 type RunKind = (typeof RunKind)[keyof typeof RunKind];
 type MrReviewRunInput = {
 	kind: typeof RunKind.MrReview;
+	provider: GitProvider;
 	query: {
 		note: string;
-		projectId: string;
-		mrIid: string;
+		projectPath: string;
+		codeChangeRequestNumber: string;
 		sourceBranch: string;
 		sourceSha: string;
 		targetBranch: string;
@@ -493,13 +546,20 @@ type ChatRunInput = {
 	tools: {
 		server: boolean;
 		gitlab: boolean;
+		github: boolean;
 		webSearch: boolean;
 	};
 };
+declare const GitProvider: {
+	readonly GitLab: "gitlab";
+	readonly GitHub: "github";
+};
+type GitProvider = (typeof GitProvider)[keyof typeof GitProvider];
 type WorkItemResolveRunInput = {
 	kind: typeof RunKind.WorkItemResolve;
+	provider: GitProvider;
 	projectPath: string;
-	issueIid: string;
+	issueNumber: string;
 	defaultBranch: string;
 	assignedBy: string;
 	model: ModelName;
@@ -508,6 +568,7 @@ type WorkItemResolveRunInput = {
 };
 type TaskResolveRunInput = {
 	kind: typeof RunKind.TaskResolve;
+	provider: GitProvider;
 	title: string;
 	projectPath: string;
 	prompt: string;
@@ -631,7 +692,7 @@ type CorrectiveNudgeStartEvent = {
 	event: "corrective_nudge_start";
 	data: {
 		id: string;
-		middleware: "DuplicateCallGuard" | "ExtractProjectMemory" | "TrailingQuestionGuard" | "NoToolCallGuard" | "DiscussionCheckGuard" | "HumanApproval";
+		middleware: "DuplicateCallGuard" | "ExtractProjectMemory" | "TrailingQuestionGuard" | "NoToolCallGuard" | "DiscussionCheckGuard" | "WriteTargetGuard" | "HumanApproval";
 		prompt: string;
 		timestamp: number;
 		subagentId?: string;
@@ -892,6 +953,7 @@ type HarnessConfigStatus = (typeof HarnessConfigStatus)[keyof typeof HarnessConf
 type ParsedHarnessConfig = {
 	parsed: HarnessConfig | null;
 	status: HarnessConfigStatus;
+	error?: string;
 };
 export declare const app: Elysia<"", {
 	decorator: {};
@@ -1094,6 +1156,23 @@ export declare const app: Elysia<"", {
 	};
 } & {
 	api: {};
+} & {
+	api: {
+		providers: {
+			get: {
+				body: {};
+				params: {};
+				query: {};
+				headers: {};
+				response: {
+					200: {
+						gitlab: boolean;
+						github: boolean;
+					};
+				};
+			};
+		};
+	};
 } & {
 	api: {
 		uploads: {
@@ -1480,6 +1559,7 @@ export declare const app: Elysia<"", {
 							model: "openai/gpt-5-mini" | "google/gemini-2.5-flash-lite" | "anthropic/claude-haiku-4.5" | "anthropic/claude-sonnet-5" | "qwen3.6:latest" | "qwen3.6:27b" | "qwen3.5:latest" | "gemma4:31b" | "QuantTrio/Qwen3.6-35B-A3B-AWQ" | "cyankiwi/Qwen3.6-27B-AWQ-INT4" | "Qwen/Qwen3.8-27B-FP8" | "gemini-flash-latest" | "gemini-flash-lite-latest" | "openai/gpt-oss-120b";
 							tools: {
 								gitlab: boolean;
+								github: boolean;
 								server: boolean;
 								webSearch: boolean;
 							};
@@ -1825,6 +1905,7 @@ export declare const app: Elysia<"", {
 						id: string;
 						created_at: Date;
 						updated_at: Date;
+						provider: GitProvider;
 						project_path: string;
 						prompt: string;
 						default_branch: string;
@@ -1880,6 +1961,7 @@ export declare const app: Elysia<"", {
 							id: string;
 							created_at: Date;
 							updated_at: Date;
+							provider: GitProvider;
 							project_path: string;
 							prompt: string;
 							default_branch: string;
@@ -1942,6 +2024,7 @@ export declare const app: Elysia<"", {
 						id: string;
 						created_at: Date;
 						updated_at: Date;
+						provider: GitProvider;
 						project_path: string;
 						prompt: string;
 						default_branch: string;
@@ -1973,7 +2056,6 @@ export declare const app: Elysia<"", {
 						title: string;
 						prompt: string;
 						timezone: string;
-						repoUrl: string;
 						scheduledFor: string;
 					} | {
 						endDate?: string | undefined;
@@ -1992,7 +2074,6 @@ export declare const app: Elysia<"", {
 							dayOfMonth: number;
 						};
 						timezone: string;
-						repoUrl: string;
 					};
 					params: {
 						id: string;
@@ -2006,6 +2087,7 @@ export declare const app: Elysia<"", {
 							id: string;
 							created_at: Date;
 							updated_at: Date;
+							provider: GitProvider;
 							project_path: string;
 							prompt: string;
 							default_branch: string;
@@ -2316,8 +2398,8 @@ export declare const app: Elysia<"", {
 					query: {
 						limit?: number | undefined;
 						offset?: number | undefined;
-						projectId?: string | undefined;
 						since?: string | undefined;
+						projectId?: string | undefined;
 						kind: "chat" | "mr_review" | "work_item_resolve" | "task_resolve";
 					};
 					headers: {};
@@ -2426,8 +2508,8 @@ export declare const app: Elysia<"", {
 				body: {};
 				params: {};
 				query: {
-					projectId?: string | undefined;
 					scope?: "personal" | undefined;
+					projectId?: string | undefined;
 					categories?: ("knowledge" | "preference" | "lesson" | "decision")[] | undefined;
 				};
 				headers: {};
@@ -2705,6 +2787,7 @@ export declare const app: Elysia<"", {
 				query: unknown;
 				headers: unknown;
 				response: {
+					404: "Not Found";
 					200: {
 						received: boolean;
 						status: string;
@@ -2715,6 +2798,35 @@ export declare const app: Elysia<"", {
 						status: string;
 						detail: string;
 						reason?: undefined;
+					} | {
+						received: boolean;
+						status: string;
+						reason: string;
+					};
+					401: "Unauthorized";
+				};
+			};
+		};
+	};
+} & {
+	webhooks: {
+		github: {
+			post: {
+				body: unknown;
+				params: {};
+				query: unknown;
+				headers: unknown;
+				response: {
+					404: "Not Found";
+					200: {
+						received: boolean;
+						status: string;
+						detail: string;
+						reason?: undefined;
+					} | {
+						received: boolean;
+						status: string;
+						reason: string;
 					};
 					401: "Unauthorized";
 				};

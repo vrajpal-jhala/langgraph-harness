@@ -4,6 +4,8 @@ const STACK_CONTAINERS = [
   'harness_opensandbox',
   'harness_supermemory',
   'harness_lightpanda',
+  'harness_gitlab_mcp',
+  'harness_github_mcp',
   'harness_postgres',
   'harness_redis',
 ] as const;

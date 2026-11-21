@@ -127,39 +127,48 @@ const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const recentTimestamp = (maxDaysAgo) =>
   new Date(Date.now() - Math.random() ** 2 * maxDaysAgo * 24 * 60 * 60 * 1000);
 
+const NO_HARNESS_CONFIG = { status: 'missing', parsed: null };
+
 function buildInput(kind, project, mrIid) {
   switch (kind) {
     case 'mr_review':
       return {
         kind,
+        provider: 'gitlab',
         query: {
           note: 'push',
-          projectId: project,
-          mrIid,
+          projectPath: project,
+          codeChangeRequestNumber: mrIid,
           sourceBranch: 'feat/demo-change',
           sourceSha: randomUUID().slice(0, 8),
           targetBranch: 'main',
+          defaultBranch: 'main',
         },
         model: 'openrouter/anthropic/claude-sonnet-5',
         reasoning: false,
+        config: NO_HARNESS_CONFIG,
       };
     case 'work_item_resolve':
       return {
         kind,
+        provider: 'gitlab',
         projectPath: project,
-        issueIid: String(randInt(1, 200)),
+        issueNumber: String(randInt(1, 200)),
         defaultBranch: 'main',
         assignedBy: 'demo-user',
         issueKind: 'issue',
+        config: NO_HARNESS_CONFIG,
       };
     case 'task_resolve':
       return {
         kind,
+        provider: 'gitlab',
         title: pick(ISSUE_TITLES),
         projectPath: project,
         prompt: 'Resolve this from the chat-submitted task.',
         defaultBranch: 'main',
         submittedBy: 'demo-user',
+        config: NO_HARNESS_CONFIG,
       };
     case 'chat':
       return {
@@ -283,7 +292,16 @@ async function main() {
             ? pick(ISSUE_TITLES)
             : pick(CHAT_MESSAGES);
 
-      const metadata = project ? { project, ...(mrIid ? { mrIid } : {}) } : {};
+      const metadata = project
+        ? {
+            source: 'gitlab',
+            project,
+            ...(mrIid && {
+              type: 'code_change_request',
+              number: Number(mrIid),
+            }),
+          }
+        : {};
       const runs = buildRunTimeline(threadCreatedAt);
       const threadUpdatedAt = runs[runs.length - 1].completedAt;
 

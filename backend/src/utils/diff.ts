@@ -134,3 +134,32 @@ export function validatePosition(
     error: 'position must include at least one of old_line or new_line.',
   };
 }
+
+// GitHub anchors a comment to any line shown on that side of the diff — unlike GitLab, a context line needs no old/new pairing.
+export function validateSidedPosition(
+  map: DiffLineMap,
+  position: {
+    line: number;
+    side: 'LEFT' | 'RIGHT';
+    startLine?: number;
+    startSide?: 'LEFT' | 'RIGHT';
+  },
+) {
+  const linesOn = (side: 'LEFT' | 'RIGHT') =>
+    side === 'LEFT' ? map.oldLines : map.newLines;
+  const label = (side: 'LEFT' | 'RIGHT') =>
+    side === 'LEFT' ? 'removed or context (old)' : 'added or context (new)';
+  const { line, side, startLine, startSide = side } = position;
+
+  if (!linesOn(side).has(line))
+    return {
+      error: `line ${line} on side ${side} isn't an ${label(side)} line in this diff — use side LEFT for a removed line and RIGHT for an added or unchanged one, with that side's line number.`,
+    };
+
+  if (startLine != null && !linesOn(startSide).has(startLine))
+    return {
+      error: `startLine ${startLine} on side ${startSide} isn't an ${label(startSide)} line in this diff.`,
+    };
+
+  return { success: `line ${line} on side ${side} is commentable.` };
+}

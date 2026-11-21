@@ -19,7 +19,7 @@ import { threadsService } from '#components/threads/service.js';
 import { translateRunStream } from '#components/workflows/stream-translator.js';
 import { chatAgentNode } from './nodes/agent_node.js';
 import { chatState } from './state.js';
-import { buildChatTools, chatMcpServer } from './tools.js';
+import { buildChatTools } from './tools.js';
 import { type sendChatMessageSchema } from './validation.js';
 
 import { config, llms } from '#utils/config.js';
@@ -34,9 +34,16 @@ import {
 
 const CHAT_WORKFLOW_NAME = 'Chat';
 const CHAT_WORKFLOW_DESCRIPTION =
-  'Interactive GitLab-aware assistant with server-data diagnostics.';
+  'Interactive GitLab- and GitHub-aware assistant with server-data diagnostics.';
 
 const KNOWN_LC_SOURCES = new Set(['summarization']);
+
+type ChatSecrets = {
+  gitlabToken?: string;
+  githubToken?: string;
+  openRouterKey: string;
+  userId?: string;
+};
 
 async function buildChatWorkflow() {
   return new StateGraph(chatState)
@@ -60,7 +67,7 @@ async function* resumeWithDecision(
   runId: string,
   decision: ResumePayload,
   tools: DynamicStructuredTool[],
-  secrets: { gitlabToken?: string; openRouterKey: string; userId?: string },
+  secrets: ChatSecrets,
   signal?: AbortSignal,
 ): AsyncGenerator<RunEvent> {
   if (!compiledChat) throw new Error('Chat workflow not initialized');
@@ -181,10 +188,7 @@ const cleanupLoop = createLoop(async () => {
   await sweepUnreferencedUploads();
 }, config.chat.cleanupIntervalMs);
 
-export const chatWorkflow: Workflow<
-  ChatRunInput,
-  { gitlabToken?: string; openRouterKey: string; userId?: string }
-> = {
+export const chatWorkflow: Workflow<ChatRunInput, ChatSecrets> = {
   id: 'chat',
   kind: RunKind.Chat,
   name: CHAT_WORKFLOW_NAME,
@@ -194,8 +198,17 @@ export const chatWorkflow: Workflow<
   },
   validateInput: (input, secrets) => {
     if (!secrets.openRouterKey) throw errors.chat.missingOpenRouterKey();
+    if (input.tools.gitlab && !config.gitlab.enabled) {
+      throw errors.chat.gitlabDisabled();
+    }
     if (input.tools.gitlab && !secrets.gitlabToken) {
       throw errors.chat.missingGitlabToken();
+    }
+    if (input.tools.github && !config.github.enabled) {
+      throw errors.chat.githubDisabled();
+    }
+    if (input.tools.github && !secrets.githubToken) {
+      throw errors.chat.missingGithubToken();
     }
   },
   startMode: 'immediate',
@@ -238,12 +251,10 @@ export const chatWorkflow: Workflow<
   },
   init: async () => {
     compiledChat = await buildChatWorkflow();
-    await chatMcpServer.start();
     cleanupLoop.start();
   },
   cleanup: () => {
     cleanupLoop.stop();
-    chatMcpServer.stop();
   },
   getGraphMermaid: async () => {
     if (!compiledChat) throw new Error('Chat workflow not initialized');
@@ -253,7 +264,7 @@ export const chatWorkflow: Workflow<
   stream: async function* (
     input: ChatRunInput,
     ctx: RunContext,
-    secrets: { gitlabToken?: string; openRouterKey: string; userId?: string },
+    secrets: ChatSecrets,
   ): AsyncGenerator<RunEvent> {
     if (!compiledChat) throw new Error('Chat workflow not initialized');
 
@@ -263,8 +274,10 @@ export const chatWorkflow: Workflow<
     const { tools, close } = await buildChatTools({
       server: toolsEnabled.server,
       gitlab: toolsEnabled.gitlab,
+      github: toolsEnabled.github,
       webSearch: toolsEnabled.webSearch,
       gitlabToken: secrets.gitlabToken,
+      githubToken: secrets.githubToken,
     });
 
     try {

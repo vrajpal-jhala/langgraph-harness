@@ -1,10 +1,9 @@
-import type { ErrorKind, Run, RunEvent, RunKind } from '#types.js';
+import type { ErrorKind, GitHost, Run, RunEvent, RunKind } from '#types.js';
 
 import { runsDal } from '#components/runs/dal.js';
 import { analyticsDal } from './dal.js';
 import { parseOwnComments, summarizeRun } from './summarize.js';
 
-import { fetchMrDiscussions } from '#utils/gitlab.js';
 import { logger } from '#utils/logger.js';
 
 const DEFAULT_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
@@ -74,15 +73,22 @@ export const analyticsService = {
   getUsage: () => analyticsDal.getUsage(),
 
   recordFinalOwnComments: async (
+    host: GitHost,
     threadId: string,
-    projectId: string,
-    mrIid: string,
+    projectPath: string,
+    codeChangeRequestNumber: string,
   ) => {
     const run = await runsDal.findLatestByThread(threadId);
     if (!run) return;
 
-    const discussions = await fetchMrDiscussions(projectId, mrIid);
+    const threads = await host.fetchReviewThreads(
+      projectPath,
+      codeChangeRequestNumber,
+    );
     // No age cutoff: this is the last check we'll ever make for this thread.
-    await analyticsDal.updateOwnComments(run.id, parseOwnComments(discussions));
+    await analyticsDal.updateOwnComments(
+      run.id,
+      parseOwnComments(host.provider, threads),
+    );
   },
 };

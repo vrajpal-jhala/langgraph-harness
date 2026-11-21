@@ -132,7 +132,7 @@ trigger_issue "work-item-resolve:assign" 45 "[REFACTOR] Extract shared GitLab fe
 # its iid below, or expect 'no_matching_work_item_resolve_thread' against a mismatch ──
 
 # 7. plain MR comment → re-enqueues work-item-resolve if a matching thread exists
-trigger_note "work-item-resolve:comment" 500001 "mock-mr-iid-45" "Do we need a separate notesUrl function since that's not being reused? Maybe we can collapse it into the callee?"
+trigger_note "work-item-resolve:comment" 500001 "mock-code-change-request-45" "Do we need a separate notesUrl function since that's not being reused? Maybe we can collapse it into the callee?"
 
 # 8. system note (e.g. "changed the description") → skipped, never a trigger
 trigger_note "work-item-resolve:system-note" 500002 96 "changed the description" "true"

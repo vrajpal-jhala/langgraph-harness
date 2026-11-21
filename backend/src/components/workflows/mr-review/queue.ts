@@ -6,6 +6,7 @@ import { runsService } from '#components/runs/service.js';
 import { workflowsService } from '#components/workflows/service.js';
 
 import { config } from '#utils/config.js';
+import { gitHosts } from '#utils/git-host.js';
 import { logger } from '#utils/logger.js';
 
 type EnqueueMrReviewResult =
@@ -14,11 +15,21 @@ type EnqueueMrReviewResult =
 const QUEUE_NAME = 'reviews';
 const JOB_NAME = 'review';
 
+export const reviewJobId = (
+  provider: MrReviewRunInput['provider'],
+  query: Pick<
+    MrReviewRunInput['query'],
+    'projectPath' | 'codeChangeRequestNumber'
+  >,
+) =>
+  `review:${gitHosts[provider].repoKey(query.projectPath)}:${query.codeChangeRequestNumber}`;
+
 async function processMrReview(data: RunJob, queueWaitMs: number) {
   const {
     threadId,
     runId,
     kind,
+    provider,
     query,
     model,
     reasoning,
@@ -30,7 +41,7 @@ async function processMrReview(data: RunJob, queueWaitMs: number) {
     threadId,
     runId,
     kind,
-    { kind, query, model, reasoning, config: runConfig },
+    { kind, provider, query, model, reasoning, config: runConfig },
     undefined,
     checkpointId,
     queueWaitMs,
@@ -76,14 +87,15 @@ export function initQueueHandlers() {
 
         const toRun = pending[0];
         if (workflowsService.forKind(toRun.kind).startMode !== 'queued') return;
-        const { query, model, reasoning, config } =
+        const { provider, query, model, reasoning, config } =
           toRun.input as MrReviewRunInput;
         await enqueueMrReview(
-          `review:${query.projectId}:${query.mrIid}`,
+          reviewJobId(provider, query),
           {
             threadId,
             runId: toRun.id,
             kind: RunKind.MrReview,
+            provider,
             query,
             model,
             reasoning,

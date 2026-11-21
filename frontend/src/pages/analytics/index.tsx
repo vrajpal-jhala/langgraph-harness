@@ -63,6 +63,7 @@ const commonNudges = [
 const sandboxedResolveNudges = [
   ...commonNudges,
   { key: 'DiscussionCheckGuard', label: 'Discussion check guard' },
+  { key: 'WriteTargetGuard', label: 'Write target guard' },
 ];
 
 const NUDGE_MIDDLEWARES: Record<RunKind, { key: string; label: string }[]> = {
@@ -287,7 +288,7 @@ const AnalyticsPage = () => {
                 title="No runs yet"
                 description={
                   kind === RunKind.MrReview
-                    ? 'Once langgraph-harness reviews some merge requests, their stats will show up here.'
+                    ? 'Once langgraph-harness reviews some merge or pull requests, their stats will show up here.'
                     : kind === RunKind.WorkItemResolve
                       ? 'Once langgraph-harness resolves some issues, their stats will show up here.'
                       : 'Once people start chatting with langgraph-harness, their stats will show up here.'

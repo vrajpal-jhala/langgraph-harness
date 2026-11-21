@@ -359,7 +359,7 @@ const ThreadsPage = () => {
             <EmptyState
               icon={<Icon as={IconStack2} size={40} />}
               title="No threads yet"
-              description="Threads appear here when a merge request is processed."
+              description="Threads appear here when a merge or pull request is processed."
               size="md"
             />
           ) : (

@@ -11,6 +11,8 @@ import { schedulesDal } from './dal.js';
 import { firstOccurrence, toCronPattern } from './recurrence.js';
 
 import { config, llms } from '#utils/config.js';
+import { errors } from '#utils/errors.js';
+import { gitHosts } from '#utils/git-host.js';
 import { parseHarnessYml } from '#utils/harness-config.js';
 import { logger } from '#utils/logger.js';
 
@@ -24,24 +26,33 @@ async function buildRunInput(
 ): Promise<TaskResolveRunInput> {
   return {
     kind: RunKind.TaskResolve,
+    provider: schedule.provider,
     title: schedule.title,
     projectPath: schedule.project_path,
     prompt: schedule.prompt,
     defaultBranch: schedule.default_branch,
     submittedBy: schedule.created_by,
     model: llms.find((m) => m.isDefault)?.model ?? llms[0].model,
-    config: await parseHarnessYml(schedule.project_path),
+    config: await parseHarnessYml(
+      gitHosts[schedule.provider],
+      schedule.project_path,
+    ),
   };
 }
 
 // Shared by a timer fire and "Run now" — both just materialize one more task-resolve run from the schedule's stored config.
 export async function materializeScheduleRun(schedule: TaskSchedule) {
+  // A schedule made before its provider was switched off still fires; checked before the thread so none is left empty.
+  if (!config[schedule.provider].enabled) {
+    throw errors.workflows.disabled();
+  }
   const thread = await threadsService.create(
     schedule.title,
     RunKind.TaskResolve,
     schedule.created_by,
   );
   await threadsDal.mergeMetadata(thread.id, {
+    source: schedule.provider,
     scheduleId: schedule.id,
     project: schedule.project_path,
   });
@@ -66,11 +77,15 @@ async function processScheduleFire({ scheduleId }: ScheduleJob) {
   const schedule = await schedulesDal.findById(scheduleId);
   // Closes the race between a cancel/pause and a job already sitting in Redis waiting to fire.
   if (!schedule || schedule.status !== ScheduleStatus.Active) return;
-  await materializeScheduleRun(schedule);
-  if (isExhausted(schedule)) {
-    await schedulesDal.update(scheduleId, {
-      status: ScheduleStatus.Completed,
-    });
+  try {
+    await materializeScheduleRun(schedule);
+  } finally {
+    // Completed tracks the schedule's occurrences, not whether the work succeeded — that's on its runs.
+    if (isExhausted(schedule)) {
+      await schedulesDal.update(scheduleId, {
+        status: ScheduleStatus.Completed,
+      });
+    }
   }
 }
 

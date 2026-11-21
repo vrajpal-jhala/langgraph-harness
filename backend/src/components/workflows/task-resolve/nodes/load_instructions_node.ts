@@ -7,7 +7,7 @@ import type { TaskResolveState } from '#components/workflows/task-resolve/state.
 // No postNote: on a first run the MR doesn't exist yet, so there's no note to update — the completion note is posted after the MR is opened.
 export const loadInstructionsNode =
   createLoadInstructionsNode<TaskResolveState>({
-    getDocs: (parsed) => parsed.work_item_resolve_instructions,
+    getDocs: (parsed) => parsed.resolve.instructions,
 
     resolveContent: async (docs, state, config) => {
       const { defaultBranch } = state;

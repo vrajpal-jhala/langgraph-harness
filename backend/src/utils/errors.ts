@@ -20,6 +20,10 @@ export class RunAbortedError extends Error {
   }
 }
 
+// gitlabFetch/githubFetch throw plain Errors carrying the status only in the message.
+export const isNotFoundApiError = (err: unknown) =>
+  err instanceof Error && /^Git(Lab|Hub) API error 404:/.test(err.message);
+
 export const errors = {
   threads: {
     notFound: () => new AppError(404, 'Thread not found'),
@@ -30,8 +34,14 @@ export const errors = {
   chat: {
     missingOpenRouterKey: () =>
       new AppError(400, 'No OpenRouter API key saved — add one in Settings'),
+    gitlabDisabled: () =>
+      new AppError(400, 'GitLab tools are unavailable on this deployment'),
     missingGitlabToken: () =>
       new AppError(400, 'GitLab tools enabled but no linked GitLab token'),
+    githubDisabled: () =>
+      new AppError(400, 'GitHub tools are unavailable on this deployment'),
+    missingGithubToken: () =>
+      new AppError(400, 'GitHub tools enabled but no linked GitHub token'),
     unsupportedProvider: (model: string) =>
       new AppError(400, `Chat supports OpenRouter models only, got: ${model}`),
   },
@@ -59,6 +69,11 @@ export const errors = {
   },
   workflows: {
     notFound: () => new AppError(404, 'Workflow not found'),
+    disabled: () =>
+      new AppError(
+        409,
+        'This workflow needs a git provider that this deployment has not configured',
+      ),
   },
   monitoring: {
     forbidden: () => new AppError(403, 'Forbidden'),

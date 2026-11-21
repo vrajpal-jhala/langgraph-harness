@@ -34,7 +34,7 @@ The same sandboxed loop, started from a free-text instruction instead of a GitLa
 
 ## Chat
 
-A GitLab-aware assistant with full GitLab access, live web fetch, image uploads, and semantic search across past reviews and project history.
+A GitLab- and GitHub-aware assistant with full GitLab and GitHub access, live web fetch, image uploads, and semantic search across past reviews and project history.
 
 <Screencast
   poster="https://cdn.jsdelivr.net/gh/vrajpal-jhala/langgraph-harness-media@main/chat-workflow.webp"

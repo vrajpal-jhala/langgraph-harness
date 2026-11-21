@@ -44,6 +44,7 @@ import QueryList from './components/query-list';
 import { api, ws } from '@/api';
 import { config } from '@/config';
 import { Context } from '@/contexts';
+import { useAuth } from '@/hooks/useAuth';
 import { useRunStream } from '@/hooks/useRunStream';
 import { useStickToBottom } from '@/hooks/useStickToBottom';
 import { CHAT_TOUR_ID, chatSteps } from '@/tours/steps';
@@ -151,6 +152,11 @@ const ChatPage = () => {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [serverTools, setServerTools] = useState(false);
   const [gitlabTools, setGitlabTools] = useState(false);
+  const [githubTools, setGithubTools] = useState(false);
+  const { providers, user } = useAuth();
+  // A chat's last run can carry a toggle for a provider that's since been switched off or unlinked, so it never reaches a send.
+  const gitlabLinked = providers.gitlab && !!user?.gitlabId;
+  const githubLinked = providers.github && !!user?.githubId;
   const [webSearchTools, setWebSearchTools] = useState(false);
   const [sending, setSending] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -298,6 +304,7 @@ const ChatPage = () => {
         setThinking(lastRun.input.reasoning ?? false);
         setServerTools(lastRun.input.tools?.server ?? false);
         setGitlabTools(lastRun.input.tools?.gitlab ?? false);
+        setGithubTools(lastRun.input.tools?.github ?? false);
         setWebSearchTools(lastRun.input.tools?.webSearch ?? false);
       }
 
@@ -432,7 +439,8 @@ const ChatPage = () => {
         reasoning: thinking,
         tools: {
           server: serverTools,
-          gitlab: gitlabTools,
+          gitlab: gitlabLinked && gitlabTools,
+          github: githubLinked && githubTools,
           webSearch: webSearchTools,
         },
       });
@@ -739,13 +747,28 @@ const ChatPage = () => {
                     checked={serverTools}
                     onChange={(e) => setServerTools(e.currentTarget.checked)}
                   />
-                  <Switch
-                    size="xs"
-                    label="GitLab tools"
-                    labelPosition="left"
-                    checked={gitlabTools}
-                    onChange={(e) => setGitlabTools(e.currentTarget.checked)}
-                  />
+                  {providers.gitlab && (
+                    <Switch
+                      size="xs"
+                      label="GitLab tools"
+                      description={!gitlabLinked && 'Link GitLab in Settings'}
+                      labelPosition="left"
+                      disabled={!gitlabLinked}
+                      checked={gitlabLinked && gitlabTools}
+                      onChange={(e) => setGitlabTools(e.currentTarget.checked)}
+                    />
+                  )}
+                  {providers.github && (
+                    <Switch
+                      size="xs"
+                      label="GitHub tools"
+                      description={!githubLinked && 'Link GitHub in Settings'}
+                      labelPosition="left"
+                      disabled={!githubLinked}
+                      checked={githubLinked && githubTools}
+                      onChange={(e) => setGithubTools(e.currentTarget.checked)}
+                    />
+                  )}
                   <Switch
                     size="xs"
                     label="Fetch web pages"

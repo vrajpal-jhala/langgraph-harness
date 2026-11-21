@@ -136,7 +136,7 @@ const ChatListPage = () => {
           <EmptyState
             icon={<Icon as={IconMessagePlus} size={40} />}
             title="No chats yet"
-            description="Start a new chat to talk to the GitLab-aware assistant."
+            description="Start a new chat to talk to the GitLab- and GitHub-aware assistant."
             size="md"
           />
         </Center>

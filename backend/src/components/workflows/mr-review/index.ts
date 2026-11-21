@@ -8,17 +8,18 @@ import {
   type Workflow,
   WorkflowNode,
 } from '#types.js';
-import { InstructionStatus, RunKind } from '#types.js';
+import { GitProvider, InstructionStatus, RunKind } from '#types.js';
 
 import { repositoriesManager } from '#components/repositories/manager.js';
 import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
+import { migrateLegacyState } from '#components/workflows/legacy-state-migration.js';
 import { translateRunStream } from '#components/workflows/stream-translator.js';
 import { agentNode } from './nodes/agent_node.js';
 import { loadInstructionsNode } from './nodes/load_instructions_node.js';
 import { notifyReviewStatusNode } from './nodes/notify_review_status_node.js';
-import { enqueueMrReview, mrReviewQueue } from './queue.js';
+import { enqueueMrReview, mrReviewQueue, reviewJobId } from './queue.js';
 import { WorkflowState, workflowState } from './state.js';
 import { tools } from './tools.js';
 
@@ -26,10 +27,10 @@ import { isAdmin } from '#utils/auth.js';
 import { config } from '#utils/config.js';
 import { checkpointer } from '#utils/db.js';
 import { errors } from '#utils/errors.js';
-import { upsertMrNote } from '#utils/gitlab.js';
+import { gitHosts } from '#utils/git-host.js';
 import { logger } from '#utils/logger.js';
 import { createLoop } from '#utils/loop.js';
-import { mrNote } from '#utils/notes.js';
+import { reviewNote } from '#utils/notes.js';
 
 type CompiledWorkflow = Awaited<ReturnType<typeof buildWorkflow>>;
 
@@ -41,7 +42,7 @@ const KNOWN_LC_SOURCES = new Set([
 
 const WORKFLOW_NAME = 'MR Review';
 const WORKFLOW_DESCRIPTION =
-  'Reviews GitLab merge requests and posts feedback as comments.';
+  'Reviews merge requests and pull requests and posts feedback as comments.';
 
 async function buildWorkflow() {
   return new StateGraph(workflowState)
@@ -83,7 +84,7 @@ async function getNoteContext(threadId: string) {
   });
   const values = state?.values as WorkflowState;
   return {
-    noteId: values?.noteId ?? null,
+    statusCommentId: values?.statusCommentId ?? null,
     instructionStatus:
       values.config?.instructions?.status ?? InstructionStatus.Loading,
   };
@@ -95,10 +96,14 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
   name: WORKFLOW_NAME,
   description: WORKFLOW_DESCRIPTION,
   checkAccess: (thread, session, action) => {
+    const authorAccountId =
+      thread.metadata?.source === GitProvider.GitHub
+        ? session.githubId
+        : session.gitlabId;
     const isAuthor =
-      session.gitlabId != null &&
-      thread.metadata?.mrAuthorId === session.gitlabId;
-    if (action === 'mutate' && !isAdmin(session.username) && !isAuthor) {
+      authorAccountId != null &&
+      thread.metadata?.codeChangeRequestAuthorId === authorAccountId;
+    if (action === 'mutate' && !isAdmin(session) && !isAuthor) {
       throw errors.runs.forbidden();
     }
   },
@@ -106,26 +111,28 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
   interruptible: false,
   cancelPendingRun: async (run) => {
     if (!mrReviewQueue) return;
-    const { query } = run.input as MrReviewRunInput;
-    const jobId = `review:${query.projectId}:${query.mrIid}`;
-    const job = await mrReviewQueue.getJob(jobId);
+    const { provider, query } = run.input as MrReviewRunInput;
+    const job = await mrReviewQueue.getJob(reviewJobId(provider, query));
     if (job?.data.runId === run.id) await job.remove().catch(() => {});
   },
   recoverOrphanedRun: async (run) => {
-    const { query, model, reasoning, config } = run.input as MrReviewRunInput;
+    const { provider, query, model, reasoning, config } =
+      run.input as MrReviewRunInput;
     const newRun = await runsService.create(run.thread_id, RunKind.MrReview, {
       kind: RunKind.MrReview,
+      provider,
       query,
       model,
       reasoning,
       config,
     });
     await enqueueMrReview(
-      `review:${query.projectId}:${query.mrIid}`,
+      reviewJobId(provider, query),
       {
         threadId: run.thread_id,
         runId: newRun.id,
         kind: RunKind.MrReview,
+        provider,
         query,
         model,
         reasoning,
@@ -155,11 +162,41 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
   ): AsyncGenerator<RunEvent> {
     if (!compiledWorkflow) throw new Error('Workflow not initialized');
 
-    const { query, model, reasoning, config: harnessConfig } = input;
+    const { provider, query, model, reasoning, config: harnessConfig } = input;
     const { id: threadId, runId, signal } = ctx;
+    const host = gitHosts[provider];
+    const repo = host.repoKey(query.projectPath);
     // mr-review is never interruptible, so 'resume' never reaches here — only fresh vs. retry-from-checkpoint.
-    const fromCheckpointId =
+    let fromCheckpointId =
       ctx.mode === 'retry' ? ctx.fromCheckpointId : undefined;
+
+    fromCheckpointId = await migrateLegacyState({
+      graph: compiledWorkflow,
+      threadId,
+      checkpointId: fromCheckpointId,
+      renames: { noteId: 'statusCommentId' },
+      reshapes: {
+        query: (value) => {
+          const { projectId, mrIid, ...rest } = value as Record<
+            string,
+            unknown
+          >;
+          return mrIid === undefined
+            ? undefined
+            : {
+                ...rest,
+                projectPath: projectId,
+                codeChangeRequestNumber: mrIid,
+              };
+        },
+      },
+      nodeOrder: [
+        WorkflowNode.NotifyReviewStart,
+        WorkflowNode.LoadInstructions,
+        WorkflowNode.Agent,
+        WorkflowNode.NotifyReviewEnd,
+      ],
+    });
 
     // a retry of a run persisted before sourceBranch existed can't get a worktree
     if (!query.sourceBranch) {
@@ -186,9 +223,9 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
 
     try {
       worktree = await repositoriesManager.acquireWorktree({
-        repo: query.projectId,
-        entityType: 'mr',
-        iid: query.mrIid,
+        repo,
+        entityType: 'code_change_request',
+        entityId: query.codeChangeRequestNumber,
         ref: query.sourceBranch,
         sha: query.sourceSha,
         signal,
@@ -203,7 +240,7 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
         data: {
           id: stepId,
           step: RunStep.PrepareWorktree,
-          repo: query.projectId,
+          repo,
           ref: query.sourceBranch,
           cloned: error || !worktree ? false : worktree.cloned,
           revived: error || !worktree ? false : worktree.revived,
@@ -236,6 +273,7 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
           configurable: {
             thread_id: threadId,
             run_id: runId,
+            host,
             worktreePath: worktree.path,
             revived: worktree.revived,
             ...(fromCheckpointId && { checkpoint_id: fromCheckpointId }),
@@ -262,25 +300,34 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
     isTimeout: boolean,
   ): Promise<void> => {
     const { id, runId } = ctx;
-    const { query, model } = input;
+    const { provider, query, model } = input;
+    const host = gitHosts[provider];
 
     const noteContext = await getNoteContext(id).catch((err) => {
       logger.error({ err, runId, id }, 'Error reading MR note context');
       return null;
     });
 
-    if (!noteContext?.noteId) return;
+    if (!noteContext?.statusCommentId) return;
 
-    const { noteId, instructionStatus } = noteContext;
+    const { statusCommentId, instructionStatus } = noteContext;
     const noteBody = isTimeout
-      ? mrNote.timedOut(model, instructionStatus, id)
+      ? reviewNote.timedOut(host, model, instructionStatus, id)
       : isAbort
-        ? mrNote.aborted(model, instructionStatus, id)
-        : mrNote.failed(model, instructionStatus, id);
-    await upsertMrNote(query.projectId, query.mrIid, noteBody, noteId).catch(
-      (err) => {
-        logger.error({ err, runId, id, noteId }, 'Error updating MR note');
-      },
-    );
+        ? reviewNote.aborted(host, model, instructionStatus, id)
+        : reviewNote.failed(host, model, instructionStatus, id);
+    await host
+      .upsertCodeChangeRequestComment(
+        query.projectPath,
+        query.codeChangeRequestNumber,
+        noteBody,
+        statusCommentId,
+      )
+      .catch((err) => {
+        logger.error(
+          { err, runId, id, statusCommentId },
+          'Error updating review status comment',
+        );
+      });
   },
 };
