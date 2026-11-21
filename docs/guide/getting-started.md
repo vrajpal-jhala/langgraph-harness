@@ -68,7 +68,7 @@ Self-hosted GitLab: also set `GITLAB_API_URL` (defaults to `https://gitlab.com/a
 
 Either way, add workflow write access (`workflow` scope, or **Workflows** read and write) if the bot should be able to change GitHub Actions files.
 
-**OAuth app (sign-in).** **Settings → Developer settings → OAuth Apps → New OAuth App**, with the callback URL `http://localhost:5173/auth/callback/github` (again `APP_URL` plus `/auth/callback/github`). Copy the **Client ID** and generate a **Client secret**. Sign-in supports github.com only, not GitHub Enterprise. Sign-in asks for the `repo` scope, because Chat's GitHub tools act with the signed-in user's token. Users who linked GitHub before this scope was added must sign in with GitHub again before those tools can reach their repositories.
+**OAuth app (sign-in).** **Settings → Developer settings → OAuth Apps → New OAuth App**, with the callback URL `http://localhost:5173/auth/callback/github` (again `APP_URL` plus `/auth/callback/github`). Copy the **Client ID** and generate a **Client secret**. Sign-in supports github.com only, not GitHub Enterprise. Sign-in asks for the `repo` scope, because Chat's GitHub tools act with the signed-in user's token.
 
 **Webhook.** On each repository (**Settings → Webhooks**) or once on the organization, add a webhook pointing at `<your-instance>/webhooks/github`, content type `application/json`, with a secret of your choosing, sending **Issues**, **Pull requests**, **Issue comments**, **Pull request review comments** and **Pull request reviews** events.
 
