@@ -1,12 +1,12 @@
 # langgraph-harness Backend
 
-Elysia API server powering the langgraph-harness agent. Runs LangGraph workflows with GitLab MCP tools, persists conversation threads in PostgreSQL, and streams run events over SSE. MR reviews are triggered automatically via GitLab webhooks and debounced through a BullMQ queue; Chat runs are started directly by the user and can pause mid-run for tool-call approval.
+Elysia API server powering the langgraph-harness agent. Runs LangGraph workflows with GitLab and GitHub MCP tools, persists conversation threads in PostgreSQL, and streams run events over SSE. Merge and pull request reviews are triggered automatically via GitLab and GitHub webhooks and debounced through a BullMQ queue; Chat runs are started directly by the user and can pause mid-run for tool-call approval.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    GL[GitLab MR Event] --> WH[Webhook Endpoint]
+    GL[GitLab / GitHub event] --> WH[Webhook Endpoint]
     WH --> Q[BullMQ Queue]
     Q -->|debounce 5 min| AG[LangGraph Agent]
     AG -->|MCP tools| GL
@@ -36,7 +36,7 @@ Configure **GitLab, GitHub, or both**. Each provider's "Yes" variables are all-o
 
 | Variable                        | Required       | Default                   | Description                                                                                                                                                                                                  |
 | ------------------------------- | -------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SESSION_SECRET`                | Yes            | —                         | Signing secret for session cookies; also the key better-auth encrypts stored GitLab OAuth tokens with — rotating it forces every user to reconnect GitLab                                                    |
+| `SESSION_SECRET`                | Yes            | —                         | Signing secret for session cookies; also the key better-auth encrypts stored GitLab and GitHub OAuth tokens with — rotating it forces every user to reconnect them                                           |
 | `SECRETS_ENCRYPTION_KEY`        | Yes            | —                         | Key for encrypting app-managed secrets at rest (e.g. per-user OpenRouter keys) — kept separate from `SESSION_SECRET` so rotating one doesn't break the other                                                 |
 | `AUTH_TRUSTED_ORIGINS`          | No             | —                         | Comma-separated additional origins allowed as post-login redirect targets and OAuth hosts (e.g. a LAN IP) — each must also be registered as a callback URL on your OAuth app(s)                              |
 | `WORKFLOW_PROJECT_PATH_FILTERS` | No             | —                         | Comma-separated project/repository-path substrings to restrict the git workflows to. Empty means no restriction — every project is in scope                                                                  |
