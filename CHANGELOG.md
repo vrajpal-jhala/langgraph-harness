@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.6.1] - 2026-11-22
+
+### Fixes
+
+- **Analytics merged a GitLab project and a GitHub repo with the same path into one row** — the "By repository" table grouped runs by path alone, so a repo that exists on both providers showed one row with both providers' runs added together. Each provider now gets its own row, marked with its icon. ([#80](https://github.com/vrajpal-jhala/langgraph-harness/pull/80))
+
+---
+
 ## [0.6.0] - 2026-11-21
 
 ### Features
