@@ -267,7 +267,7 @@ async function handleMergeRequestEvent(body: any) {
     const thread = await threadsDal.findByMetadata(mrMetadata);
     if (thread) {
       analyticsService
-        .recordFinalOwnComments(thread.id, projectPath, String(mrIid))
+        .recordFinalOwnComments(host, thread.id, projectPath, String(mrIid))
         .catch((err) =>
           logger.error(
             { err, threadId: thread.id },

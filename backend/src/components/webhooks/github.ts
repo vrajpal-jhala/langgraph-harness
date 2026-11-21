@@ -2,18 +2,21 @@ import { Elysia } from 'elysia';
 
 import { GitProvider, RunKind } from '#types.js';
 
+import { analyticsService } from '#components/analytics/service.js';
 import { repositoriesManager } from '#components/repositories/manager.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
 import { handleOnce } from './delivery.js';
 import { mentionsUser, startFollowUpRun } from './follow-up.js';
-import { startReviewRun } from './review.js';
+import { reviewThreadMetadata, startReviewRun } from './review.js';
 import { startWorkItemResolveRun } from './work-item.js';
 
 import { githubWebhookAuth } from '#utils/auth.js';
 import { config, isProjectInScope } from '#utils/config.js';
 import { gitHosts } from '#utils/git-host.js';
+import { hasReviewed } from '#utils/github.js';
 import { parseHarnessYml } from '#utils/harness-config.js';
+import { logger } from '#utils/logger.js';
 import { isAutomatedStatusNote } from '#utils/notes.js';
 
 type GitHubUser = { login?: string };
@@ -131,6 +134,8 @@ async function handlePullRequestEvent(body: any) {
       reason: 'missing_required_fields',
     };
 
+  const prMetadata = reviewThreadMetadata(host, projectPath, prNumber);
+
   // PR lifecycle end — clean up its worktree, independent of the review flow below. No memories cleanup: codeChangeRequestNumber metadata isn't reliably attributable to one PR, and the curator retires stale memories on its own anyway.
   if (action === 'closed') {
     await repositoriesManager.cleanupWorktree({
@@ -140,19 +145,19 @@ async function handlePullRequestEvent(body: any) {
     });
 
     // Merging/closing never closes the issue (no closing keyword, deliberately) — this is the issue worktree's only cleanup trigger in the common case.
-    const thread = await threadsDal.findByMetadata({
+    const resolveThread = await threadsDal.findByMetadata({
       source: GitProvider.GitHub,
       project: projectPath,
       codeChangeRequestNumber: String(prNumber),
     });
     // A task has no issue — its worktree is keyed by the thread instead.
     const target =
-      thread?.kind === RunKind.TaskResolve
-        ? { entityType: 'task' as const, entityId: thread.id }
-        : thread?.metadata?.number != null
+      resolveThread?.kind === RunKind.TaskResolve
+        ? { entityType: 'task' as const, entityId: resolveThread.id }
+        : resolveThread?.metadata?.number != null
           ? {
               entityType: 'issue' as const,
-              entityId: String(thread.metadata.number),
+              entityId: String(resolveThread.metadata.number),
             }
           : undefined;
 
@@ -161,6 +166,19 @@ async function handlePullRequestEvent(body: any) {
         repo: host.repoKey(projectPath),
         ...target,
       });
+    }
+
+    // Fire-and-forget — analytics only.
+    const thread = await threadsDal.findByMetadata(prMetadata);
+    if (thread) {
+      analyticsService
+        .recordFinalOwnComments(host, thread.id, projectPath, String(prNumber))
+        .catch((err) =>
+          logger.error(
+            { err, threadId: thread.id },
+            '[analytics] final own_comments check failed',
+          ),
+        );
     }
 
     return { received: true, status: 'accepted', detail: 'worktree_cleanup' };
@@ -180,11 +198,12 @@ async function handlePullRequestEvent(body: any) {
     return { received: true, status: 'skipped', reason: 'draft_pr' };
 
   const isInitial = action === 'opened' || action === 'reopened';
+  const isReReview = action === 'synchronize';
   const isMarkedReady = action === 'ready_for_review';
   // Config isn't parsed yet, so this can't check mr_review_requires_harness_reviewer here — the post-parse check below rejects it when that's off.
   const isReviewerRequest = action === 'review_requested';
 
-  if (!isInitial && !isMarkedReady && !isReviewerRequest)
+  if (!isInitial && !isReReview && !isMarkedReady && !isReviewerRequest)
     return {
       received: true,
       status: 'skipped',
@@ -224,7 +243,9 @@ async function handlePullRequestEvent(body: any) {
         config.github.username
       : ((pull_request.requested_reviewers ?? []) as GitHubUser[]).some(
           (r) => r.login === config.github.username,
-        );
+        ) ||
+        // GitHub drops a reviewer from requested_reviewers once they submit a review, unlike GitLab's reviewers list.
+        (await hasReviewed(projectPath, prNumber, config.github.username));
 
     if (!botRequested)
       return {

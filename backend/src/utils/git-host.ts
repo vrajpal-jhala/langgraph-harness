@@ -65,6 +65,7 @@ export const gitHosts: Record<GitProvider, GitHost> = {
     fetchRepoFile: gitlab.fetchRepoFile,
     upsertIssueComment: gitlab.upsertIssueNote,
     upsertCodeChangeRequestComment: gitlab.upsertMrNote,
+    fetchReviewThreads: gitlab.fetchMrDiscussions,
     createDraftCodeChangeRequest: async ({
       projectPath,
       reviewerUsername,
@@ -147,6 +148,7 @@ export const gitHosts: Record<GitProvider, GitHost> = {
     upsertIssueComment: github.upsertIssueComment,
     // A pull request's conversation comments are issue comments in GitHub's API.
     upsertCodeChangeRequestComment: github.upsertIssueComment,
+    fetchReviewThreads: github.fetchReviewThreads,
     createDraftCodeChangeRequest: async ({
       projectPath,
       reviewerUsername,

@@ -262,3 +262,64 @@ export async function updatePullRequest(params: {
       throw new Error(`GitHub GraphQL error: ${errors[0].message}`);
   }
 }
+
+// Review threads' resolved state is GraphQL-only — shaped like the MCP tool's get_review_comments output so one parser reads both.
+export async function fetchReviewThreads(
+  projectPath: string,
+  prNumber: string,
+): Promise<string> {
+  const [owner, name] = projectPath.split('/');
+  const res = await githubFetch(graphqlUrl, {
+    method: 'POST',
+    body: JSON.stringify({
+      query:
+        'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviewThreads(first: 100) { nodes { isResolved comments(first: 1) { nodes { author { login } createdAt } } } } } } }',
+      variables: { owner, name, number: Number(prNumber) },
+    }),
+  });
+  const { data, errors } = (await res.json()) as {
+    data?: {
+      repository?: {
+        pullRequest?: {
+          reviewThreads: {
+            nodes: Array<{
+              isResolved: boolean;
+              comments: {
+                nodes: Array<{
+                  author: { login: string } | null;
+                  createdAt: string;
+                }>;
+              };
+            }>;
+          };
+        };
+      };
+    };
+    errors?: { message: string }[];
+  };
+  if (errors?.length)
+    throw new Error(`GitHub GraphQL error: ${errors[0].message}`);
+
+  const threads = data?.repository?.pullRequest?.reviewThreads.nodes ?? [];
+  return JSON.stringify({
+    review_threads: threads.map((thread) => ({
+      is_resolved: thread.isResolved,
+      comments: thread.comments.nodes.map((comment) => ({
+        author: comment.author?.login,
+        created_at: comment.createdAt,
+      })),
+    })),
+  });
+}
+
+export async function hasReviewed(
+  projectPath: string,
+  prNumber: number,
+  login: string,
+): Promise<boolean> {
+  const res = await githubFetch(
+    `${repoPath(projectPath)}/pulls/${prNumber}/reviews?per_page=100`,
+  );
+  const reviews = (await res.json()) as { user?: { login?: string } }[];
+  return reviews.some((review) => review.user?.login === login);
+}

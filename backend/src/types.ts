@@ -455,6 +455,11 @@ export type GitHost = {
     body: string,
     commentId?: number,
   ) => Promise<number>;
+  // JSON in the shape of the provider's own MCP thread-listing tool, so analytics parses both the same way.
+  fetchReviewThreads: (
+    projectPath: string,
+    codeChangeRequestNumber: string,
+  ) => Promise<string>;
   createDraftCodeChangeRequest: (params: {
     projectPath: string;
     sourceBranch: string;

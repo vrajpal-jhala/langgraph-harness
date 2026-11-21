@@ -6,10 +6,12 @@ import type {
   OwnCommentsSummary,
   RunEvent,
   SummarizedRunSnapshot,
+  ToolCallSpec,
 } from '#types.js';
+import { GitProvider } from '#types.js';
 
 import { config } from '#utils/config.js';
-import { mcpToolName } from '#utils/helpers.js';
+import { matchesToolCall, mcpToolName } from '#utils/helpers.js';
 
 export type SummarizedRunFields = Omit<
   NewRunSummary,
@@ -18,8 +20,6 @@ export type SummarizedRunFields = Omit<
 
 const toolCallKey = (name: string, input: unknown) =>
   `${name}|${JSON.stringify(input ?? {})}`;
-
-const MR_DISCUSSIONS_TOOL = mcpToolName('gitlab', 'mr_discussions');
 
 // Shared accumulation logic for both the root run and each sub-agent category, so their stats stay fully comparable.
 function createAccumulator() {
@@ -124,34 +124,71 @@ type GitlabDiscussionNote = {
   author?: { username?: string };
 };
 
+type GithubReviewThread = {
+  is_resolved?: boolean;
+  comments?: { author?: string; created_at?: string }[];
+};
+
+type ThreadHead = { resolved?: boolean; author?: string; createdAt?: string };
+
+// Each thread's opening comment, from the provider's thread-listing output.
+const THREAD_HEADS: Record<GitProvider, (parsed: unknown) => ThreadHead[]> = {
+  [GitProvider.GitLab]: (parsed) =>
+    ((parsed as { items?: { notes?: GitlabDiscussionNote[] }[] }).items ?? [])
+      .map((item) => item.notes?.[0])
+      .filter((note) => !!note?.resolvable)
+      .map((note) => ({
+        resolved: note?.resolved,
+        author: note?.author?.username,
+        createdAt: note?.created_at,
+      })),
+  [GitProvider.GitHub]: (parsed) =>
+    (
+      (parsed as { review_threads?: GithubReviewThread[] }).review_threads ?? []
+    ).map((thread) => ({
+      resolved: thread.is_resolved,
+      author: thread.comments?.[0]?.author,
+      createdAt: thread.comments?.[0]?.created_at,
+    })),
+};
+
+const OWN_COMMENTS_READS: Record<GitProvider, ToolCallSpec> = {
+  [GitProvider.GitLab]: {
+    name: mcpToolName(GitProvider.GitLab, 'mr_discussions'),
+  },
+  [GitProvider.GitHub]: {
+    name: mcpToolName(GitProvider.GitHub, 'pull_request_read'),
+    method: 'get_review_comments',
+  },
+};
+
 export function parseOwnComments(
+  provider: GitProvider,
   output: string | undefined,
   runStartedAtMs?: number,
 ): OwnCommentsSummary | null {
-  if (!config.gitlab.username || !output) return null;
+  const { username } = config[provider];
+  if (!username || !output) return null;
 
-  let parsed: { items?: { notes?: GitlabDiscussionNote[] }[] };
+  let parsed: unknown;
   try {
     parsed = JSON.parse(output);
   } catch {
     return null;
   }
 
-  const own = (parsed.items ?? [])
-    .map((item) => item.notes?.[0])
-    .filter(
-      (note): note is GitlabDiscussionNote =>
-        !!note?.resolvable &&
-        note.author?.username === config.gitlab.username &&
-        // A note from this run is guaranteed unresolved, not a real observation.
-        (runStartedAtMs === undefined ||
-          !note.created_at ||
-          Date.parse(note.created_at) < runStartedAtMs),
-    );
+  const own = THREAD_HEADS[provider](parsed).filter(
+    (head) =>
+      head.author === username &&
+      // A comment from this run is guaranteed unresolved, not a real observation.
+      (runStartedAtMs === undefined ||
+        !head.createdAt ||
+        Date.parse(head.createdAt) < runStartedAtMs),
+  );
 
   return {
     total: own.length,
-    resolved: own.filter((note) => note.resolved).length,
+    resolved: own.filter((head) => head.resolved).length,
   };
 }
 
@@ -176,7 +213,7 @@ export function summarizeRun(
   let ownComments: OwnCommentsSummary | null = null;
   let sawCommentCriticStart = false;
   let sawExtractProjectMemoryStart = false;
-  const pendingMrDiscussions = new Set<string>();
+  const pendingThreadReads = new Map<string, GitProvider>();
 
   for (const event of events) {
     switch (event.event) {
@@ -198,16 +235,28 @@ export function summarizeRun(
           event.data.name,
           event.data.input,
         );
-        if (event.data.name === MR_DISCUSSIONS_TOOL) {
-          pendingMrDiscussions.add(event.data.id);
-        }
+        const threadsProvider = (
+          Object.keys(OWN_COMMENTS_READS) as GitProvider[]
+        ).find((provider) =>
+          matchesToolCall(OWN_COMMENTS_READS[provider], {
+            name: event.data.name,
+            args: event.data.input,
+          }),
+        );
+        if (threadsProvider)
+          pendingThreadReads.set(event.data.id, threadsProvider);
         break;
       }
       case 'tool_output': {
-        if (!pendingMrDiscussions.has(event.data.id)) break;
-        pendingMrDiscussions.delete(event.data.id);
+        const threadsProvider = pendingThreadReads.get(event.data.id);
+        if (!threadsProvider) break;
+        pendingThreadReads.delete(event.data.id);
         // Last one wins — a run rarely calls this more than once, but the latest snapshot is the freshest if it does.
-        const parsed = parseOwnComments(event.data.output, runStartedAtMs);
+        const parsed = parseOwnComments(
+          threadsProvider,
+          event.data.output,
+          runStartedAtMs,
+        );
         if (parsed) ownComments = parsed;
         break;
       }
