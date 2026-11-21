@@ -31,7 +31,7 @@ function instructionLine(status: InstructionStatus): string | null {
     case InstructionStatus.LoadedFiltered:
       return 'Applied repository instructions from `.harness.yml` (filtered to changed files).';
     case InstructionStatus.Failed:
-      return "Couldn't load repository instructions — continuing without them.";
+      return "Couldn't load repository instructions — continuing without them. The run's page shows why.";
     case InstructionStatus.Missing:
       return 'No repository instructions configured.';
     default:

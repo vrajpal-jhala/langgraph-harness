@@ -10,7 +10,7 @@ import { createLoadInstructionsNode } from '#components/workflows/nodes/load_ins
 import { reviewNote } from '#utils/notes.js';
 
 export const loadInstructionsNode = createLoadInstructionsNode<WorkflowState>({
-  getDocs: (parsed) => parsed.mr_review_instructions,
+  getDocs: (parsed) => parsed.review.instructions,
 
   resolveContent: async (docs: InstructionDoc[], state, config) => {
     const { query } = state;

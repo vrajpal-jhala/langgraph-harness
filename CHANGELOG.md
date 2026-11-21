@@ -35,6 +35,7 @@ All notable changes to langgraph-harness are documented here.
 - **`WEBHOOK_TOKENS` is renamed to `GITLAB_WEBHOOK_TOKENS`** — now that GitHub has its own webhook secrets, the GitLab ones are named for GitLab. Rename the variable in `backend/.env` before upgrading, or GitLab webhooks will be rejected.
 - **`ADMIN_GITLAB_USERNAMES` is renamed to `GITLAB_ADMIN_USERNAMES`** — to match the other provider variables and the new `GITHUB_ADMIN_USERNAMES`. Rename it in `backend/.env` before upgrading, or the backend won't start.
 - **Upgrading needs planned downtime** — stored data is renamed in place and the previous version can't read it. `update.sh` migrates before it restarts the backend, so wait until no run is active and the queues are empty, then run `docker compose stop backend`. A database backup beforehand is a good precaution.
+- **`.harness.yml` must be updated to version 2** — its keys are now grouped by what they configure: `review` holds `instructions`, `exclude_branches` and `requires_reviewer`, and `resolve` holds the `instructions` for issue runs and tasks. A version 1 file, or one without `version`, is no longer read: runs go ahead without its instructions and with review settings at their defaults, so a repo relying on `mr_review_requires_harness_reviewer` gets every merge or pull request reviewed until it's updated. Unknown keys now make the file invalid, and the run's page says which one. The configuration docs have a table mapping the old keys to the new ones.
 
 ---
 

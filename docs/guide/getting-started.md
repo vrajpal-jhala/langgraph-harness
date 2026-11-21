@@ -27,7 +27,7 @@ Not every feature exists on both yet:
 | ------------------------------------------------------------ | ------ | ------ |
 | Sign-in                                                      | ✓      | ✓      |
 | Issue resolve — assign an issue to the bot, get a draft back | ✓      | ✓      |
-| Merge request review                                         | ✓      | —      |
+| Merge and pull request review                                | ✓      | ✓      |
 | Task resolve — ad-hoc tasks and schedules from the UI        | ✓      | ✓      |
 | Follow-up runs from comments mentioning the bot on its draft | ✓      | ✓      |
 | Chat's GitLab tools (acting on GitLab as the signed-in user) | ✓      | —      |
@@ -76,7 +76,8 @@ For local dev, GitHub can't reach `localhost`, so forward events instead with th
 
 ```bash
 gh extension install cli/gh-webhook
-gh webhook forward --repo=<owner>/<repo> --events=issues,pull_request \
+gh webhook forward --repo=<owner>/<repo> \
+  --events=issues,pull_request,issue_comment,pull_request_review_comment,pull_request_review \
   --url=http://localhost:3698/webhooks/github --secret=<your GITHUB_WEBHOOK_TOKENS value>
 ```
 

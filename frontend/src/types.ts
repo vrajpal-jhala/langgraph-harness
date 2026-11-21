@@ -182,10 +182,12 @@ export type LoadInstructionsNodePayload = {
   status: string;
   parsed: {
     version: number;
-    mr_review_instructions: { path: string; match?: string[] }[];
-    work_item_resolve_instructions: { path: string; match?: string[] }[];
-    exclude_branches: { source: string[]; target: string[] };
-    mr_review_requires_harness_reviewer: boolean;
+    review: {
+      instructions: { path: string; match?: string[] }[];
+      exclude_branches: { source: string[]; target: string[] };
+      requires_reviewer: boolean;
+    };
+    resolve: { instructions: { path: string }[] };
   } | null;
   instructions: { status: string; content: string };
   error: string;

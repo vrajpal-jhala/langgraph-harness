@@ -300,7 +300,7 @@ async function handleMergeRequestEvent(body: any) {
     changes?.draft?.previous === true &&
     changes?.draft?.current === false;
 
-  // Config isn't parsed yet, so this can't check mr_review_requires_harness_reviewer here — the post-parse check below rejects it when that's off.
+  // Config isn't parsed yet, so this can't check review.requires_reviewer here — the post-parse check below rejects it when that's off.
   const isReviewerUpdate = action === 'update' && !!changes?.reviewers;
 
   if (!isInitial && !isReReview && !isMarkedReady && !isReviewerUpdate)
@@ -320,7 +320,7 @@ async function handleMergeRequestEvent(body: any) {
   const { parsed } = harnessConfig;
 
   // Reviewer-change-only events were never triggers before this feature.
-  if (isReviewerUpdate && !parsed?.mr_review_requires_harness_reviewer)
+  if (isReviewerUpdate && !parsed?.review.requires_reviewer)
     return {
       received: true,
       status: 'skipped',
@@ -328,7 +328,7 @@ async function handleMergeRequestEvent(body: any) {
     };
 
   // Runs before branch filtering so an MR with no bot reviewer short-circuits early.
-  if (parsed?.mr_review_requires_harness_reviewer) {
+  if (parsed?.review.requires_reviewer) {
     const currentlyReviewer = new Set([
       ...usernamesFrom(changes?.reviewers?.current),
       ...usernamesFrom(reviewers),

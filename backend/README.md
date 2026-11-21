@@ -266,47 +266,48 @@ Task Resolve runs on the exact same compiled agent as Work Item Resolve (`agent.
 
 ## Repository Configuration
 
-A repository can opt into per-repo review behavior with a `.harness.yml` file at its **root on the default branch**. It's resolved once per review from the default branch; the MR's own branch cannot override it. Everything is optional — a missing, invalid, or unsupported-version file just means the MR is reviewed with defaults. A ready-to-copy example lives at [`docs/harness-config/v1.example.yml`](../docs/harness-config/v1.example.yml).
+A repository can opt into per-repo behavior with a `.harness.yml` file at its **root on the default branch**. It's resolved once per run from the default branch; a merge or pull request's own branch cannot override it. Every section is optional — a missing file means defaults. An invalid file, including one with an unknown key or an unsupported version, also runs with defaults, and the run's timeline (linked from the status comment) shows what's wrong. A ready-to-copy example lives at [`docs/harness-config/v2.example.yml`](../docs/harness-config/v2.example.yml).
 
 ```yaml
 # .harness.yml
-version: 1
+version: 2
 
-# Instruction docs fed to the reviewer. Each entry has a `path` (read from the
-# default branch). Add `match` globs to attach a doc only when the MR changes a
-# matching file; omit `match` to always attach it.
-mr_review_instructions:
-  - path: docs/review-guidelines.md # always attached
-  - path: docs/typescript.md
-    match: ['**/*.ts', '**/*.tsx'] # only when the MR touches TS files
+review:
+  # Instruction docs fed to the reviewer. Each entry has a `path` (read from the
+  # default branch). Add `match` globs to attach a doc only when the change
+  # touches a matching file; omit `match` to always attach it.
+  instructions:
+    - path: docs/review-guidelines.md # always attached
+    - path: docs/typescript.md
+      match: ['**/*.ts', '**/*.tsx'] # only when the change touches TS files
 
-# Same shape as above, fed to the work-item-resolve agent instead.
-work_item_resolve_instructions:
-  - path: docs/work-item-resolve-guidelines.md
+  # Skip review when the source or target branch matches a glob.
+  exclude_branches:
+    source: ['release/*', 'wip/**']
+    target: ['staging']
 
-# Skip review when the source or target branch matches a glob.
-exclude_branches:
-  source: ['release/*', 'wip/**']
-  target: ['staging']
+  # Only review once the bot is one of the reviewers; default false reviews every change.
+  requires_reviewer: false
 
-# Only review an MR once the bot is one of its reviewers; default false reviews as today.
-mr_review_requires_harness_reviewer: false
+# Issue runs and tasks.
+resolve:
+  instructions:
+    - path: docs/contributing.md
 ```
 
-| Key                                      | Type     | Default | Description                                                                                                                    |
-| ---------------------------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `version`                                | number   | `1`     | Config schema version. Only `1` is supported; other values skip instructions.                                                  |
-| `mr_review_instructions[].path`          | string   | —       | Repo-relative path to an instruction doc, read from the default branch. Missing docs are skipped with a warning.               |
-| `mr_review_instructions[].match`         | string[] | —       | Globs; the doc is attached only when the MR changes a matching file. Omit to always attach.                                    |
-| `work_item_resolve_instructions[].path`  | string   | —       | Same as `mr_review_instructions[].path`, fed to the work-item-resolve agent instead.                                           |
-| `work_item_resolve_instructions[].match` | string[] | —       | Same as `mr_review_instructions[].match`, fed to the work-item-resolve agent instead.                                          |
-| `exclude_branches.source`                | string[] | `[]`    | Branch-name globs; an MR whose **source** branch matches is not reviewed.                                                      |
-| `exclude_branches.target`                | string[] | `[]`    | Branch-name globs; an MR whose **target** branch matches is not reviewed.                                                      |
-| `mr_review_requires_harness_reviewer`    | boolean  | `false` | Only review an MR once the bot's username is one of its reviewers. A reviewer change that adds the bot also triggers a review. |
+| Key                              | Type     | Default | Description                                                                                                       |
+| -------------------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `version`                        | number   | —       | Required; must be `2`. Any other value, or none, makes the file invalid.                                          |
+| `review.instructions[].path`     | string   | —       | Repo-relative path to an instruction doc, read from the default branch. Missing docs are skipped with a warning.  |
+| `review.instructions[].match`    | string[] | —       | Globs; the doc is attached only when the change touches a matching file. Omit to always attach.                   |
+| `review.exclude_branches.source` | string[] | `[]`    | Branch-name globs; a merge or pull request whose **source** branch matches is not reviewed.                       |
+| `review.exclude_branches.target` | string[] | `[]`    | Branch-name globs; a merge or pull request whose **target** branch matches is not reviewed.                       |
+| `review.requires_reviewer`       | boolean  | `false` | Only review once the bot's username is one of the reviewers. Adding the bot as a reviewer also triggers a review. |
+| `resolve.instructions[].path`    | string   | —       | Same as `review.instructions[].path`, fed to issue and task runs instead.                                         |
 
-Branch and file patterns are matched with [micromatch](https://github.com/micromatch/micromatch): `*` matches within one path segment, `**` across segments. If the MR's changed-file list can't be fetched, all instruction docs are attached (fail-open).
+Branch and file patterns are matched with [micromatch](https://github.com/micromatch/micromatch): `*` matches within one path segment, `**` across segments. If the changed-file list can't be fetched, all instruction docs are attached (fail-open).
 
-> **Migrating an existing `.harness.yml`:** the `instructions` key was renamed to `mr_review_instructions` — repos still using the old name will have those instructions silently stop applying.
+> **Upgrading from version 1:** every key was renamed and version 1 files are no longer read — see the [upgrade table](https://vrajpal-jhala.github.io/langgraph-harness/guide/configuration#upgrading-from-version-1).
 
 **Instruction size cap** — the concatenated instruction block is capped at 32,000 characters (a rough token-budget proxy) and truncated with a notice when exceeded. Instructions are injected inside a `<repository_instructions>` block so the model treats them as review guidance, not as overrides to its core behavior. The `load_instructions` node also updates the review comment to note whether instructions were applied, missing, or failed to load.
 

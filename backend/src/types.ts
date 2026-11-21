@@ -1284,6 +1284,7 @@ export type HarnessConfigStatus =
 export type ParsedHarnessConfig = {
   parsed: HarnessConfig | null;
   status: HarnessConfigStatus;
+  error?: string;
 };
 
 export type InstructionDoc = { path: string; match?: string[] };

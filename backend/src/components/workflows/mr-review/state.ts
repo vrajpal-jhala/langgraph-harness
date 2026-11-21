@@ -33,6 +33,7 @@ const workflowStateSchema = z.object({
   config: z.object({
     status: z.custom<ParsedHarnessConfig['status']>(),
     parsed: z.custom<ParsedHarnessConfig['parsed']>(),
+    error: z.string().optional(),
     instructions: z.object({
       status: z.enum(InstructionStatus),
       content: repoInstructionsSchema.optional().default(''),

@@ -200,7 +200,7 @@ async function handlePullRequestEvent(body: any) {
   const isInitial = action === 'opened' || action === 'reopened';
   const isReReview = action === 'synchronize';
   const isMarkedReady = action === 'ready_for_review';
-  // Config isn't parsed yet, so this can't check mr_review_requires_harness_reviewer here — the post-parse check below rejects it when that's off.
+  // Config isn't parsed yet, so this can't check review.requires_reviewer here — the post-parse check below rejects it when that's off.
   const isReviewerRequest = action === 'review_requested';
 
   if (!isInitial && !isReReview && !isMarkedReady && !isReviewerRequest)
@@ -220,7 +220,7 @@ async function handlePullRequestEvent(body: any) {
   const { parsed } = harnessConfig;
 
   // Reviewer-request-only events were never triggers before this feature.
-  if (isReviewerRequest && !parsed?.mr_review_requires_harness_reviewer)
+  if (isReviewerRequest && !parsed?.review.requires_reviewer)
     return {
       received: true,
       status: 'skipped',
@@ -228,7 +228,7 @@ async function handlePullRequestEvent(body: any) {
     };
 
   // Runs before branch filtering so a PR with no bot reviewer short-circuits early.
-  if (parsed?.mr_review_requires_harness_reviewer) {
+  if (parsed?.review.requires_reviewer) {
     // Opening with reviewers also sends a separate `review_requested` per reviewer — that one triggers the review, or the PR is reviewed twice.
     if (action === 'opened')
       return {

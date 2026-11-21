@@ -206,21 +206,24 @@ declare const MemorySourceSchema: z$1.ZodDiscriminatedUnion<[
 	}, z$1.z.core.$strip>
 ], "workflow">;
 declare const harnessConfigSchema: z.ZodObject<{
-	version: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
-	mr_review_instructions: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodObject<{
-		path: z.ZodString;
-		match: z.ZodOptional<z.ZodArray<z.ZodString>>;
-	}, z.core.$strip>>>>;
-	work_item_resolve_instructions: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodObject<{
-		path: z.ZodString;
-		match: z.ZodOptional<z.ZodArray<z.ZodString>>;
-	}, z.core.$strip>>>>;
-	exclude_branches: z.ZodDefault<z.ZodOptional<z.ZodObject<{
-		source: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodString>>>;
-		target: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodString>>>;
-	}, z.core.$strip>>>;
-	mr_review_requires_harness_reviewer: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
-}, z.core.$strip>;
+	version: z.ZodLiteral<2>;
+	review: z.ZodPrefault<z.ZodObject<{
+		instructions: z.ZodDefault<z.ZodArray<z.ZodObject<{
+			path: z.ZodString;
+			match: z.ZodOptional<z.ZodArray<z.ZodString>>;
+		}, z.core.$strict>>>;
+		exclude_branches: z.ZodPrefault<z.ZodObject<{
+			source: z.ZodDefault<z.ZodArray<z.ZodString>>;
+			target: z.ZodDefault<z.ZodArray<z.ZodString>>;
+		}, z.core.$strict>>;
+		requires_reviewer: z.ZodDefault<z.ZodBoolean>;
+	}, z.core.$strict>>;
+	resolve: z.ZodPrefault<z.ZodObject<{
+		instructions: z.ZodDefault<z.ZodArray<z.ZodObject<{
+			path: z.ZodString;
+		}, z.core.$strict>>>;
+	}, z.core.$strict>>;
+}, z.core.$strict>;
 declare const Role: {
 	readonly Admin: "admin";
 	readonly Viewer: "viewer";
@@ -948,6 +951,7 @@ type HarnessConfigStatus = (typeof HarnessConfigStatus)[keyof typeof HarnessConf
 type ParsedHarnessConfig = {
 	parsed: HarnessConfig | null;
 	status: HarnessConfigStatus;
+	error?: string;
 };
 export declare const app: Elysia<"", {
 	decorator: {};
