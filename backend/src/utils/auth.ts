@@ -28,8 +28,9 @@ export const authMacro = new Elysia({ name: 'auth-macro' }).macro({
 });
 
 // Transparently refreshes the token via the stored refresh_token if expired.
-export const getGitlabAccessToken = async (
+export const getAccessToken = async (
   userId: string,
+  provider: GitProvider,
 ): Promise<string | undefined> => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- account table not in typed Database
@@ -37,7 +38,7 @@ export const getGitlabAccessToken = async (
       .selectFrom('account')
       .select('id')
       .where('userId', '=', userId)
-      .where('providerId', '=', 'gitlab')
+      .where('providerId', '=', provider)
       .limit(1)
       .execute();
     if (!acc) return undefined;

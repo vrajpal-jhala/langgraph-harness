@@ -38,6 +38,10 @@ export const errors = {
       new AppError(400, 'GitLab tools are unavailable on this deployment'),
     missingGitlabToken: () =>
       new AppError(400, 'GitLab tools enabled but no linked GitLab token'),
+    githubDisabled: () =>
+      new AppError(400, 'GitHub tools are unavailable on this deployment'),
+    missingGithubToken: () =>
+      new AppError(400, 'GitHub tools enabled but no linked GitHub token'),
     unsupportedProvider: (model: string) =>
       new AppError(400, `Chat supports OpenRouter models only, got: ${model}`),
   },

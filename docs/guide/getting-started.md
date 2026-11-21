@@ -30,9 +30,9 @@ Not every feature exists on both yet:
 | Merge and pull request review                                | ✓      | ✓      |
 | Task resolve — ad-hoc tasks and schedules from the UI        | ✓      | ✓      |
 | Follow-up runs from comments mentioning the bot on its draft | ✓      | ✓      |
-| Chat's GitLab tools (acting on GitLab as the signed-in user) | ✓      | —      |
+| Chat's tools (acting on the provider as the signed-in user)  | ✓      | ✓      |
 
-Chat itself works with either provider; only its GitLab tools need GitLab. On a GitHub-only deployment, the GitLab tools toggle in Chat is hidden.
+Chat has a tools toggle per provider, and each one appears only when that provider is set up. The tools act with the signed-in user's own token for that provider, so for a user who hasn't linked that account the toggle is disabled, with a hint to link it in Settings.
 
 ## 3a. GitLab setup
 
@@ -68,7 +68,7 @@ Self-hosted GitLab: also set `GITLAB_API_URL` (defaults to `https://gitlab.com/a
 
 Either way, add workflow write access (`workflow` scope, or **Workflows** read and write) if the bot should be able to change GitHub Actions files.
 
-**OAuth app (sign-in).** **Settings → Developer settings → OAuth Apps → New OAuth App**, with the callback URL `http://localhost:5173/auth/callback/github` (again `APP_URL` plus `/auth/callback/github`). Copy the **Client ID** and generate a **Client secret**. Sign-in supports github.com only, not GitHub Enterprise.
+**OAuth app (sign-in).** **Settings → Developer settings → OAuth Apps → New OAuth App**, with the callback URL `http://localhost:5173/auth/callback/github` (again `APP_URL` plus `/auth/callback/github`). Copy the **Client ID** and generate a **Client secret**. Sign-in supports github.com only, not GitHub Enterprise. Sign-in asks for the `repo` scope, because Chat's GitHub tools act with the signed-in user's token. An organization that restricts third-party OAuth apps hides its repositories from that token until an owner approves the app, so Chat's GitHub tools get 404s or empty lists there.
 
 **Webhook.** On each repository (**Settings → Webhooks**) or once on the organization, add a webhook pointing at `<your-instance>/webhooks/github`, content type `application/json`, with a secret of your choosing, sending **Issues**, **Pull requests**, **Issue comments**, **Pull request review comments** and **Pull request reviews** events.
 

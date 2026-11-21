@@ -21,6 +21,7 @@ export const sendChatMessageSchema = t.Object({
   tools: t.Object({
     server: t.Boolean(),
     gitlab: t.Boolean(),
+    github: t.Boolean(),
     webSearch: t.Boolean(),
   }),
 });

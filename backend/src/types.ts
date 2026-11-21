@@ -397,7 +397,12 @@ export type ChatRunInput = {
   query: { message: string; images?: string[] };
   model: ModelName;
   reasoning: boolean;
-  tools: { server: boolean; gitlab: boolean; webSearch: boolean };
+  tools: {
+    server: boolean;
+    gitlab: boolean;
+    github: boolean;
+    webSearch: boolean;
+  };
 };
 
 export const GitProvider = {

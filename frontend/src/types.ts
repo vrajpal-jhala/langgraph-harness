@@ -72,7 +72,12 @@ export type ChatRunInput = {
   query: { message: string; images?: string[] };
   model: string;
   reasoning: boolean;
-  tools: { server: boolean; gitlab: boolean; webSearch: boolean };
+  tools: {
+    server: boolean;
+    gitlab: boolean;
+    github: boolean;
+    webSearch: boolean;
+  };
 };
 
 export type WorkItemResolveRunInput = {
