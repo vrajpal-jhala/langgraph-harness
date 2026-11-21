@@ -6,39 +6,39 @@ All notable changes to langgraph-harness are documented here.
 
 ### Features
 
-- **The GitLab MCP server now runs as its own container** — previously the backend started it itself, and a slow start could crash the backend and leave an orphaned process holding its port, so every later start failed too. Review, issue and chat runs now share one `gitlab-mcp` service that reconnects on its own after a restart. Self-hosters need to start the new service when upgrading.
-- **GitHub issues can now be assigned to the bot** — assigning the bot account to an issue in a GitHub repo starts the same issue-resolving run as on GitLab: it works on a branch, opens a pull request, and keeps one status comment on the issue up to date. Closing the pull request or the issue cleans up its working copy. On a private repo whose GitHub plan doesn't support draft pull requests, it opens a regular one instead and says so on the issue. GitHub support is opt-in; GitLab-only deployments don't need to change anything.
-- **Sign in with GitHub** — the login page shows a GitHub button when a GitHub OAuth app is configured, next to GitLab's when both are. Someone whose GitHub and GitLab accounts share a verified email lands in the same account either way, and anyone can connect the other provider from Settings. Admin rights come from `GITHUB_ADMIN_USERNAMES` for a GitHub sign-in and `GITLAB_ADMIN_USERNAMES` for a GitLab one.
-- **Tasks and schedules can target GitHub repos** — a task or schedule given a GitHub repository URL now runs against that repo and opens a pull request there, requesting review from whoever submitted it if they've connected their GitHub account. Each scheduled run still opens its own pull request, as on GitLab.
-- **Comments on a GitHub pull request can start a follow-up run** — mentioning the bot on a pull request it opened, in the conversation, on a line of the diff or in a review's summary, runs again against the same branch, as on GitLab. Add the **Issue comments**, **Pull request review comments** and **Pull request reviews** events to your GitHub webhook.
-- **GitHub pull requests now get reviewed** — the same review GitLab merge requests get, triggered the same way and repeated on every push, with its line comments posted together as one review. It uses the **Pull requests** webhook event GitHub issues already need.
-- **Chat can now use GitHub** — a GitHub tools toggle in the chat composer lets the assistant read and act on GitHub repos, issues and pull requests as you, next to the GitLab tools. Write actions, such as commenting, opening or merging a pull request, or pushing files, still wait for your approval. GitHub sign-in asks for the `repo` scope so these tools can reach your repositories.
-- **GitLab is no longer required** — a deployment can now run on GitLab, GitHub, or both. Whichever provider isn't configured is switched off, along with its sign-in button, webhook route, Chat tools and the features that need it, its existing runs can't be retried or restarted, and its schedules say so. Setting only some of a provider's variables stops the backend at startup, naming the ones still missing.
+- **The GitLab MCP server now runs as its own container** — previously the backend started it itself, and a slow start could crash the backend and leave an orphaned process holding its port, so every later start failed too. Review, issue and chat runs now share one `gitlab-mcp` service that reconnects on its own after a restart. Self-hosters need to start the new service when upgrading. ([#66](https://github.com/vrajpal-jhala/langgraph-harness/pull/66))
+- **GitHub issues can now be assigned to the bot** — assigning the bot account to an issue in a GitHub repo starts the same issue-resolving run as on GitLab: it works on a branch, opens a pull request, and keeps one status comment on the issue up to date. Closing the pull request or the issue cleans up its working copy. On a private repo whose GitHub plan doesn't support draft pull requests, it opens a regular one instead and says so on the issue. GitHub support is opt-in; GitLab-only deployments don't need to change anything. ([#67](https://github.com/vrajpal-jhala/langgraph-harness/pull/67))
+- **Sign in with GitHub** — the login page shows a GitHub button when a GitHub OAuth app is configured, next to GitLab's when both are. Someone whose GitHub and GitLab accounts share a verified email lands in the same account either way, and anyone can connect the other provider from Settings. Admin rights come from `GITHUB_ADMIN_USERNAMES` for a GitHub sign-in and `GITLAB_ADMIN_USERNAMES` for a GitLab one. ([#68](https://github.com/vrajpal-jhala/langgraph-harness/pull/68))
+- **Tasks and schedules can target GitHub repos** — a task or schedule given a GitHub repository URL now runs against that repo and opens a pull request there, requesting review from whoever submitted it if they've connected their GitHub account. Each scheduled run still opens its own pull request, as on GitLab. ([#70](https://github.com/vrajpal-jhala/langgraph-harness/pull/70))
+- **Comments on a GitHub pull request can start a follow-up run** — mentioning the bot on a pull request it opened, in the conversation, on a line of the diff or in a review's summary, runs again against the same branch, as on GitLab. Add the **Issue comments**, **Pull request review comments** and **Pull request reviews** events to your GitHub webhook. ([#71](https://github.com/vrajpal-jhala/langgraph-harness/pull/71))
+- **GitHub pull requests now get reviewed** — the same review GitLab merge requests get, triggered the same way and repeated on every push, with its line comments posted together as one review. It uses the **Pull requests** webhook event GitHub issues already need. ([#73](https://github.com/vrajpal-jhala/langgraph-harness/pull/73))
+- **Chat can now use GitHub** — a GitHub tools toggle in the chat composer lets the assistant read and act on GitHub repos, issues and pull requests as you, next to the GitLab tools. Write actions, such as commenting, opening or merging a pull request, or pushing files, still wait for your approval. GitHub sign-in asks for the `repo` scope so these tools can reach your repositories. ([#74](https://github.com/vrajpal-jhala/langgraph-harness/pull/74))
+- **GitLab is no longer required** — a deployment can now run on GitLab, GitHub, or both. Whichever provider isn't configured is switched off, along with its sign-in button, webhook route, Chat tools and the features that need it, its existing runs can't be retried or restarted, and its schedules say so. Setting only some of a provider's variables stops the backend at startup, naming the ones still missing. ([#68](https://github.com/vrajpal-jhala/langgraph-harness/pull/68))
 
 ### Fixes
 
-- **Unassigning the bot didn't stop its run** — removing the bot from an issue's assignees left a run already underway going, so it could still open a merge request nobody wanted. Unassigning now stops the run and cancels any waiting one, like closing the issue does.
-- **A redelivered webhook started the work all over again** — resending a delivery from GitLab's webhook settings, for example an issue assignment, queued a whole new run. Each delivery is now handled once; a repeat within a day is ignored.
-- **The agent could write outside the issue or merge request it was working on** — the issue and merge request it should write to were only named in its instructions, so text in an issue, a comment or a reviewed diff could talk it into commenting, approving or resolving threads somewhere else the bot can reach. Its write tools, in issue runs and in reviews, now refuse any target other than the run's own issue and merge request.
-- **A schedule kept using the default branch it was saved with** — once a repository renamed its default branch, say from `master` to `main`, every later run of a recurring schedule failed. Each run now checks the repository as its first step, picking up the current default branch, and fails there with the reason if the bot has lost access. A schedule's repository can no longer be changed after it's created.
-- **A one-time schedule that couldn't start stayed active forever** — if its run failed to start, for example because the bot had lost access to the repository, the schedule kept showing as active with a time already past. It now completes like any other one-time schedule, and Run now retries the task.
-- **Rolling back a migration deleted every account** — besides undoing the last migration, `npm run migrate:down` dropped the sign-in tables and part of the run checkpoint tables, leaving the rest broken. It now only undoes the migration.
-- **A comment on a closed or merged merge request started a new run** — mentioning the bot there checked the branch out again, pushed to it and edited the merge request's description. Comments are now ignored once a merge request is closed or merged, and so is adding the bot as a reviewer.
-- **A follow-up comment replaced a task's merge request description** — mentioning the bot on a task's merge request rewrote the description with that comment, so the original request was lost after the first follow-up. The description is now set once, when the merge request opens, and later runs leave it alone, along with any edits made to it.
-- **A follow-up on a task lost sight of the task** — the agent was given the comment as its whole task, so it had to piece the original request together from its own earlier work. It now keeps the original request as its task and reads the comment along with the rest of the merge request's feedback.
-- **A finished task left its working copy on disk for a week** — merging or closing the merge request or pull request a task opened didn't clean up its checkout, so it stayed until the weekly sweep. It's now removed right away.
-- **Closing an issue didn't stop the agent working on it** — a run already underway kept going and could still open a merge request for the closed issue, and a run waiting in the queue or a follow-up queued behind it still started later. Closing the issue now stops the current run, cancels any waiting one, and the issue's status comment says the work was cancelled.
-- **Merging a merge request outside the reviewed projects left its working copy behind** — in a project the review filter excludes, merging or closing a merge request skipped cleanup, so the issue's or task's checkout stayed on disk until the weekly sweep. It's now removed in every project.
-- **A deleted status comment broke every later run** — once the bot's status comment on an issue, merge request or pull request was deleted, every later run there failed while updating it. The bot now posts a new status comment instead.
-- **Closing a merge request didn't stop its review** — a review underway or waiting in the queue still ran and posted on the closed or merged merge request, and so did a follow-up on a merge request the bot opened. Closing or merging now stops both, as closing an issue does.
-- **Merge requests from forks could be reviewed against the wrong code** — the review checked out the source branch from the target project, where a fork's branch doesn't exist or a branch of the same name holds different code. Merge requests and pull requests from forks are now skipped.
+- **Unassigning the bot didn't stop its run** — removing the bot from an issue's assignees left a run already underway going, so it could still open a merge request nobody wanted. Unassigning now stops the run and cancels any waiting one, like closing the issue does. ([#67](https://github.com/vrajpal-jhala/langgraph-harness/pull/67))
+- **A redelivered webhook started the work all over again** — resending a delivery from GitLab's webhook settings, for example an issue assignment, queued a whole new run. Each delivery is now handled once; a repeat within a day is ignored. ([#67](https://github.com/vrajpal-jhala/langgraph-harness/pull/67))
+- **The agent could write outside the issue or merge request it was working on** — the issue and merge request it should write to were only named in its instructions, so text in an issue, a comment or a reviewed diff could talk it into commenting, approving or resolving threads somewhere else the bot can reach. Its write tools, in issue runs and in reviews, now refuse any target other than the run's own issue and merge request. ([#67](https://github.com/vrajpal-jhala/langgraph-harness/pull/67), [#73](https://github.com/vrajpal-jhala/langgraph-harness/pull/73))
+- **A schedule kept using the default branch it was saved with** — once a repository renamed its default branch, say from `master` to `main`, every later run of a recurring schedule failed. Each run now checks the repository as its first step, picking up the current default branch, and fails there with the reason if the bot has lost access. A schedule's repository can no longer be changed after it's created. ([#70](https://github.com/vrajpal-jhala/langgraph-harness/pull/70))
+- **A one-time schedule that couldn't start stayed active forever** — if its run failed to start, for example because the bot had lost access to the repository, the schedule kept showing as active with a time already past. It now completes like any other one-time schedule, and Run now retries the task. ([#70](https://github.com/vrajpal-jhala/langgraph-harness/pull/70))
+- **Rolling back a migration deleted every account** — besides undoing the last migration, `npm run migrate:down` dropped the sign-in tables and part of the run checkpoint tables, leaving the rest broken. It now only undoes the migration. ([#70](https://github.com/vrajpal-jhala/langgraph-harness/pull/70))
+- **A comment on a closed or merged merge request started a new run** — mentioning the bot there checked the branch out again, pushed to it and edited the merge request's description. Comments are now ignored once a merge request is closed or merged, and so is adding the bot as a reviewer. ([#71](https://github.com/vrajpal-jhala/langgraph-harness/pull/71))
+- **A follow-up comment replaced a task's merge request description** — mentioning the bot on a task's merge request rewrote the description with that comment, so the original request was lost after the first follow-up. The description is now set once, when the merge request opens, and later runs leave it alone, along with any edits made to it. ([#71](https://github.com/vrajpal-jhala/langgraph-harness/pull/71))
+- **A follow-up on a task lost sight of the task** — the agent was given the comment as its whole task, so it had to piece the original request together from its own earlier work. It now keeps the original request as its task and reads the comment along with the rest of the merge request's feedback. ([#71](https://github.com/vrajpal-jhala/langgraph-harness/pull/71))
+- **A finished task left its working copy on disk for a week** — merging or closing the merge request or pull request a task opened didn't clean up its checkout, so it stayed until the weekly sweep. It's now removed right away. ([#71](https://github.com/vrajpal-jhala/langgraph-harness/pull/71))
+- **Closing an issue didn't stop the agent working on it** — a run already underway kept going and could still open a merge request for the closed issue, and a run waiting in the queue or a follow-up queued behind it still started later. Closing the issue now stops the current run, cancels any waiting one, and the issue's status comment says the work was cancelled. ([#67](https://github.com/vrajpal-jhala/langgraph-harness/pull/67))
+- **Merging a merge request outside the reviewed projects left its working copy behind** — in a project the review filter excludes, merging or closing a merge request skipped cleanup, so the issue's or task's checkout stayed on disk until the weekly sweep. It's now removed in every project. ([#73](https://github.com/vrajpal-jhala/langgraph-harness/pull/73))
+- **A deleted status comment broke every later run** — once the bot's status comment on an issue, merge request or pull request was deleted, every later run there failed while updating it. The bot now posts a new status comment instead. ([#73](https://github.com/vrajpal-jhala/langgraph-harness/pull/73))
+- **Closing a merge request didn't stop its review** — a review underway or waiting in the queue still ran and posted on the closed or merged merge request, and so did a follow-up on a merge request the bot opened. Closing or merging now stops both, as closing an issue does. ([#73](https://github.com/vrajpal-jhala/langgraph-harness/pull/73))
+- **Merge requests from forks could be reviewed against the wrong code** — the review checked out the source branch from the target project, where a fork's branch doesn't exist or a branch of the same name holds different code. Merge requests and pull requests from forks are now skipped. ([#73](https://github.com/vrajpal-jhala/langgraph-harness/pull/73))
 
 ### Breaking Changes
 
-- **`WEBHOOK_TOKENS` is renamed to `GITLAB_WEBHOOK_TOKENS`** — now that GitHub has its own webhook secrets, the GitLab ones are named for GitLab. Rename the variable in `backend/.env` before upgrading, or GitLab webhooks will be rejected.
-- **`ADMIN_GITLAB_USERNAMES` is renamed to `GITLAB_ADMIN_USERNAMES`** — to match the other provider variables and the new `GITHUB_ADMIN_USERNAMES`. Rename it in `backend/.env` before upgrading, or the backend won't start.
+- **`WEBHOOK_TOKENS` is renamed to `GITLAB_WEBHOOK_TOKENS`** — now that GitHub has its own webhook secrets, the GitLab ones are named for GitLab. Rename the variable in `backend/.env` before upgrading, or GitLab webhooks will be rejected. ([#67](https://github.com/vrajpal-jhala/langgraph-harness/pull/67))
+- **`ADMIN_GITLAB_USERNAMES` is renamed to `GITLAB_ADMIN_USERNAMES`** — to match the other provider variables and the new `GITHUB_ADMIN_USERNAMES`. Rename it in `backend/.env` before upgrading, or the backend won't start. ([#68](https://github.com/vrajpal-jhala/langgraph-harness/pull/68))
 - **Upgrading needs planned downtime** — stored data is renamed in place and the previous version can't read it. `update.sh` migrates before it restarts the backend, so wait until no run is active and the queues are empty, then run `docker compose stop backend`. A database backup beforehand is a good precaution.
-- **`.harness.yml` must be updated to version 2** — its keys are now grouped by what they configure: `review` holds `instructions`, `exclude_branches` and `requires_reviewer`, and `resolve` holds the `instructions` for issue runs and tasks. A version 1 file, or one without `version`, is no longer read: runs go ahead without its instructions and with review settings at their defaults, so a repo relying on `mr_review_requires_harness_reviewer` gets every merge or pull request reviewed until it's updated. Unknown keys now make the file invalid, and the run's page says which one. The configuration docs have a table mapping the old keys to the new ones.
+- **`.harness.yml` must be updated to version 2** — its keys are now grouped by what they configure: `review` holds `instructions`, `exclude_branches` and `requires_reviewer`, and `resolve` holds the `instructions` for issue runs and tasks. A version 1 file, or one without `version`, is no longer read: runs go ahead without its instructions and with review settings at their defaults, so a repo relying on `mr_review_requires_harness_reviewer` gets every merge or pull request reviewed until it's updated. Unknown keys now make the file invalid, and the run's page says which one. The configuration docs have a table mapping the old keys to the new ones. ([#73](https://github.com/vrajpal-jhala/langgraph-harness/pull/73))
 
 ---
 
@@ -46,8 +46,8 @@ All notable changes to langgraph-harness are documented here.
 
 ### Fixes
 
-- **Retrying a single review comment skipped the quality check** — when a review re-published one comment on its own, that comment went out without the screening every other comment gets. Single-comment publishes are now screened the same way, and only the comment being published is judged.
-- **Garbled or unfinished review comments could be posted** — a comment containing the model's own second-guessing or repeated, unreadable text passed screening as long as it described a concrete problem. The screening step now withholds comments that read as unfinished or hard to follow.
+- **Retrying a single review comment skipped the quality check** — when a review re-published one comment on its own, that comment went out without the screening every other comment gets. Single-comment publishes are now screened the same way, and only the comment being published is judged. ([#69](https://github.com/vrajpal-jhala/langgraph-harness/pull/69))
+- **Garbled or unfinished review comments could be posted** — a comment containing the model's own second-guessing or repeated, unreadable text passed screening as long as it described a concrete problem. The screening step now withholds comments that read as unfinished or hard to follow. ([#69](https://github.com/vrajpal-jhala/langgraph-harness/pull/69))
 
 ---
 
@@ -55,7 +55,7 @@ All notable changes to langgraph-harness are documented here.
 
 ### Fixes
 
-- **The review and chat agents could silently run with no GitLab tools** — a dependency update changed how GitLab's tools are named, so the list of tools each agent is allowed to use stopped matching and the agent ran without any, with no error. Tool names are now set explicitly, and if they ever stop matching again langgraph-harness stops with a clear error naming the unexpected tools (at startup, or when a chat connects to GitLab) instead of continuing without them.
+- **The review and chat agents could silently run with no GitLab tools** — a dependency update changed how GitLab's tools are named, so the list of tools each agent is allowed to use stopped matching and the agent ran without any, with no error. Tool names are now set explicitly, and if they ever stop matching again langgraph-harness stops with a clear error naming the unexpected tools (at startup, or when a chat connects to GitLab) instead of continuing without them. ([#64](https://github.com/vrajpal-jhala/langgraph-harness/pull/64))
 
 ---
 
@@ -63,7 +63,7 @@ All notable changes to langgraph-harness are documented here.
 
 ### Fixes
 
-- **The back arrow on a thread always went to the Sessions list** — opening a thread from the dashboard queue or from a schedule's run history, then pressing back, dropped you on Sessions instead of the page you came from. It now returns you to the dashboard or the schedules page; threads opened from anywhere else still go back to Sessions.
+- **The back arrow on a thread always went to the Sessions list** — opening a thread from the dashboard queue or from a schedule's run history, then pressing back, dropped you on Sessions instead of the page you came from. It now returns you to the dashboard or the schedules page; threads opened from anywhere else still go back to Sessions. ([#60](https://github.com/vrajpal-jhala/langgraph-harness/pull/60))
 
 ---
 
@@ -71,7 +71,7 @@ All notable changes to langgraph-harness are documented here.
 
 ### Features
 
-- **The author of a merge request can now abort or retry its review** — previously only admins could, so an author with a stuck or failed review of their own MR had to ask one. The Abort and Retry controls now appear for the MR's author on that review's page. Reviews of existing MRs pick up their author the next time the MR is pushed to or reopened; until then they stay admin-only. Deleting a review is still admin-only.
+- **The author of a merge request can now abort or retry its review** — previously only admins could, so an author with a stuck or failed review of their own MR had to ask one. The Abort and Retry controls now appear for the MR's author on that review's page. Reviews of existing MRs pick up their author the next time the MR is pushed to or reopened; until then they stay admin-only. Deleting a review is still admin-only. ([#43](https://github.com/vrajpal-jhala/langgraph-harness/pull/43))
 
 ---
 
@@ -79,7 +79,7 @@ All notable changes to langgraph-harness are documented here.
 
 ### Fixes
 
-- **Chat's GitLab tools always reported that no GitLab account was linked** — turning on GitLab tools in a chat failed with "GitLab tools enabled but no linked GitLab token", even for users signed in with GitLab. Chat now retrieves the linked GitLab token correctly, so the tools work again.
+- **Chat's GitLab tools always reported that no GitLab account was linked** — turning on GitLab tools in a chat failed with "GitLab tools enabled but no linked GitLab token", even for users signed in with GitLab. Chat now retrieves the linked GitLab token correctly, so the tools work again. ([#47](https://github.com/vrajpal-jhala/langgraph-harness/pull/47))
 
 ---
 
@@ -87,7 +87,7 @@ All notable changes to langgraph-harness are documented here.
 
 ### Fixes
 
-- **The backend refused to start unless both Gemini and Groq API keys were set** — when Gemini and Groq support was added, their keys were left out of the optional list in the startup check, so it demanded them even when you only use one LLM provider. They're now optional, like the other provider keys.
+- **The backend refused to start unless both Gemini and Groq API keys were set** — when Gemini and Groq support was added, their keys were left out of the optional list in the startup check, so it demanded them even when you only use one LLM provider. They're now optional, like the other provider keys. ([#44](https://github.com/vrajpal-jhala/langgraph-harness/pull/44))
 
 ---
 
@@ -95,8 +95,8 @@ All notable changes to langgraph-harness are documented here.
 
 ### Fixes
 
-- **A repository search for several alternatives at once found nothing** — the review agent's repo search treated `|`, `+`, `?` and parentheses as plain characters, so a pattern like `foo|bar` silently returned no matches. Searches now understand these as regular-expression syntax; searches explicitly marked as literal text are unaffected.
-- **Icons in the run timeline could get squashed** — the icon beside a tool call or retry row shrank when the row's text was long. It now keeps its size.
+- **A repository search for several alternatives at once found nothing** — the review agent's repo search treated `|`, `+`, `?` and parentheses as plain characters, so a pattern like `foo|bar` silently returned no matches. Searches now understand these as regular-expression syntax; searches explicitly marked as literal text are unaffected. ([#41](https://github.com/vrajpal-jhala/langgraph-harness/pull/41))
+- **Icons in the run timeline could get squashed** — the icon beside a tool call or retry row shrank when the row's text was long. It now keeps its size. ([#41](https://github.com/vrajpal-jhala/langgraph-harness/pull/41))
 
 ---
 
@@ -104,15 +104,15 @@ All notable changes to langgraph-harness are documented here.
 
 ### Features
 
-- **The run timeline now shows how long each "Thinking" step took** — previously there was no way to tell how much time the model spent reasoning before acting, for either the main agent or a per-file review sub-agent. Each reasoning step now shows a live-ticking counter while it's still thinking, and its final duration once it's done.
+- **The run timeline now shows how long each "Thinking" step took** — previously there was no way to tell how much time the model spent reasoning before acting, for either the main agent or a per-file review sub-agent. Each reasoning step now shows a live-ticking counter while it's still thinking, and its final duration once it's done. ([#39](https://github.com/vrajpal-jhala/langgraph-harness/pull/39))
 
 ### Fixes
 
-- **Fetching a web page during a review always failed with an unhelpful error** — a configuration issue in Lightpanda, the headless browser langgraph-harness uses to fetch pages, made every fetch fail immediately without a real explanation. Fetching now works, and any future failure will show what actually went wrong.
-- **A model stuck repeating itself while reasoning never triggered the safeguard that stops runaway runs** — that safeguard only checked the model's visible answer, so a model looping purely inside its own reasoning (before writing anything visible) could run unbounded instead of being caught, whether in the main agent or a review sub-agent. It now checks the model's reasoning too.
-- **An empty box could appear under a "Thinking" step with nothing in it** — a turn that produced only blank lines around a tool call still rendered its (invisible) content as a box, most noticeably on a review sub-agent's own turns. Blank turns no longer render anything.
-- **The context-usage number next to a step could show a confusing negative value** — it was computed from a number that also swings with how much the model reasoned on that particular step, rather than from how much the conversation itself actually grew. It's now based on the latter, so the number reliably increases as a review progresses.
-- **The loading indicator kept spinning in a finished sub-agent's view** — it tracked whether the review as a whole was still running rather than whether that specific sub-agent had finished, so its transcript looked like it was still working long after it had returned its findings.
+- **Fetching a web page during a review always failed with an unhelpful error** — a configuration issue in Lightpanda, the headless browser langgraph-harness uses to fetch pages, made every fetch fail immediately without a real explanation. Fetching now works, and any future failure will show what actually went wrong. ([#39](https://github.com/vrajpal-jhala/langgraph-harness/pull/39))
+- **A model stuck repeating itself while reasoning never triggered the safeguard that stops runaway runs** — that safeguard only checked the model's visible answer, so a model looping purely inside its own reasoning (before writing anything visible) could run unbounded instead of being caught, whether in the main agent or a review sub-agent. It now checks the model's reasoning too. ([#39](https://github.com/vrajpal-jhala/langgraph-harness/pull/39))
+- **An empty box could appear under a "Thinking" step with nothing in it** — a turn that produced only blank lines around a tool call still rendered its (invisible) content as a box, most noticeably on a review sub-agent's own turns. Blank turns no longer render anything. ([#39](https://github.com/vrajpal-jhala/langgraph-harness/pull/39))
+- **The context-usage number next to a step could show a confusing negative value** — it was computed from a number that also swings with how much the model reasoned on that particular step, rather than from how much the conversation itself actually grew. It's now based on the latter, so the number reliably increases as a review progresses. ([#39](https://github.com/vrajpal-jhala/langgraph-harness/pull/39))
+- **The loading indicator kept spinning in a finished sub-agent's view** — it tracked whether the review as a whole was still running rather than whether that specific sub-agent had finished, so its transcript looked like it was still working long after it had returned its findings. ([#39](https://github.com/vrajpal-jhala/langgraph-harness/pull/39))
 
 ---
 
@@ -120,7 +120,7 @@ All notable changes to langgraph-harness are documented here.
 
 ### Features
 
-- **Two new free LLM providers for MR review** — reviews can now run on Google's Gemini or Groq's free-tier models, in addition to OpenRouter, Ollama, and sglang. This option is for MR review only; Chat doesn't support these providers yet.
+- **Two new free LLM providers for MR review** — reviews can now run on Google's Gemini or Groq's free-tier models, in addition to OpenRouter, Ollama, and sglang. This option is for MR review only; Chat doesn't support these providers yet. ([#37](https://github.com/vrajpal-jhala/langgraph-harness/pull/37))
 
 ---
 
@@ -128,7 +128,7 @@ All notable changes to langgraph-harness are documented here.
 
 ### Fixes
 
-- **Aborting a run now actually cancels sandbox creation** — clicking abort while a run's sandbox was still being provisioned previously had no effect; the run's cancellation now reaches sandbox creation, so it stops instead of continuing to provision.
+- **Aborting a run now actually cancels sandbox creation** — clicking abort while a run's sandbox was still being provisioned previously had no effect; the run's cancellation now reaches sandbox creation, so it stops instead of continuing to provision. ([#36](https://github.com/vrajpal-jhala/langgraph-harness/pull/36))
 
 ---
 
@@ -136,7 +136,7 @@ All notable changes to langgraph-harness are documented here.
 
 ### Breaking Changes
 
-- **Deploy and dev scripts moved out of the repo root** — `deploy.sh` and `update.sh` now live under `deployment/`, and `test.sh`/`dev.mjs` under `scripts/`. If you're running an existing production server, its SSH `authorized_keys` forced command still points at the old `update.sh` path and pulling this change won't update it — edit it to `deployment/update.sh` before or during your next deploy, or the deploy will fail. A first-time server setup is unaffected, since the setup docs already reference the new path.
+- **Deploy and dev scripts moved out of the repo root** — `deploy.sh` and `update.sh` now live under `deployment/`, and `test.sh`/`dev.mjs` under `scripts/`. If you're running an existing production server, its SSH `authorized_keys` forced command still points at the old `update.sh` path and pulling this change won't update it — edit it to `deployment/update.sh` before or during your next deploy, or the deploy will fail. A first-time server setup is unaffected, since the setup docs already reference the new path. ([#33](https://github.com/vrajpal-jhala/langgraph-harness/pull/33))
 
 ---
 
