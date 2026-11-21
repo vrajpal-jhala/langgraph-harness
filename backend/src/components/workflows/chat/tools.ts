@@ -758,9 +758,12 @@ export async function buildChatTools({
 
   const close = async () => {
     // Must terminate before close(): close() aborts the transport's request signal, which would cancel the DELETE terminateSession() sends.
-    await terminateGitlabSession(gitlabAdapter);
-    await gitlabAdapter?.close();
-    await githubAdapter?.close();
+    try {
+      await terminateGitlabSession(gitlabAdapter);
+      await gitlabAdapter?.close();
+    } finally {
+      await githubAdapter?.close();
+    }
   };
 
   // Not configured everywhere (PoC) — skip rather than register tools that can only ever error.
