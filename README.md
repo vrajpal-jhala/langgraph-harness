@@ -6,7 +6,7 @@
 
 **Self-hosted AI coding agent platform for GitLab and GitHub, built with LangGraph**
 
-Reviews merge and pull requests, resolves issues and tasks autonomously, and chats with full project context — remembering what matters so every run builds on the last. An open-source alternative to GitLab Duo and the GitHub Copilot coding agent that runs on your own infrastructure.
+Reviews merge and pull requests, resolves issues and tasks autonomously, and chats with full project context — remembering what matters so every run builds on the last. An open-source alternative to the code review and coding agents in GitLab Duo and GitHub Copilot, running on your own infrastructure.
 
 Battle-tested in production since mid-2026 — **133 releases**, 1k+ reviews, 67% comment acceptance rate (Sept 29 2026, [see snapshot](#screenshots)). [Development history →](CHANGELOG.md) every failure and fix, documented.
 
