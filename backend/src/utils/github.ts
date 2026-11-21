@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { errors } from './errors.js';
+import { errors, isNotFoundApiError } from './errors.js';
 import { logger } from './logger.js';
 
 const GITHUB_FETCH_TIMEOUT_MS = 15_000;
@@ -150,16 +150,25 @@ export async function upsertIssueComment(
   body: string,
   commentId?: number,
 ): Promise<number> {
+  if (commentId) {
+    try {
+      await githubFetch(
+        `${repoPath(projectPath)}/issues/comments/${commentId}`,
+        { method: 'PATCH', body: JSON.stringify({ body }) },
+      );
+
+      return commentId;
+    } catch (err) {
+      // Deleted by someone — post a fresh one rather than failing every later run.
+      if (!isNotFoundApiError(err)) throw err;
+    }
+  }
+
   const res = await githubFetch(
-    commentId
-      ? `${repoPath(projectPath)}/issues/comments/${commentId}`
-      : `${repoPath(projectPath)}/issues/${issueNumber}/comments`,
-    {
-      method: commentId ? 'PATCH' : 'POST',
-      body: JSON.stringify({ body }),
-    },
+    `${repoPath(projectPath)}/issues/${issueNumber}/comments`,
+    { method: 'POST', body: JSON.stringify({ body }) },
   );
-  return commentId ?? ((await res.json()) as { id: number }).id;
+  return ((await res.json()) as { id: number }).id;
 }
 
 export async function createDraftPullRequest(params: {

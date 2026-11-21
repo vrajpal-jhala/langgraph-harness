@@ -20,6 +20,10 @@ export class RunAbortedError extends Error {
   }
 }
 
+// gitlabFetch/githubFetch throw plain Errors carrying the status only in the message.
+export const isNotFoundApiError = (err: unknown) =>
+  err instanceof Error && /^Git(Lab|Hub) API error 404:/.test(err.message);
+
 export const errors = {
   threads: {
     notFound: () => new AppError(404, 'Thread not found'),

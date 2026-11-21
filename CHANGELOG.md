@@ -28,6 +28,7 @@ All notable changes to langgraph-harness are documented here.
 - **A finished task left its working copy on disk for a week** — merging or closing the merge request or pull request a task opened didn't clean up its checkout, so it stayed until the weekly sweep. It's now removed right away.
 - **Closing an issue didn't stop the agent working on it** — a run already underway kept going and could still open a merge request for the closed issue, and a run waiting in the queue or a follow-up queued behind it still started later. Closing the issue now stops the current run, cancels any waiting one, and the issue's status comment says the work was cancelled.
 - **Merging a merge request outside the reviewed projects left its working copy behind** — in a project the review filter excludes, merging or closing a merge request skipped cleanup, so the issue's or task's checkout stayed on disk until the weekly sweep. It's now removed in every project.
+- **A deleted status comment broke every later run** — once the bot's status comment on an issue, merge request or pull request was deleted, every later run there failed while updating it. The bot now posts a new status comment instead.
 
 ### Breaking Changes
 
