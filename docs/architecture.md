@@ -4,20 +4,20 @@ Layered view of langgraph-harness: the LangGraph **Harness/Loop**, the **Memory 
 
 Four harnesses exist side by side, not one plugging into another:
 
-- **MR Review** (below) — webhook on MR events → debounced queue → agent loop over GitLab MCP tools → draft-note/comment reply.
+- **MR Review** (below) — webhook on MR/PR events (GitLab or GitHub) → debounced queue → agent loop over the provider's MCP tools → draft notes (GitLab) or a held-then-submitted pending review (GitHub).
 - **Work Item Resolve** — webhook on issue assignment + MR/PR comments (GitLab or GitHub) → its own FIFO queue → agent loop inside an ephemeral sandboxed container → draft MR or PR / MR reply.
 - **Task Resolve** — admin submits a free-text prompt plus a GitLab or GitHub repo URL via the API, or schedules one to fire once or on a recurring cadence (no issue, no assignment webhook) → opens its own draft MR or PR directly; on GitLab, MR comments on it trigger a reply through the same webhook path Work Item Resolve uses → draft MR or PR / MR reply.
 - **Chat** — user message via API, no webhook and no queue at all, runs immediately → agent loop with a human-approval gate on write-capable tool calls → reply streamed to the UI.
 
 They share the Postgres checkpointer, the project/personal-memory store, and the React UI/analytics (which also carries retry/abort/delete actions, not just viewing) — but each harness's tool surface is structurally different:
 
-- **MR Review** — GitLab MCP tools against a bare worktree, no sandbox.
+- **MR Review** — GitLab or GitHub MCP tools (bot token) against a bare worktree, no sandbox.
 - **Work Item Resolve and Task Resolve** — sandbox shell + file access, a read+reply MCP allowlist for the run's provider (GitLab or GitHub, bot token), and a web-fetch tool (headless browser + Readability, SSRF-guarded).
 - **Chat** — the user's own GitLab token against the full MCP toolset, plus personal memory and its own web-fetch tools.
 
 So none of them is a variant of another's loop — though Work Item Resolve and Task Resolve go further and share the exact same compiled agent (`agent.ts`: same middleware stack, same tool set), differing only in what triggers a run and what supplies the task.
 
-A deployment runs on GitLab, GitHub, or both. Work Item Resolve and Task Resolve take the provider from the run itself (`GitHost` in `utils/git-host.ts`); MR Review and Chat's GitLab tools are GitLab-only.
+A deployment runs on GitLab, GitHub, or both. Work Item Resolve, Task Resolve and MR Review take the provider from the run itself (`GitHost` in `utils/git-host.ts`); Chat's GitLab tools are GitLab-only.
 
 **Status legend**
 
@@ -37,17 +37,17 @@ flowchart TB
   %% ---------- HARNESS ----------
   subgraph HARNESS["Harness — LangGraph runtime"]
     direction TB
-    UP["Webhook / API trigger<br/>GitLab MR events"]
+    UP["Webhook / API trigger<br/>GitLab MR or GitHub PR events · re-review on push"]
     Q["BullMQ queue<br/>debounce 5m · concurrency 4"]
     WM["Working memory / context<br/>LangGraph state"]
     subgraph LOOP["Agent loop"]
       direction TB
       LLM["LLM agent<br/>OpenRouter / Ollama"]
-      TOOLS["GitLab MCP tools<br/>read + write allowlist"]
+      TOOLS["GitLab or GitHub MCP tools<br/>read + write allowlist"]
       SUBAGENT["Verifier sub-agent<br/>read-only, per file, parallel · depth-capped, no posting tools"]
-      GUARD["End-loop guardrails<br/>position validation · reply-quality critic · no hard comment cap yet"]
+      GUARD["End-loop guardrails<br/>position validation · reply-quality critic · GitHub comments held until submit · no hard comment cap yet"]
     end
-    REPLY["Reply<br/>draft notes · inline comments · approve"]
+    REPLY["Reply<br/>draft notes or pending review · inline comments · approve"]
     UI["React UI<br/>live runs + history, retry/abort/delete"]
   end
 
@@ -195,11 +195,11 @@ flowchart TB
 
 ### 🟩 Built — MR Review harness
 
-- Webhook trigger, BullMQ queue (debounce + concurrency), LangGraph workflow + working state
-- Agent loop (`createAgent`, `todoListMiddleware`), GitLab MCP tool allowlist, tool-call loop
+- Webhook triggers on GitLab MR events and GitHub `pull_request` events (opened/reopened, ready for review, bot requested as reviewer, `synchronize` for re-reviews — with `review.requires_reviewer` on, an earlier review by the bot counts, since GitHub drops a reviewer from the requested list once they review), BullMQ queue (debounce + concurrency), LangGraph workflow + working state
+- Agent loop (`createAgent`, `todoListMiddleware`), a per-provider MCP tool allowlist (GitLab or GitHub), tool-call loop; one shared `code-review` skill with per-provider fragments for each host-specific step
 - `spawn_subagent` delegates per-file diff verification to an isolated read-only Verifier sub-agent (`read_text_file`/`git_grep`/`read_multiple_files`/`list_directory` only, no posting tools) — one spawn per file, dispatched in parallel in the same turn, depth-capped (no `spawn_subagent` of its own, so no further nesting); it returns findings only, the main agent stays the sole poster/writer
-- Position validation before a draft note reaches GitLab, plus a reply-quality critic that screens every draft comment before publish, dropping hedged/praise-y non-issues — the one gap left in this pair is a hard numeric cap on comment count, which doesn't exist yet
-- Reply path (draft notes, inline comments, approve/unapprove), Postgres checkpointer + retry
+- Position validation before a draft note reaches GitLab or a comment reaches a GitHub pending review, plus a reply-quality critic that screens every draft comment before publish, dropping hedged/praise-y non-issues — on GitHub, where a pending comment can't be withdrawn, comments and replies are held locally (schema- and position-checked) until submit so the critic can drop rejected ones, then submitted and verified against the PR's review threads; the one gap left in this pair is a hard numeric cap on comment count, which doesn't exist yet
+- Reply path (GitLab: draft notes, inline comments, approve/unapprove; GitHub: one submitted review per pass, approving, commenting, or requesting changes only to withdraw its own earlier approval), Postgres checkpointer + retry
 - Procedural memory (skills `.md` via `load_skill`), React UI with live SSE
 
 ### 🟩 Built — Work-Item-Resolve harness
@@ -238,7 +238,7 @@ flowchart TB
 
 - **Episodic memory** — run events are persisted to Postgres and are retrievable via plain text/regex search (`search_review_content`/`search_chat_content`, chat-workflow tools only) — not yet semantic/RAG-based, and not yet consolidated into distilled facts (that's `SUM`'s still-unbuilt job)
 - **Guardrails** — the remaining gap is narrower than it used to be: position validation and a reply-quality critic are both built (see above); a hard numeric comment cap is the one piece not yet built
-- **GitHub support** — Work Item Resolve and Task Resolve run on GitHub repos (draft PRs, status comments, schedules), but MR Review and Chat's git-host tools are still GitLab-only; analytics' by-repo view groups on the project path alone, so the same path on both providers lands in one row
+- **GitHub support** — Work Item Resolve, Task Resolve and MR Review run on GitHub repos (draft PRs, status comments, schedules, PR reviews), but Chat's git-host tools are still GitLab-only; analytics' by-repo view groups on the project path alone, so the same path on both providers lands in one row
 - **Evolving memories (Supermemory)** — real and wired (self-hosted service, ingested via `scrape_issues.ts`, queried by chat's `search_project_history`/`get_project_issue`/`list_projects` tools), linking and updating memories rather than a static one-shot extraction — but the code's own comment calls it a PoC: hardcoded to 2 GitLab projects (`supermemoryProjects` in `config.ts`), chat-only, not available to MR Review, Work Item Resolve, or Task Resolve
 
 ### ⬜ Pipeline
