@@ -49,10 +49,10 @@ More in the [screenshots gallery](https://vrajpal-jhala.github.io/langgraph-harn
 ## Roadmap
 
 - [x] Automatic MR reviews, issue-to-draft-MR, on-demand tasks, and a GitLab-aware chat
+- [x] GitHub support: pull request reviews, issue-to-draft-PR, tasks, schedules and chat tools ([#35](https://github.com/vrajpal-jhala/langgraph-harness/issues/35))
 - [x] Isolated sandbox for code-changing runs, with human approval before Chat takes sensitive actions
 - [x] Project memory that carries across reviews, and crashed runs that resume instead of restarting
 - [x] Recurring scheduled tasks
-- [ ] GitHub support: assign an issue to the bot, get a draft PR ([#35](https://github.com/vrajpal-jhala/langgraph-harness/issues/35))
 - [ ] Project memory that keeps itself up to date, with visibility into what it learned ([#2](https://github.com/vrajpal-jhala/langgraph-harness/issues/2))
 - [ ] A self-hosted memory engine that links related facts and retrieves them by relevance ([#1](https://github.com/vrajpal-jhala/langgraph-harness/issues/1))
 - [ ] Web search, so agents can look things up instead of only fetching a known page ([#24](https://github.com/vrajpal-jhala/langgraph-harness/issues/24))
