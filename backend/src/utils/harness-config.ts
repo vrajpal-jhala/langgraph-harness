@@ -12,33 +12,43 @@ import {
 import { logger } from './logger.js';
 
 const HARNESS_CONFIG_PATH = '.harness.yml';
-const HARNESS_CONFIG_VERSION = 1;
+const HARNESS_CONFIG_VERSION = 2;
+const HARNESS_CONFIG_DOCS_URL =
+  'https://vrajpal-jhala.github.io/langgraph-harness/guide/configuration';
 
-const instructionDocSchema = z.object({
-  path: z.string(),
-  match: z.array(z.string()).optional(),
-});
+const branchGlobs = z.array(z.string()).default([]);
 
-export const harnessConfigSchema = z.object({
-  version: z.number().int().optional().default(1),
-  // Each doc has a path and, optionally, `match` globs. A doc with no `match`
-  // is always attached; a doc with `match` is attached only when the MR changes
-  // a file matching one of the globs.
-  mr_review_instructions: z.array(instructionDocSchema).optional().default([]),
-  work_item_resolve_instructions: z
-    .array(instructionDocSchema)
-    .optional()
-    .default([]),
-  exclude_branches: z
-    .object({
-      // Branch-name globs (micromatch): `*` within a segment, `**` across `/`.
-      source: z.array(z.string()).optional().default([]),
-      target: z.array(z.string()).optional().default([]),
+// Strict throughout, so a typo or a leftover version 1 key fails with its name instead of being silently dropped.
+export const harnessConfigSchema = z.strictObject({
+  version: z.literal(HARNESS_CONFIG_VERSION),
+  review: z
+    .strictObject({
+      // A doc with `match` is attached only when the change touches a file matching one of its globs; without it, always.
+      instructions: z
+        .array(
+          z.strictObject({
+            path: z.string(),
+            match: z.array(z.string()).optional(),
+          }),
+        )
+        .default([]),
+      exclude_branches: z
+        .strictObject({
+          // Branch-name globs (micromatch): `*` within a segment, `**` across `/`.
+          source: branchGlobs,
+          target: branchGlobs,
+        })
+        .prefault({}),
+      // Only review once the bot is one of the reviewers; false reviews every change.
+      requires_reviewer: z.boolean().default(false),
     })
-    .optional()
-    .default({ source: [], target: [] }),
-  // Only review an MR once the bot is one of its reviewers; false reviews as before.
-  mr_review_requires_harness_reviewer: z.boolean().optional().default(false),
+    .prefault({}),
+  // Issue runs and tasks: anything that writes code.
+  resolve: z
+    .strictObject({
+      instructions: z.array(z.strictObject({ path: z.string() })).default([]),
+    })
+    .prefault({}),
 });
 
 /**
@@ -56,32 +66,49 @@ export async function parseHarnessYml(
     raw = await host.fetchRepoFile(projectPath, HARNESS_CONFIG_PATH);
   } catch (err) {
     logger.error({ err }, `Failed to fetch ${HARNESS_CONFIG_PATH}`);
-    return { parsed: null, status: HarnessConfigStatus.Invalid };
+    return {
+      parsed: null,
+      status: HarnessConfigStatus.Invalid,
+      error: `Couldn't fetch ${HARNESS_CONFIG_PATH}.`,
+    };
   }
 
   if (raw === null)
     return { parsed: null, status: HarnessConfigStatus.Missing };
 
-  let cfg: HarnessConfig;
+  let document: unknown;
   try {
-    cfg = harnessConfigSchema.parse(parse(raw));
+    document = parse(raw);
   } catch (err) {
     logger.error({ err }, `Invalid ${HARNESS_CONFIG_PATH}`);
-    return { parsed: null, status: HarnessConfigStatus.Invalid };
+    return {
+      parsed: null,
+      status: HarnessConfigStatus.Invalid,
+      error: `${HARNESS_CONFIG_PATH} isn't valid YAML.`,
+    };
   }
 
-  if (cfg.version < 1 || cfg.version > HARNESS_CONFIG_VERSION) {
-    logger.warn(
-      `${HARNESS_CONFIG_PATH} version ${cfg.version} is not supported (supported: 1–${HARNESS_CONFIG_VERSION}). Skipping instructions.`,
-    );
-    return { parsed: null, status: HarnessConfigStatus.Invalid };
+  // Checked before the schema so an older file gets this, not an error per renamed key. A file without `version` predates it, so it's version 1.
+  const version = (document as { version?: unknown } | null)?.version ?? 1;
+  if (version !== HARNESS_CONFIG_VERSION) {
+    const error = `${HARNESS_CONFIG_PATH} version ${String(version)} is no longer supported — update it to version ${HARNESS_CONFIG_VERSION}: ${HARNESS_CONFIG_DOCS_URL}`;
+    logger.warn(error);
+    return { parsed: null, status: HarnessConfigStatus.Invalid, error };
   }
+
+  const result = harnessConfigSchema.safeParse(document);
+  if (!result.success) {
+    const error = `Invalid ${HARNESS_CONFIG_PATH}: ${z.prettifyError(result.error)}`;
+    logger.error(error);
+    return { parsed: null, status: HarnessConfigStatus.Invalid, error };
+  }
+  const cfg = result.data;
 
   return { parsed: cfg, status: HarnessConfigStatus.Ok };
 }
 
 /**
- * Whether an MR should be reviewed based on its branches.
+ * Whether a merge or pull request should be reviewed based on its branches.
  * Returns false when the source or target branch matches an exclude_branches
  * glob (micromatch). config === null → always review.
  */
@@ -90,7 +117,7 @@ export function shouldReviewBranch(
   sourceBranch: string,
   targetBranch: string,
 ): boolean {
-  const excl = config?.exclude_branches;
+  const excl = config?.review.exclude_branches;
   if (!excl) return true;
   if (excl.source.length && micromatch.isMatch(sourceBranch, excl.source))
     return false;

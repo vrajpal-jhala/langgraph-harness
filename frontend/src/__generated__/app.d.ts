@@ -97,6 +97,7 @@ declare const auth: import("better-auth").Auth<{
 						gitlabUsername: string;
 						githubUsername: string;
 						gitlabId: number | null;
+						githubId: number | null;
 						name: string;
 						avatarUrl: string | null;
 						role: "admin" | "viewer";
@@ -138,6 +139,7 @@ declare const auth: import("better-auth").Auth<{
 					gitlabUsername: string;
 					githubUsername: string;
 					gitlabId: number | null;
+					githubId: number | null;
 					name: string;
 					avatarUrl: string | null;
 					role: "admin" | "viewer";
@@ -149,6 +151,7 @@ declare const auth: import("better-auth").Auth<{
 					gitlabUsername: string;
 					githubUsername: string;
 					gitlabId: number | null;
+					githubId: number | null;
 					name: string;
 					avatarUrl: string | null;
 					role: "admin" | "viewer";
@@ -187,7 +190,7 @@ declare class AppError extends Error {
 declare const MemorySourceSchema: z$1.ZodDiscriminatedUnion<[
 	z$1.ZodObject<{
 		workflow: z$1.ZodLiteral<"code-review">;
-		mrIid: z$1.ZodString;
+		codeChangeRequestNumber: z$1.ZodString;
 	}, z$1.z.core.$strip>,
 	z$1.ZodObject<{
 		workflow: z$1.ZodLiteral<"chat">;
@@ -203,21 +206,24 @@ declare const MemorySourceSchema: z$1.ZodDiscriminatedUnion<[
 	}, z$1.z.core.$strip>
 ], "workflow">;
 declare const harnessConfigSchema: z.ZodObject<{
-	version: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
-	mr_review_instructions: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodObject<{
-		path: z.ZodString;
-		match: z.ZodOptional<z.ZodArray<z.ZodString>>;
-	}, z.core.$strip>>>>;
-	work_item_resolve_instructions: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodObject<{
-		path: z.ZodString;
-		match: z.ZodOptional<z.ZodArray<z.ZodString>>;
-	}, z.core.$strip>>>>;
-	exclude_branches: z.ZodDefault<z.ZodOptional<z.ZodObject<{
-		source: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodString>>>;
-		target: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodString>>>;
-	}, z.core.$strip>>>;
-	mr_review_requires_harness_reviewer: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
-}, z.core.$strip>;
+	version: z.ZodLiteral<2>;
+	review: z.ZodPrefault<z.ZodObject<{
+		instructions: z.ZodDefault<z.ZodArray<z.ZodObject<{
+			path: z.ZodString;
+			match: z.ZodOptional<z.ZodArray<z.ZodString>>;
+		}, z.core.$strict>>>;
+		exclude_branches: z.ZodPrefault<z.ZodObject<{
+			source: z.ZodDefault<z.ZodArray<z.ZodString>>;
+			target: z.ZodDefault<z.ZodArray<z.ZodString>>;
+		}, z.core.$strict>>;
+		requires_reviewer: z.ZodDefault<z.ZodBoolean>;
+	}, z.core.$strict>>;
+	resolve: z.ZodPrefault<z.ZodObject<{
+		instructions: z.ZodDefault<z.ZodArray<z.ZodObject<{
+			path: z.ZodString;
+		}, z.core.$strict>>>;
+	}, z.core.$strict>>;
+}, z.core.$strict>;
 declare const Role: {
 	readonly Admin: "admin";
 	readonly Viewer: "viewer";
@@ -228,6 +234,7 @@ type Session = {
 	gitlabUsername: string;
 	githubUsername: string;
 	gitlabId: number | null;
+	githubId: number | null;
 	name: string;
 	avatarUrl: string | null;
 	role: Role;
@@ -513,10 +520,11 @@ declare const RunKind: {
 type RunKind = (typeof RunKind)[keyof typeof RunKind];
 type MrReviewRunInput = {
 	kind: typeof RunKind.MrReview;
+	provider: GitProvider;
 	query: {
 		note: string;
-		projectId: string;
-		mrIid: string;
+		projectPath: string;
+		codeChangeRequestNumber: string;
 		sourceBranch: string;
 		sourceSha: string;
 		targetBranch: string;
@@ -943,6 +951,7 @@ type HarnessConfigStatus = (typeof HarnessConfigStatus)[keyof typeof HarnessConf
 type ParsedHarnessConfig = {
 	parsed: HarnessConfig | null;
 	status: HarnessConfigStatus;
+	error?: string;
 };
 export declare const app: Elysia<"", {
 	decorator: {};

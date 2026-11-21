@@ -1,10 +1,9 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { ToolMessage } from '@langchain/core/messages';
-import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { createMiddleware } from 'langchain';
 import { z } from 'zod';
 
-import type { LLMProvider } from '#types.js';
+import { GitProvider, type LLMProvider } from '#types.js';
 
 import {
   emitCommentCriticEndEvent,
@@ -13,11 +12,11 @@ import {
 import { withBackendLimit } from '#components/workflows/middlewares/llm-backend-limiter.js';
 import type { WorkflowRuntime } from '#components/workflows/mr-review/state.js';
 
-import { config } from '#utils/config.js';
 import {
   mcpToolName,
   messageContent,
   retryWithBackoff,
+  toolErrorContent,
 } from '#utils/helpers.js';
 import { logger } from '#utils/logger.js';
 
@@ -35,8 +34,90 @@ const VerdictSchema = z.object({
   ),
 });
 
-const BULK_PUBLISH_TOOL = mcpToolName('gitlab', 'bulk_publish_draft_notes');
-const SINGLE_PUBLISH_TOOL = mcpToolName('gitlab', 'publish_draft_note');
+type ToolCall = { name: string; id?: string; args: Record<string, unknown> };
+
+type Draft = { id: string; body: string };
+
+type ReviewFlow = {
+  // Lists comments left over from an earlier run, to screen them too.
+  listDrafts?: string;
+  createsDraft: (call: ToolCall) => boolean;
+  draftIdFrom: (call: ToolCall, resultContent: string) => string | undefined;
+  // undefined: not a publish; null: publishes every draft; a string: publishes only that draft.
+  publishTarget: (call: ToolCall) => string | null | undefined;
+  // A publish that carries its comments in its own args, so a dropped one is removed from them instead of withdrawn from the host.
+  inlineDrafts?: (call: ToolCall) => Draft[] | undefined;
+  withoutDrafts?: (
+    args: Record<string, unknown>,
+    droppedIds: Set<string>,
+  ) => Record<string, unknown>;
+  // The arg carrying a review-level summary, which Step 6 forbids — stripped deterministically.
+  summaryArg: (call: ToolCall) => string | undefined;
+};
+
+const GITLAB_BULK_PUBLISH = mcpToolName(
+  GitProvider.GitLab,
+  'bulk_publish_draft_notes',
+);
+const GITLAB_SINGLE_PUBLISH = mcpToolName(
+  GitProvider.GitLab,
+  'publish_draft_note',
+);
+const GITHUB_SUBMIT_REVIEW = 'submit_review';
+
+type InlineArgs = {
+  comments?: { body?: string }[];
+  replies?: { body?: string }[];
+};
+
+const REVIEW_FLOWS: Record<GitProvider, ReviewFlow> = {
+  [GitProvider.GitLab]: {
+    listDrafts: mcpToolName(GitProvider.GitLab, 'list_draft_notes'),
+    createsDraft: (call) =>
+      call.name === mcpToolName(GitProvider.GitLab, 'create_draft_note'),
+    draftIdFrom: (_call, content) => {
+      const { id } = JSON.parse(content) as { id?: string | number };
+      return id == null ? undefined : String(id);
+    },
+    publishTarget: (call) =>
+      call.name === GITLAB_BULK_PUBLISH
+        ? null
+        : call.name === GITLAB_SINGLE_PUBLISH
+          ? String(call.args.draft_note_id)
+          : undefined,
+    summaryArg: (call) =>
+      call.name === GITLAB_BULK_PUBLISH || call.name === GITLAB_SINGLE_PUBLISH
+        ? 'note'
+        : undefined,
+  },
+  [GitProvider.GitHub]: {
+    createsDraft: () => false,
+    draftIdFrom: () => undefined,
+    publishTarget: () => undefined,
+    inlineDrafts: (call) => {
+      if (call.name !== GITHUB_SUBMIT_REVIEW) return undefined;
+      const { comments = [], replies = [] } = call.args as InlineArgs;
+      return [
+        ...comments.map((c, i) => ({ id: `comment-${i}`, body: c.body ?? '' })),
+        ...replies.map((r, i) => ({ id: `reply-${i}`, body: r.body ?? '' })),
+      ];
+    },
+    withoutDrafts: (args, droppedIds) => {
+      const { comments = [], replies = [] } = args as InlineArgs;
+      return {
+        ...args,
+        comments: comments.filter((_, i) => !droppedIds.has(`comment-${i}`)),
+        replies: replies.filter((_, i) => !droppedIds.has(`reply-${i}`)),
+      };
+    },
+    // GitHub needs a body to request changes, where it's the one-line reason for withdrawing an approval.
+    summaryArg: (call) =>
+      call.name === GITHUB_SUBMIT_REVIEW &&
+      call.args.event !== 'REQUEST_CHANGES'
+        ? 'body'
+        : undefined,
+  },
+};
 
 const CRITIC_PROMPT =
   `You are a skeptical senior engineer screening draft code review comments ` +
@@ -65,12 +146,16 @@ const CRITIC_PROMPT =
 export function commentCriticMiddleware({
   llm,
   provider,
-  deleteDraftNoteTool,
+  gitProvider,
+  withdrawDraft,
 }: {
   llm: BaseChatModel;
   provider: LLMProvider;
-  deleteDraftNoteTool?: DynamicStructuredTool;
+  gitProvider: GitProvider;
+  // Unneeded for a flow whose drafts are inline.
+  withdrawDraft?: (draftId: string, runtime: WorkflowRuntime) => Promise<void>;
 }) {
+  const flow = REVIEW_FLOWS[gitProvider];
   // Default structured-output method is silently ignored by Ollama models — force tool-calling instead.
   const critic = llm.withStructuredOutput(VerdictSchema, {
     method: 'functionCalling',
@@ -81,9 +166,10 @@ export function commentCriticMiddleware({
     name: 'CommentCritic',
     wrapToolCall: async (request, handler) => {
       const configurable = (request.runtime as WorkflowRuntime).configurable;
-      const signal = (request.runtime as WorkflowRuntime).signal;
 
-      if (request.toolCall.name === mcpToolName('gitlab', 'list_draft_notes')) {
+      const call = request.toolCall as ToolCall;
+
+      if (flow.listDrafts && call.name === flow.listDrafts) {
         const result = await handler(request);
 
         // Surfaces pre-existing drafts (e.g. left over from an earlier run) into the tracking Map — piggybacks on the model's own mandated first list_draft_notes call instead of listing again.
@@ -112,34 +198,33 @@ export function commentCriticMiddleware({
         return result;
       }
 
-      if (
-        request.toolCall.name === mcpToolName('gitlab', 'create_draft_note')
-      ) {
+      if (flow.createsDraft(call)) {
         const result = await handler(request);
 
-        if (configurable?.draftNotes && ToolMessage.isInstance(result)) {
+        // A rejected draft (e.g. an invalid position) comes back as an error body, never a created draft.
+        if (
+          configurable?.draftNotes &&
+          ToolMessage.isInstance(result) &&
+          result.status !== 'error' &&
+          !toolErrorContent(result)
+        ) {
           try {
-            const { id } = JSON.parse(messageContent(result.content)) as {
-              id?: string | number;
-            };
+            const id = flow.draftIdFrom(call, messageContent(result.content));
 
             if (id == null) {
-              throw new Error('create_draft_note response had no id');
+              throw new Error(`${call.name} response had no id`);
             }
 
             const { body } = (request.toolCall.args ?? {}) as {
               body?: string;
             };
 
-            configurable.draftNotes.set(String(id), {
-              id: String(id),
-              body: body ?? '',
-            });
+            configurable.draftNotes.set(id, { id, body: body ?? '' });
           } catch (err) {
             // draft created but id is missing/unparseable — it'll publish without ever going through the critic
             logger.error(
-              { err },
-              'create_draft_note succeeded but id was missing or unparseable — draft untracked by critic',
+              { err, tool: call.name },
+              'draft created but its id was missing or unparseable — draft untracked by critic',
             );
           }
         }
@@ -147,29 +232,28 @@ export function commentCriticMiddleware({
         return result;
       }
 
-      const toolName = request.toolCall.name;
+      const summaryArg = flow.summaryArg(call);
+      const publishTarget = flow.publishTarget(call);
+      const inline = flow.inlineDrafts?.(call);
 
-      if (toolName === BULK_PUBLISH_TOOL || toolName === SINGLE_PUBLISH_TOOL) {
-        // note is always a general MR-level overview, which Step 6 already forbids outright — strip it deterministically, no critic call needed.
-        const { note: noteArg } = (request.toolCall.args ?? {}) as {
-          note?: string;
-        };
+      if (summaryArg || publishTarget !== undefined || inline) {
+        const summary = call.args[summaryArg ?? ''];
         const hasNote =
-          typeof noteArg === 'string' && noteArg.trim().length > 0;
+          typeof summary === 'string' && summary.trim().length > 0;
 
         const effectiveRequest = hasNote
           ? {
               ...request,
               toolCall: {
                 ...request.toolCall,
-                args: { ...request.toolCall.args, note: undefined },
+                args: { ...request.toolCall.args, [summaryArg!]: undefined },
               },
             }
           : request;
 
         const strippedNoteNotice = hasNote
-          ? 'The `note` argument was not posted — bulk_publish_draft_notes never posts a ' +
-            'general MR-level summary; only the individual draft comments were published.'
+          ? `The \`${summaryArg}\` argument was not posted — a review never posts a ` +
+            'general summary; only the individual comments were published.'
           : '';
 
         const attachNote = (
@@ -196,45 +280,67 @@ export function commentCriticMiddleware({
           return result;
         };
 
-        if (!deleteDraftNoteTool || !configurable?.draftNotes?.size) {
+        if (
+          !inline &&
+          (publishTarget === undefined || !configurable?.draftNotes?.size)
+        ) {
           return attachNote(
             await handler(effectiveRequest),
             strippedNoteNotice,
           );
         }
 
-        const screenedIds = configurable.commentCriticScreenedIds;
-        // publish_draft_note only publishes the named draft, so only that one is screened
-        const targetId =
-          toolName === SINGLE_PUBLISH_TOOL
-            ? String(request.toolCall.args.draft_note_id)
-            : undefined;
-        const drafts = [...configurable.draftNotes.values()].filter(
-          (draft) =>
-            !screenedIds?.has(draft.id) &&
-            (targetId === undefined || draft.id === targetId),
-        );
+        const screenedIds = configurable?.commentCriticScreenedIds;
+        const inlineVerdicts = configurable?.commentCriticInlineVerdicts;
+        // A resubmit (e.g. after a rejected line) reuses each comment's earlier verdict, keyed by its text, instead of screening it again.
+        const withheldBefore =
+          inline?.filter((draft) => inlineVerdicts?.get(draft.body)) ?? [];
+        // A single-draft publish only publishes the named draft, so only that one is screened
+        const drafts = inline
+          ? inline.filter((draft) => !inlineVerdicts?.has(draft.body))
+          : [...(configurable?.draftNotes?.values() ?? [])].filter(
+              (draft) =>
+                !screenedIds?.has(draft.id) &&
+                (publishTarget === null || draft.id === publishTarget),
+            );
+
+        const renderBucket = (
+          items: { id: string; body: string }[],
+          label: string,
+        ) =>
+          items.length
+            ? `${label}\n${items.map((d) => `- ${d.body}`).join('\n')}`
+            : '';
+
+        const withheldNote = (items: { id: string; body: string }[]) =>
+          renderBucket(
+            items,
+            `${items.length} draft comment(s) were withheld before ` +
+              `publishing as non-actionable noise and were not posted:`,
+          );
+
+        const joinNotes = (...notes: string[]) =>
+          notes.filter(Boolean).join('\n\n');
+
+        const withoutDropped = (dropped: { id: string }[]) =>
+          inline && dropped.length && flow.withoutDrafts
+            ? {
+                ...effectiveRequest,
+                toolCall: {
+                  ...effectiveRequest.toolCall,
+                  args: flow.withoutDrafts(
+                    effectiveRequest.toolCall.args,
+                    new Set(dropped.map((d) => d.id)),
+                  ),
+                },
+              }
+            : effectiveRequest;
 
         if (!drafts.length) {
           // every currently-tracked draft has already been screened (first attempt succeeded, or this is a retry of the same batch) — publish as-is
           return attachNote(
-            await handler(effectiveRequest),
-            strippedNoteNotice,
-          );
-        }
-
-        const project_id = configurable.repoKey;
-        const merge_request_iid = configurable.mrIid;
-
-        if (!project_id || !merge_request_iid) {
-          logger.error(
-            { projectId: project_id, mrIid: merge_request_iid },
-            'commentCriticMiddleware missing repoKey/mrIid in configurable — skipping critic',
-          );
-
-          return attachNote(
-            await handler(effectiveRequest),
-            strippedNoteNotice,
+            await handler(withoutDropped(withheldBefore)),
+            joinNotes(withheldNote(withheldBefore), strippedNoteNotice),
           );
         }
 
@@ -303,14 +409,14 @@ export function commentCriticMiddleware({
           });
 
           return attachNote(
-            await handler(effectiveRequest),
-            strippedNoteNotice,
+            await handler(withoutDropped(withheldBefore)),
+            joinNotes(withheldNote(withheldBefore), strippedNoteNotice),
           );
         } finally {
           // Marks the batch screened regardless of outcome — a later publish attempt must never re-invoke the critic on drafts already resolved.
-          for (const draft of drafts) {
-            configurable.commentCriticScreenedIds?.add(draft.id);
-          }
+          for (const draft of drafts)
+            if (inline) inlineVerdicts?.set(draft.body, false);
+            else screenedIds?.add(draft.id);
         }
 
         const dropped: { id: string; body: string }[] = [];
@@ -318,34 +424,24 @@ export function commentCriticMiddleware({
         const handled = new Set<string>();
 
         for (const verdict of verdicts) {
-          const draft = configurable.draftNotes.get(verdict.id);
+          const draft = drafts.find((d) => d.id === verdict.id);
           if (!verdict.drop || !draft || handled.has(verdict.id)) {
             continue;
           }
           handled.add(verdict.id);
 
           try {
-            if (!config.mock.workflow) {
-              // ToolCall shape (not a bare args object) so LangChain attaches an id to the resulting tool_input/tool_output events
-              await deleteDraftNoteTool.invoke(
-                {
-                  type: 'tool_call',
-                  name: deleteDraftNoteTool.name,
-                  id: crypto.randomUUID(),
-                  args: {
-                    project_id,
-                    merge_request_iid,
-                    draft_note_id: verdict.id,
-                  },
-                },
-                { signal },
+            if (inline) inlineVerdicts?.set(draft.body, true);
+            else
+              await withdrawDraft?.(
+                verdict.id,
+                request.runtime as WorkflowRuntime,
               );
-            }
             dropped.push({ id: draft.id, body: draft.body });
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err);
             errors.push(`draft ${draft.id}: ${errMsg}`);
-            // delete failed — draft is likely still live on GitLab, so don't report it as withheld
+            // withdraw failed — draft is likely still live on the host, so don't report it as withheld
             failed.push({ id: draft.id, body: draft.body });
           }
         }
@@ -361,20 +457,6 @@ export function commentCriticMiddleware({
           maxRetries: MAX_CRITIC_RETRIES,
         });
 
-        const renderBucket = (
-          items: { id: string; body: string }[],
-          label: string,
-        ) =>
-          items.length
-            ? `${label}\n${items.map((d) => `- ${d.body}`).join('\n')}`
-            : '';
-
-        const withheldNote = renderBucket(
-          dropped,
-          `${dropped.length} draft comment(s) were withheld before ` +
-            `publishing as non-actionable noise and were not posted:`,
-        );
-
         const failedNote = renderBucket(
           failed,
           `${failed.length} draft comment(s) were flagged as ` +
@@ -382,15 +464,19 @@ export function commentCriticMiddleware({
             `error, so they will still be published:`,
         );
 
-        const note = [withheldNote, failedNote, strippedNoteNotice]
-          .filter(Boolean)
-          .join('\n\n');
+        const allDropped = [...withheldBefore, ...dropped];
+        const note = joinNotes(
+          withheldNote(allDropped),
+          failedNote,
+          strippedNoteNotice,
+        );
+        const publishRequest = withoutDropped(allDropped);
 
         let result: Awaited<ReturnType<typeof handler>>;
 
         // this batch is now marked screened, so a retry skips straight to the base handler — this is the only chance to tell the model what got withheld/failed above.
         try {
-          result = await handler(effectiveRequest);
+          result = await handler(publishRequest);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           return new ToolMessage({

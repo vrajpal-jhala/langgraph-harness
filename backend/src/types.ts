@@ -24,6 +24,7 @@ export type Session = {
   gitlabUsername: string;
   githubUsername: string;
   gitlabId: number | null;
+  githubId: number | null;
   name: string;
   avatarUrl: string | null;
   role: Role;
@@ -376,10 +377,11 @@ export type RunKind = (typeof RunKind)[keyof typeof RunKind];
 
 export type MrReviewRunInput = {
   kind: typeof RunKind.MrReview;
+  provider: GitProvider;
   query: {
     note: string;
-    projectId: string;
-    mrIid: string;
+    projectPath: string;
+    codeChangeRequestNumber: string;
     sourceBranch: string;
     sourceSha: string;
     targetBranch: string;
@@ -425,6 +427,7 @@ export type GitHost = {
   formatAlert: (type: AlertType, title: string, body: string) => string;
   repoIdentifiers: (projectPath: string) => string;
   codeChangeRequestIdentifier: (codeChangeRequestNumber: string) => string;
+  codeChangeRequestRef: (codeChangeRequestNumber: string) => string;
   issueIdentifiers: (projectPath: string, issueNumber: string) => string;
   issueTools: { read: Set<string>; write: Set<string> };
   discussion: {
@@ -452,6 +455,11 @@ export type GitHost = {
     body: string,
     commentId?: number,
   ) => Promise<number>;
+  // JSON in the shape of the provider's own MCP thread-listing tool, so analytics parses both the same way.
+  fetchReviewThreads: (
+    projectPath: string,
+    codeChangeRequestNumber: string,
+  ) => Promise<string>;
   createDraftCodeChangeRequest: (params: {
     projectPath: string;
     sourceBranch: string;
@@ -1139,8 +1147,7 @@ export interface MemoryTable {
   updated_at: Timestamp;
 }
 
-// TODO - rename 'mr' once MR review supports GitHub; it's persisted in worktree_leases and in worktree directory names.
-export type WorktreeEntityType = 'mr' | 'issue' | 'task';
+export type WorktreeEntityType = 'code_change_request' | 'issue' | 'task';
 
 export type WorktreeIdentity = {
   repo: string;
@@ -1277,6 +1284,7 @@ export type HarnessConfigStatus =
 export type ParsedHarnessConfig = {
   parsed: HarnessConfig | null;
   status: HarnessConfigStatus;
+  error?: string;
 };
 
 export type InstructionDoc = { path: string; match?: string[] };

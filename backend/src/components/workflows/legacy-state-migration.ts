@@ -19,10 +19,19 @@ export async function migrateLegacyState(params: {
   threadId: string;
   checkpointId?: string;
   renames: Record<string, string>;
+  // For a rename inside a channel's value, which a channel rename can't reach — returns the rebuilt value, or undefined when it's already in the new shape.
+  reshapes?: Record<string, (value: unknown) => unknown>;
   // The graph's nodes in run order — updateState drops pending tasks unless told which node just ran, and in a linear graph that's the one before the pending node.
   nodeOrder: string[];
 }) {
-  const { graph, threadId, checkpointId, renames, nodeOrder } = params;
+  const {
+    graph,
+    threadId,
+    checkpointId,
+    renames,
+    reshapes = {},
+    nodeOrder,
+  } = params;
   const config = {
     configurable: {
       thread_id: threadId,
@@ -39,6 +48,11 @@ export async function migrateLegacyState(params: {
       if (stored[from] !== undefined && stored[to] === undefined) {
         migrated[to] = stored[from];
       }
+    }
+    for (const [channel, reshape] of Object.entries(reshapes)) {
+      if (stored[channel] === undefined) continue;
+      const reshaped = reshape(stored[channel]);
+      if (reshaped !== undefined) migrated[channel] = reshaped;
     }
     if (!Object.keys(migrated).length) return checkpointId;
 

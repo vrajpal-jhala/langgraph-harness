@@ -26,7 +26,11 @@ const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const githubRepoMatches = (args: ToolArgs, { projectPath }: RunTarget) =>
   samePath(`${args.owner}/${args.repo}`, projectPath);
 
-// The identifiers in the prompt are only a hint, so a prompt-injected issue or comment could otherwise point a write at any repo the bot token reaches.
+const gitlabMergeRequestMatches = (args: ToolArgs, target: RunTarget) =>
+  samePath(decodeURIComponent(String(args.project_id)), target.projectPath) &&
+  String(args.merge_request_iid) === target.codeChangeRequestNumber;
+
+// The identifiers in the prompt are only a hint, so a prompt-injected issue, comment or diff could otherwise point a write at any repo the bot token reaches.
 const targetMatches: Record<
   string,
   (args: ToolArgs, target: RunTarget) => boolean
@@ -43,15 +47,23 @@ const targetMatches: Record<
   ) =>
     githubRepoMatches(args, target) &&
     String(args.pullNumber) === target.codeChangeRequestNumber,
-  [mcpToolName(GitProvider.GitLab, 'create_merge_request_discussion_note')]: (
-    args,
-    target,
-  ) =>
-    samePath(decodeURIComponent(String(args.project_id)), target.projectPath) &&
-    String(args.merge_request_iid) === target.codeChangeRequestNumber,
+  ...Object.fromEntries(
+    [
+      'create_merge_request_discussion_note',
+      'create_draft_note',
+      'bulk_publish_draft_notes',
+      'publish_draft_note',
+      'approve_merge_request',
+      'unapprove_merge_request',
+      'resolve_merge_request_thread',
+    ].map((tool) => [
+      mcpToolName(GitProvider.GitLab, tool),
+      gitlabMergeRequestMatches,
+    ]),
+  ),
 };
 
-export function writeTargetGuardMiddleware() {
+export function writeTargetGuardMiddleware(writeToolNames: Set<string>) {
   return createMiddleware({
     name: 'WriteTargetGuard',
     wrapToolCall: async (request, handler) => {
@@ -59,10 +71,8 @@ export function writeTargetGuardMiddleware() {
         .configurable;
       const host = configurable?.host;
       const { name, args, id } = request.toolCall;
-      const isWrite = [...(host?.issueTools.write ?? [])].some(
-        (tool) => host && mcpToolName(host.provider, tool) === name,
-      );
-      if (!host || !configurable?.repoKey || !isWrite) return handler(request);
+      if (!host || !configurable?.repoKey || !writeToolNames.has(name))
+        return handler(request);
 
       const target: RunTarget = {
         projectPath: parseRepoKey(configurable.repoKey).projectPath,

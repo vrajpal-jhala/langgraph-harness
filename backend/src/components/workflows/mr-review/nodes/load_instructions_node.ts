@@ -1,17 +1,16 @@
 import micromatch from 'micromatch';
 
-import { InstructionDoc, InstructionStatus } from '#types.js';
+import { type GitHost, InstructionDoc, InstructionStatus } from '#types.js';
 
 import { gitService } from '#components/repositories/service.js';
 import { resolveInstructionDocs } from '#components/workflows/instructions.js';
 import type { WorkflowState } from '#components/workflows/mr-review/state.js';
 import { createLoadInstructionsNode } from '#components/workflows/nodes/load_instructions_node.js';
 
-import { upsertMrNote } from '#utils/gitlab.js';
-import { mrNote } from '#utils/notes.js';
+import { reviewNote } from '#utils/notes.js';
 
 export const loadInstructionsNode = createLoadInstructionsNode<WorkflowState>({
-  getDocs: (parsed) => parsed.mr_review_instructions,
+  getDocs: (parsed) => parsed.review.instructions,
 
   resolveContent: async (docs: InstructionDoc[], state, config) => {
     const { query } = state;
@@ -79,14 +78,15 @@ export const loadInstructionsNode = createLoadInstructionsNode<WorkflowState>({
   },
 
   postNote: async (state, config, status) => {
-    const { query, model, noteId } = state;
-    if (!noteId) return;
+    const { query, model, statusCommentId } = state;
+    if (!statusCommentId) return;
+    const host = config.configurable?.host as GitHost;
     const threadId = config.configurable?.thread_id as string | undefined;
-    await upsertMrNote(
-      query.projectId,
-      query.mrIid,
-      mrNote.inProgress(model, status, threadId),
-      noteId,
+    await host.upsertCodeChangeRequestComment(
+      query.projectPath,
+      query.codeChangeRequestNumber,
+      reviewNote.inProgress(host, model, status, threadId),
+      statusCommentId,
     );
   },
 });

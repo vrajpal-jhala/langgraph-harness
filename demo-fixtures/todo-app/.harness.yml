@@ -1,1 +1,4 @@
-mr_review_requires_harness_reviewer: true
+version: 2
+
+review:
+  requires_reviewer: true

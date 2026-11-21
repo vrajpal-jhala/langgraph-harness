@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { errors } from './errors.js';
+import { errors, isNotFoundApiError } from './errors.js';
 
 // Bound each GitLab request so a slow/unresponsive API fails fast instead of
 // holding a queue slot (undici's default header/body timeouts are ~300s).
@@ -302,11 +302,23 @@ export async function upsertMrNote(
   body: string,
   noteId?: number,
 ): Promise<number> {
-  const res = await gitlabFetch(notesUrl(projectId, mrIid, noteId), {
-    method: noteId ? 'PUT' : 'POST',
+  if (noteId) {
+    try {
+      await gitlabFetch(notesUrl(projectId, mrIid, noteId), {
+        method: 'PUT',
+        body: JSON.stringify({ body }),
+      });
+      return noteId;
+    } catch (err) {
+      // Deleted by someone, or left over from a recreated project — post a fresh one rather than failing every later run.
+      if (!isNotFoundApiError(err)) throw err;
+    }
+  }
+  const res = await gitlabFetch(notesUrl(projectId, mrIid), {
+    method: 'POST',
     body: JSON.stringify({ body }),
   });
-  return noteId ?? ((await res.json()) as { id: number }).id;
+  return ((await res.json()) as { id: number }).id;
 }
 
 export async function upsertIssueNote(
@@ -315,11 +327,26 @@ export async function upsertIssueNote(
   body: string,
   noteId?: number,
 ): Promise<number> {
-  const res = await gitlabFetch(issueNotesUrl(projectId, issueIid, noteId), {
-    method: noteId ? 'PUT' : 'POST',
+  if (noteId) {
+    try {
+      await gitlabFetch(issueNotesUrl(projectId, issueIid, noteId), {
+        method: 'PUT',
+        body: JSON.stringify({ body }),
+      });
+
+      return noteId;
+    } catch (err) {
+      // Deleted by someone, or left over from a recreated project — post a fresh one rather than failing every later run.
+      if (!isNotFoundApiError(err)) throw err;
+    }
+  }
+
+  const res = await gitlabFetch(issueNotesUrl(projectId, issueIid), {
+    method: 'POST',
     body: JSON.stringify({ body }),
   });
-  return noteId ?? ((await res.json()) as { id: number }).id;
+
+  return ((await res.json()) as { id: number }).id;
 }
 
 export async function updateMergeRequest(params: {

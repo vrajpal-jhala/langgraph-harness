@@ -10,10 +10,15 @@ import {
 import { createAgent } from 'langchain';
 import z from 'zod';
 
-import type { AgentPromptEvent, SubagentErrorEvent } from '#types.js';
+import {
+  type AgentPromptEvent,
+  GitProvider,
+  type SubagentErrorEvent,
+} from '#types.js';
 
 import { createMemoryCandidateTool } from '#components/memories/tool.js';
 import { gitService } from '#components/repositories/service.js';
+import { githubMcp } from '#components/workflows/github-mcp.js';
 import { gitlabMcp } from '#components/workflows/gitlab-mcp.js';
 import {
   contextUsageMiddleware,
@@ -33,13 +38,25 @@ import type {
   WorkflowConfigurable,
 } from './state.js';
 
-import { llms } from '#utils/config.js';
+import { config, llms } from '#utils/config.js';
+import {
+  type DiffLineMap,
+  parseDiffLineMap,
+  validateSidedPosition,
+} from '#utils/diff.js';
 import {
   findRepeatedText,
   generationLoopReason,
   IDLE_TOOL_CALL_MS,
   REPEATED_TEXT_THRESHOLD,
 } from '#utils/generation-loop.js';
+import {
+  createPullRequestReview,
+  fetchPullRequestFilePatch,
+  fetchReviewThreadTarget,
+  replyToReviewComment,
+  setReviewThreadResolved,
+} from '#utils/github.js';
 import { mcpToolFilter, mcpToolName, messageContent } from '#utils/helpers.js';
 import { buildChatModel } from '#utils/llm.js';
 import { logger } from '#utils/logger.js';
@@ -55,28 +72,49 @@ type GitToolRuntime = ToolRuntime<unknown, unknown> & {
   configurable?: Partial<WorkflowConfigurable>;
 };
 
-const diffFragmentsPath = join(skillsPath, 'gitlab-mcp/diff-fragments');
+const CODE_REVIEW_SKILL = 'code-review';
+const fragmentsPath = join(skillsPath, CODE_REVIEW_SKILL, 'fragments');
+
+// Steps that name host tools; `{variant}` picks local git or the host's own diff, depending on whether the branch survived.
+const FRAGMENT_FILES = {
+  '{{EXISTING_STATE_STEP}}': 'existing-state',
+  '{{CHANGED_FILES_STEP}}': 'changed-files-{variant}',
+  '{{DIFF_STEP}}': 'diff-{variant}',
+  '{{COMMENT_STEP}}': 'comments',
+  '{{RESOLVE_STEP}}': 'resolve',
+  '{{APPROVE_STEP}}': 'approve',
+};
 
 const loadSkill = tool(
   async ({ path: skillPath }, runtime: GitToolRuntime) => {
     try {
       let content = await readFile(
-        join(skillsPath, `${skillPath}.md`),
+        join(skillsPath, skillPath, `${skillPath}.md`),
         'utf-8',
       );
 
-      // code-review.md's diff steps are toolset-dependent — splice in the fragment matching what dynamicDiffToolsMiddleware actually bound this run.
-      if (skillPath === 'gitlab-mcp/code-review') {
-        const variant = runtime.configurable?.revived ? 'gitlab' : 'local';
-        const variantPath = join(diffFragmentsPath, variant);
-        const [changedFilesStep, diffStep] = await Promise.all([
-          readFile(join(variantPath, 'changed-files.md'), 'utf-8'),
-          readFile(join(variantPath, 'diff.md'), 'utf-8'),
-        ]);
+      if (skillPath === CODE_REVIEW_SKILL) {
+        const { host, revived = false } =
+          runtime.configurable as WorkflowConfigurable;
+        const providerPath = join(fragmentsPath, host.provider);
+        const variant = revived ? 'revived' : 'local';
+        const fragments = await Promise.all(
+          Object.entries(FRAGMENT_FILES).map(async ([placeholder, file]) => {
+            const path = join(
+              providerPath,
+              `${file.replace('{variant}', variant)}.md`,
+            );
+            return [placeholder, (await readFile(path, 'utf-8')).trim()];
+          }),
+        );
 
+        for (const [placeholder, fragment] of fragments) {
+          content = content.replace(placeholder, fragment);
+        }
         content = content
-          .replace('{{CHANGED_FILES_STEP}}', changedFilesStep.trim())
-          .replace('{{DIFF_STEP}}', diffStep.trim());
+          .replaceAll('{{HOST}}', host.name)
+          .replaceAll('{{CODE_CHANGE_REQUEST}}', host.codeChangeRequestName)
+          .replaceAll('{{BOT_USERNAME}}', config[host.provider].username);
       }
 
       return { content };
@@ -84,19 +122,18 @@ const loadSkill = tool(
       logger.error({ err }, `Error loading skill from path ${skillPath}`);
 
       return {
-        error: `Skill not found: ${skillPath}. Available skills: gitlab-mcp/code-review`,
+        error: `Skill not found: ${skillPath}. Available skills: ${CODE_REVIEW_SKILL}`,
       };
     }
   },
   {
     name: 'load_skill',
-    description:
-      'Load step-by-step workflow instructions from a skill file. Call this first when you need guidance on how to perform a specific workflow. Available skills: gitlab-mcp/code-review',
+    description: `Load step-by-step workflow instructions from a skill file. Call this first when you need guidance on how to perform a specific workflow. Available skills: ${CODE_REVIEW_SKILL}`,
     schema: z.object({
       path: z
         .string()
         .describe(
-          'Skill path without .md extension, e.g. "gitlab-mcp/code-review"',
+          `Skill path without .md extension, e.g. "${CODE_REVIEW_SKILL}"`,
         ),
     }),
   },
@@ -107,7 +144,7 @@ const createMemoryCandidate = createMemoryCandidateTool<WorkflowConfigurable>({
     'Flag a durable, repo-specific fact worth remembering for future reviews of this repository — a coding convention, a recurring false positive, a team preference surfaced in discussion, or an architectural decision.',
   buildSource: (configurable) => ({
     workflow: 'code-review',
-    mrIid: configurable.mrIid ?? '',
+    codeChangeRequestNumber: configurable.codeChangeRequestNumber ?? '',
   }),
 });
 
@@ -706,6 +743,281 @@ const spawnSubagent = tool(
   },
 );
 
+async function diffLineMapFor(
+  configurable: Partial<WorkflowConfigurable>,
+  path: string,
+  signal?: AbortSignal,
+): Promise<DiffLineMap | undefined> {
+  const cached = configurable.diffLineMapCache?.get(path);
+  if (cached) return cached;
+
+  const {
+    worktreePath,
+    sourceBranch,
+    targetBranch,
+    revived,
+    projectPath,
+    codeChangeRequestNumber,
+  } = configurable;
+  let diff = '';
+
+  if (!revived && worktreePath && sourceBranch && targetBranch) {
+    try {
+      const base = await gitService.mergeBase(
+        worktreePath,
+        sourceBranch,
+        targetBranch,
+        signal,
+      );
+      diff = await gitService.fileDiff(
+        worktreePath,
+        base,
+        sourceBranch,
+        path,
+        signal,
+      );
+    } catch (err) {
+      logger.error(
+        { err, path },
+        'submit_review local diff for position validation failed — falling back to GitHub',
+      );
+    }
+  }
+
+  // A revived retry's branch is gone, so its diff only exists on GitHub.
+  if (!diff.trim() && projectPath && codeChangeRequestNumber) {
+    try {
+      diff =
+        (await fetchPullRequestFilePatch(
+          projectPath,
+          codeChangeRequestNumber,
+          path,
+          signal,
+        )) ?? '';
+    } catch (err) {
+      logger.error(
+        { err, path },
+        'submit_review failed to fetch the file diff from GitHub — skipping position validation for this comment',
+      );
+    }
+  }
+
+  if (!diff.trim()) return undefined;
+  const map = parseDiffLineMap(diff);
+  configurable.diffLineMapCache?.set(path, map);
+  return map;
+}
+
+const side = z
+  .enum(['LEFT', 'RIGHT'])
+  .describe(
+    '"RIGHT" for added or unchanged lines, "LEFT" for removed lines — the side of the diff `line` is on',
+  );
+
+const submitReview = tool(
+  async ({ event, body, comments, replies }, runtime: GitToolRuntime) => {
+    const configurable = runtime.configurable ?? {};
+    const { projectPath, codeChangeRequestNumber } = configurable;
+    if (!projectPath || !codeChangeRequestNumber)
+      return { error: 'No pull request in this run.' };
+
+    const hasBody = !!body?.trim();
+    if (event === 'COMMENT' && !comments.length && !replies.length && !hasBody)
+      return {
+        submitted: false,
+        reason:
+          "Nothing to submit: a COMMENT review needs at least one comment or reply. With nothing to say, don't submit.",
+      };
+
+    const invalid: { path: string; line: number; error: string }[] = [];
+    for (const c of comments) {
+      const map = await diffLineMapFor(configurable, c.path, runtime.signal);
+      if (!map) {
+        logger.warn(
+          { path: c.path },
+          'submit_review has no diff line map — comment goes to GitHub unchecked',
+        );
+        continue;
+      }
+      const verdict = validateSidedPosition(map, {
+        line: c.line,
+        side: c.side,
+        startLine: c.startLine,
+        startSide: c.startSide,
+      });
+      if (verdict.error)
+        invalid.push({ path: c.path, line: c.line, error: verdict.error });
+    }
+    if (invalid.length)
+      return {
+        error: `${invalid.length} comment(s) aren't on a line of the diff, so nothing was posted. Re-read the diff for those lines and submit again with every comment.`,
+        invalid,
+      };
+
+    if (config.mock.workflow)
+      return {
+        review: { state: event },
+        commentsPosted: comments.length,
+        repliesPosted: replies.length,
+      };
+
+    // Replies alone don't need a review; GitHub rejects a COMMENT review with nothing in it.
+    const needsReview = comments.length > 0 || hasBody || event !== 'COMMENT';
+    let review: { id: number; state: string } | undefined;
+    if (needsReview) {
+      const { worktreePath, sourceBranch, revived } = configurable;
+      // Anchors the comments to the commit their lines were checked against, even if the branch moved since.
+      const commitId =
+        !revived && worktreePath && sourceBranch
+          ? await gitService
+              .revParse(worktreePath, sourceBranch, runtime.signal)
+              .catch(() => undefined)
+          : undefined;
+      try {
+        review = await createPullRequestReview(
+          projectPath,
+          codeChangeRequestNumber,
+          {
+            event,
+            ...(hasBody && { body }),
+            ...(commitId && { commit_id: commitId }),
+            comments: comments.map((c) => ({
+              path: c.path,
+              body: c.body,
+              line: c.line,
+              side: c.side,
+              ...(c.startLine != null && {
+                start_line: c.startLine,
+                start_side: c.startSide ?? c.side,
+              }),
+            })),
+          },
+        );
+      } catch (err) {
+        return {
+          error: `The review wasn't posted, and neither were its comments or replies: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+    }
+
+    const repliesFailed: { commentId: number; error: string }[] = [];
+    for (const r of replies) {
+      try {
+        await replyToReviewComment(
+          projectPath,
+          codeChangeRequestNumber,
+          r.commentId,
+          r.body,
+        );
+      } catch (err) {
+        repliesFailed.push({
+          commentId: r.commentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return {
+      ...(review && { review }),
+      commentsPosted: review ? comments.length : 0,
+      repliesPosted: replies.length - repliesFailed.length,
+      ...(repliesFailed.length && {
+        error: `${repliesFailed.length} reply(s) failed to post — retry only those, with submit_review's replies alone.`,
+        repliesFailed,
+      }),
+    };
+  },
+  {
+    name: 'submit_review',
+    description:
+      "Posts this pull request's review in one step: its event, its line comments and its replies on existing threads. GitHub posts the comments all together or not at all; a comment whose line isn't on the diff is rejected before anything is posted.",
+    schema: z.object({
+      event: z
+        .enum(['APPROVE', 'COMMENT', 'REQUEST_CHANGES'])
+        .describe('The review outcome'),
+      body: z
+        .string()
+        .optional()
+        .describe(
+          'Only for REQUEST_CHANGES, as the one-line reason an approval is withdrawn',
+        ),
+      comments: z
+        .array(
+          z.object({
+            path: z.string().describe('File path, as in the diff'),
+            line: z
+              .number()
+              .int()
+              .describe(
+                'Line number on `side` — the last line, for a ranged comment',
+              ),
+            side,
+            startLine: z
+              .number()
+              .int()
+              .optional()
+              .describe('First line of a ranged comment'),
+            startSide: side.optional(),
+            body: z.string().min(1),
+          }),
+        )
+        .default([])
+        .describe('New inline comments'),
+      replies: z
+        .array(
+          z.object({
+            commentId: z
+              .number()
+              .int()
+              .describe(
+                "The thread's first comment id — the number after #discussion_r in its html_url",
+              ),
+            body: z.string().min(1),
+          }),
+        )
+        .default([])
+        .describe('Replies on existing review threads'),
+    }),
+  },
+);
+
+const resolveReviewThread = tool(
+  async ({ threadId, resolved }, runtime: GitToolRuntime) => {
+    const { projectPath, codeChangeRequestNumber } = runtime.configurable ?? {};
+    if (config.mock.workflow) return { threadId, isResolved: resolved };
+
+    const thread = await fetchReviewThreadTarget(threadId).catch(
+      () => undefined,
+    );
+    if (
+      !thread ||
+      thread.projectPath.toLowerCase() !== projectPath?.toLowerCase() ||
+      String(thread.prNumber) !== codeChangeRequestNumber
+    )
+      return {
+        error: `${threadId} isn't a review thread on this pull request.`,
+      };
+
+    try {
+      await setReviewThreadResolved(threadId, resolved);
+      return { threadId, isResolved: resolved };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  },
+  {
+    name: 'resolve_review_thread',
+    description:
+      'Resolves a review thread on this pull request, or reopens one with resolved: false.',
+    schema: z.object({
+      threadId: z
+        .string()
+        .describe("The thread's id from get_review_comments (PRRT_…)"),
+      resolved: z.boolean().default(true),
+    }),
+  },
+);
+
 const GIT_READ_TOOLS = new Set([
   gitChangedFiles.name,
   gitDiff.name,
@@ -719,63 +1031,85 @@ const LOCAL_READ_TOOLS = new Set([
   listDirectory.name,
 ]);
 
-// Swapped in for GIT_READ_TOOLS on a revived retry (with dynamicDiffToolsMiddleware).
-const GITLAB_DIFF_TOOLS = new Set([
-  'get_merge_request_diffs',
-  'list_merge_request_changed_files',
-]);
+type ReviewToolSet = {
+  read: Set<string>;
+  // Separate from read so mock mode can emulate them.
+  write: Set<string>;
+  // Swapped in for GIT_READ_TOOLS on a revived retry (with dynamicDiffToolsMiddleware); empty when the host's diff lives in a read tool that's always bound.
+  revivedDiff: Set<string>;
+  // Fetched for middleware to call directly, outside the model's tool loop.
+  internal: Set<string>;
+};
 
-const MR_READ_TOOLS = new Set([
-  // metadata
-  'get_merge_request',
-  'get_merge_request_conflicts',
-  'get_merge_request_approval_state',
-  'mr_discussions',
-  // push history
-  'list_merge_request_versions',
-  // review diff
-  ...GITLAB_DIFF_TOOLS,
-  // review drafting
-  'list_draft_notes',
-]);
+// Derived from the code-review skill. All others (issues, pipelines, projects, branches, etc.) are excluded to keep the context small.
+const REVIEW_TOOLS: Record<GitProvider, ReviewToolSet> = {
+  [GitProvider.GitLab]: {
+    read: new Set([
+      // metadata
+      'get_merge_request',
+      'get_merge_request_conflicts',
+      'get_merge_request_approval_state',
+      'mr_discussions',
+      // push history
+      'list_merge_request_versions',
+      // review drafting
+      'list_draft_notes',
+    ]),
+    write: new Set([
+      // approval
+      'approve_merge_request',
+      'unapprove_merge_request',
+      // review drafting
+      'create_draft_note',
+      'bulk_publish_draft_notes',
+      'publish_draft_note',
+      // resolve threads
+      'resolve_merge_request_thread',
+    ]),
+    revivedDiff: new Set([
+      'get_merge_request_diffs',
+      'list_merge_request_changed_files',
+    ]),
+    internal: new Set([
+      'delete_draft_note',
+      'mr_discussions',
+      'get_merge_request_file_diff',
+    ]),
+  },
+  // Writes go through submit_review and resolve_review_thread instead, which always target the run's own pull request.
+  [GitProvider.GitHub]: {
+    // One tool covers metadata, files, diff, reviews and comments, picked by `method`.
+    read: new Set(['pull_request_read']),
+    write: new Set(),
+    revivedDiff: new Set(),
+    internal: new Set(),
+  },
+};
 
-// separate list for mocking
-const MR_WRITE_TOOLS = new Set([
-  // approval
-  'approve_merge_request',
-  'unapprove_merge_request',
-  // review drafting
-  'create_draft_note',
-  'bulk_publish_draft_notes',
-  'publish_draft_note',
-  // resolve threads
-  'resolve_merge_request_thread',
-]);
+const allowedFrom = (
+  allTools: DynamicStructuredTool[],
+  provider: GitProvider,
+) => {
+  const { read, write, revivedDiff } = REVIEW_TOOLS[provider];
+  return allTools.filter(
+    mcpToolFilter(new Set([...read, ...write, ...revivedDiff]), provider),
+  );
+};
 
-// MR-related tools derived from the gitlab-mcp/code-review skill. All others (issues, pipelines, projects, branches, etc.) are excluded to keep the context small.
-const MR_TOOL_ALLOWLIST = new Set([...MR_READ_TOOLS, ...MR_WRITE_TOOLS]);
+const providerTools: Record<GitProvider, DynamicStructuredTool[]> = {
+  [GitProvider.GitLab]: [],
+  [GitProvider.GitHub]: [],
+};
+const internalTools = new Map<string, DynamicStructuredTool>();
 
-// Fetched for middleware to call directly, outside the model's tool loop
-const INTERNAL_TOOLS = new Set([
-  'delete_draft_note',
-  'mr_discussions',
-  'get_merge_request_file_diff',
-]);
-
-let mcpTools: DynamicStructuredTool[] = [];
-let internalTools = new Map<string, DynamicStructuredTool>();
+const mcpClients = {
+  [GitProvider.GitLab]: gitlabMcp,
+  [GitProvider.GitHub]: githubMcp,
+};
 
 export const tools = {
   init: async () => {
-    // A failed GitLab MCP connection (bad PAT, no network, npx failure) must
-    // stop the server from booting — the whole workflow is useless without it.
-    const allTools = await gitlabMcp.getTools();
-    internalTools = new Map(
-      allTools
-        .filter(mcpToolFilter(INTERNAL_TOOLS, 'gitlab'))
-        .map((t) => [t.name, t]),
-    );
-    mcpTools = [
+    const baseTools = [
       loadSkill,
       createMemoryCandidate,
       gitChangedFiles,
@@ -786,27 +1120,48 @@ export const tools = {
       readMultipleFiles,
       listDirectory,
       spawnSubagent,
-      ...allTools.filter(mcpToolFilter(MR_TOOL_ALLOWLIST, 'gitlab')),
+    ];
+    for (const provider of Object.values(GitProvider)) {
+      if (!config[provider].enabled) continue;
+      // A failed MCP connection (bad token, no network) must stop the server from booting — reviews on that host are useless without it.
+      const allTools = await mcpClients[provider].getTools();
+      for (const t of allTools.filter(
+        mcpToolFilter(REVIEW_TOOLS[provider].internal, provider),
+      )) {
+        internalTools.set(t.name, t);
+      }
+      providerTools[provider] = [
+        ...baseTools,
+        ...allowedFrom(allTools, provider),
+        ...(provider === GitProvider.GitHub
+          ? [submitReview, resolveReviewThread]
+          : []),
+      ];
+    }
+  },
+  getAll: (provider: GitProvider) => providerTools[provider],
+  getMrReadNames: (provider: GitProvider) => {
+    const { read, revivedDiff } = REVIEW_TOOLS[provider];
+    return [
+      ...GIT_READ_TOOLS,
+      ...LOCAL_READ_TOOLS,
+      ...providerTools[provider]
+        .filter(mcpToolFilter(new Set([...read, ...revivedDiff]), provider))
+        .map((t) => t.name),
     ];
   },
-  getAll: () => mcpTools,
-  getMrReadNames: () =>
-    mcpTools
-      .filter(
-        mcpToolFilter(
-          new Set([...MR_READ_TOOLS, ...GIT_READ_TOOLS, ...LOCAL_READ_TOOLS]),
-          'gitlab',
-        ),
-      )
-      .map((t) => t.name),
   getInternal: (name: string) => internalTools.get(name),
-  getDiffToolNames: () => ({
+  getDiffToolNames: (provider: GitProvider) => ({
     localToolNames: GIT_READ_TOOLS,
-    gitlabToolNames: new Set(
-      [...GITLAB_DIFF_TOOLS].map((name) => mcpToolName('gitlab', name)),
+    hostToolNames: new Set(
+      [...REVIEW_TOOLS[provider].revivedDiff].map((name) =>
+        mcpToolName(provider, name),
+      ),
     ),
   }),
-  getMockableNames: () =>
-    mcpTools.filter(mcpToolFilter(MR_WRITE_TOOLS, 'gitlab')).map((t) => t.name),
-  cleanup: () => gitlabMcp.close(),
+  getWriteNames: (provider: GitProvider) =>
+    providerTools[provider]
+      .filter(mcpToolFilter(REVIEW_TOOLS[provider].write, provider))
+      .map((t) => t.name),
+  cleanup: () => Promise.all([gitlabMcp.close(), githubMcp.close()]),
 };

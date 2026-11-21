@@ -133,7 +133,7 @@ async function teardownWorktree(lease: WorktreeLease) {
     await gitService.worktreeRemove(barePath, worktreePath);
   }
   // Nothing else ever deletes a branch ref, so without this they pile up forever. mr-review doesn't own its branch, so it's excluded.
-  if (identity.entityType !== 'mr') {
+  if (identity.entityType !== 'code_change_request') {
     await gitService.deleteBranch(barePath, lease.ref);
   }
   await worktreeLeasesDal.deleteById(lease.id);

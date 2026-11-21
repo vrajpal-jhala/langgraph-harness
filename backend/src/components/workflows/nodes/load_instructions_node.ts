@@ -18,6 +18,7 @@ type LoadInstructionsState = {
   config: {
     status: ParsedHarnessConfig['status'];
     parsed: ParsedHarnessConfig['parsed'];
+    error?: string;
     instructions: { status: InstructionStatus; content: string };
   };
 };
@@ -66,11 +67,13 @@ export function createLoadInstructionsNode<
     // that the notify-start node writes; this node always resolves to a
     // terminal status.
     let instructionStatus: InstructionStatus;
-    const docs = repoConfig ? options.getDocs(repoConfig) : [];
+    // A run retried from before version 2 still carries the old shape in its stored input — it goes without instructions rather than crashing.
+    const docs = repoConfig?.version === 2 ? options.getDocs(repoConfig) : [];
 
     if (repoConfigStatus === HarnessConfigStatus.Invalid) {
       // Config existed but couldn't be parsed/validated (logged already where it was fetched).
       instructionStatus = InstructionStatus.Failed;
+      error = workflowConfig.error ?? '';
     } else if (!docs.length) {
       // No config, or config present but no instruction docs — nothing to attach.
       instructionStatus = InstructionStatus.Missing;

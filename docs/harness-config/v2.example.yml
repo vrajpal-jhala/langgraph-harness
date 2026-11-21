@@ -1,0 +1,37 @@
+# Example .harness.yml — per-repo configuration for langgraph-harness.
+# Copy to the repository root on the DEFAULT branch and adjust.
+# Every section is optional; a missing file means "run with defaults".
+# Unknown keys make the file invalid, and the run's page says which key.
+
+# Config schema version. Required; only 2 is supported.
+version: 2
+
+# Merge request and pull request review.
+review:
+  # Instruction docs (read from the default branch) fed to the reviewer as scoped
+  # guidance. The combined block is capped at 32,000 characters.
+  #
+  #   - path:  repo-relative path to the doc
+  #   - match: optional globs; attach the doc only when the change touches a
+  #            matching file. Omit `match` to always attach the doc.
+  instructions:
+    - path: docs/review-guidelines.md
+    - path: docs/typescript.md
+      match: ['**/*.ts', '**/*.tsx']
+    - path: docs/python.md
+      match: ['**/*.py']
+
+  # Skip review entirely when the source or target branch matches a glob.
+  # Patterns use micromatch: `*` within one path segment, `**` across segments.
+  exclude_branches:
+    source: ['release/*', 'wip/**']
+    target: ['staging']
+
+  # Only review once the bot is one of the reviewers; default false reviews every change.
+  requires_reviewer: false
+
+# Issue runs and tasks: anything that writes code.
+resolve:
+  # Same as review instructions, without `match` — there's no diff to match against yet.
+  instructions:
+    - path: docs/contributing.md

@@ -7,7 +7,7 @@ import type { WorkflowState } from '#components/workflows/work-item-resolve/stat
 import { workItemResolveNote } from '#utils/notes.js';
 
 export const loadInstructionsNode = createLoadInstructionsNode<WorkflowState>({
-  getDocs: (parsed) => parsed.work_item_resolve_instructions,
+  getDocs: (parsed) => parsed.resolve.instructions,
 
   resolveContent: async (docs, state, config) => {
     const { defaultBranch } = state;

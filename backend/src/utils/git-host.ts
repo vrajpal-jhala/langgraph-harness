@@ -40,6 +40,7 @@ export const gitHosts: Record<GitProvider, GitHost> = {
     formatAlert: (type, title, body) =>
       `> [!${type.toUpperCase()}] ${title}\n> ${body}`,
     codeChangeRequestIdentifier: (mrIid) => `merge_request_iid ${mrIid}`,
+    codeChangeRequestRef: (mrIid) => `!${mrIid}`,
     repoIdentifiers: (projectPath) => `project_id "${projectPath}"`,
     issueIdentifiers: (projectPath, issueIid) =>
       `${gitHosts[GitProvider.GitLab].repoIdentifiers(projectPath)}, issue_iid ${issueIid}`,
@@ -64,6 +65,7 @@ export const gitHosts: Record<GitProvider, GitHost> = {
     fetchRepoFile: gitlab.fetchRepoFile,
     upsertIssueComment: gitlab.upsertIssueNote,
     upsertCodeChangeRequestComment: gitlab.upsertMrNote,
+    fetchReviewThreads: gitlab.fetchMrDiscussions,
     createDraftCodeChangeRequest: async ({
       projectPath,
       reviewerUsername,
@@ -110,6 +112,7 @@ export const gitHosts: Record<GitProvider, GitHost> = {
     formatAlert: (type, title, body) =>
       `> [!${type.toUpperCase()}]\n> **${title}**\n>\n> ${body}`,
     codeChangeRequestIdentifier: (number) => `pullNumber ${number}`,
+    codeChangeRequestRef: (number) => `#${number}`,
     repoIdentifiers: (projectPath) => {
       const [owner, repo] = projectPath.split('/');
       return `owner "${owner}", repo "${repo}"`;
@@ -145,6 +148,7 @@ export const gitHosts: Record<GitProvider, GitHost> = {
     upsertIssueComment: github.upsertIssueComment,
     // A pull request's conversation comments are issue comments in GitHub's API.
     upsertCodeChangeRequestComment: github.upsertIssueComment,
+    fetchReviewThreads: github.fetchReviewThreads,
     createDraftCodeChangeRequest: async ({
       projectPath,
       reviewerUsername,

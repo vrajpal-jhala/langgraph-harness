@@ -2,16 +2,21 @@ import { Elysia } from 'elysia';
 
 import { GitProvider, RunKind } from '#types.js';
 
+import { analyticsService } from '#components/analytics/service.js';
 import { repositoriesManager } from '#components/repositories/manager.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
 import { handleOnce } from './delivery.js';
 import { mentionsUser, startFollowUpRun } from './follow-up.js';
+import { reviewThreadMetadata, startReviewRun } from './review.js';
 import { startWorkItemResolveRun } from './work-item.js';
 
 import { githubWebhookAuth } from '#utils/auth.js';
 import { config, isProjectInScope } from '#utils/config.js';
 import { gitHosts } from '#utils/git-host.js';
+import { isStillReviewer } from '#utils/github.js';
+import { parseHarnessYml } from '#utils/harness-config.js';
+import { logger } from '#utils/logger.js';
 import { isAutomatedStatusNote } from '#utils/notes.js';
 
 type GitHubUser = { login?: string };
@@ -73,7 +78,8 @@ async function handleIssuesEvent(body: any) {
   // `assigned`/`unassigned` fire once per added or removed assignee, naming only that one — so unlike GitLab, no previous/current diff is needed.
   if (
     action === 'unassigned' &&
-    (assignee as GitHubUser | undefined)?.login === config.github.username
+    (assignee as GitHubUser | undefined)?.login?.toLowerCase() ===
+      config.github.username
   ) {
     const existingThread = await threadsDal.findByMetadata(issueMetadata);
     if (!existingThread)
@@ -88,11 +94,12 @@ async function handleIssuesEvent(body: any) {
 
   const isBotAssignment =
     action === 'assigned' &&
-    (assignee as GitHubUser | undefined)?.login === config.github.username;
+    (assignee as GitHubUser | undefined)?.login?.toLowerCase() ===
+      config.github.username;
   const isReopenedWithBot =
     action === 'reopened' &&
     ((issue?.assignees ?? []) as GitHubUser[]).some(
-      (a) => a.login === config.github.username,
+      (a) => a.login?.toLowerCase() === config.github.username,
     );
 
   if (!isBotAssignment && !isReopenedWithBot)
@@ -118,41 +125,163 @@ async function handleIssuesEvent(body: any) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handlePullRequestEvent(body: any) {
-  const { action, pull_request, repository } = body ?? {};
+  const { action, pull_request, repository, requested_reviewer } = body ?? {};
   const prNumber = pull_request?.number;
   const projectPath: string | undefined = repository?.full_name;
 
-  if (action !== 'closed' || !prNumber || !projectPath)
-    return { received: true, status: 'skipped', reason: 'not_pr_close' };
-
-  // Merging/closing never closes the issue (no closing keyword, deliberately) — this is the issue worktree's only cleanup trigger in the common case.
-  const thread = await threadsDal.findByMetadata({
-    source: GitProvider.GitHub,
-    project: projectPath,
-    codeChangeRequestNumber: String(prNumber),
-  });
-  // A task has no issue — its worktree is keyed by the thread instead.
-  const target =
-    thread?.kind === RunKind.TaskResolve
-      ? { entityType: 'task' as const, entityId: thread.id }
-      : thread?.metadata?.number != null
-        ? {
-            entityType: 'issue' as const,
-            entityId: String(thread.metadata.number),
-          }
-        : undefined;
-  if (!target)
+  if (!prNumber || !projectPath)
     return {
       received: true,
       status: 'skipped',
-      reason: 'no_matching_pr_thread',
+      reason: 'missing_required_fields',
     };
 
-  await repositoriesManager.cleanupWorktree({
-    repo: host.repoKey(projectPath),
-    ...target,
+  const prMetadata = reviewThreadMetadata(host, projectPath, prNumber);
+
+  // PR lifecycle end — clean up its worktree, independent of the review flow below. No memories cleanup: codeChangeRequestNumber metadata isn't reliably attributable to one PR, and the curator retires stale memories on its own anyway.
+  if (action === 'closed') {
+    // Otherwise a queued or running review still posts on a pull request nobody will merge.
+    const thread = await threadsDal.findByMetadata(prMetadata);
+    if (thread) await threadsService.stopRuns(thread.id);
+
+    await repositoriesManager.cleanupWorktree({
+      repo: host.repoKey(projectPath),
+      entityType: 'code_change_request',
+      entityId: String(prNumber),
+    });
+
+    // Merging/closing never closes the issue (no closing keyword, deliberately) — this is the issue worktree's only cleanup trigger in the common case.
+    const resolveThread = await threadsDal.findByMetadata({
+      source: GitProvider.GitHub,
+      project: projectPath,
+      codeChangeRequestNumber: String(prNumber),
+    });
+    // Its worktree is removed below, so a follow-up still running would push to a finished branch.
+    if (resolveThread) await threadsService.stopRuns(resolveThread.id);
+
+    // A task has no issue — its worktree is keyed by the thread instead.
+    const target =
+      resolveThread?.kind === RunKind.TaskResolve
+        ? { entityType: 'task' as const, entityId: resolveThread.id }
+        : resolveThread?.metadata?.number != null
+          ? {
+              entityType: 'issue' as const,
+              entityId: String(resolveThread.metadata.number),
+            }
+          : undefined;
+
+    if (target) {
+      await repositoriesManager.cleanupWorktree({
+        repo: host.repoKey(projectPath),
+        ...target,
+      });
+    }
+
+    // Fire-and-forget — analytics only.
+    if (thread) {
+      analyticsService
+        .recordFinalOwnComments(host, thread.id, projectPath, String(prNumber))
+        .catch((err) =>
+          logger.error(
+            { err, threadId: thread.id },
+            '[analytics] final own_comments check failed',
+          ),
+        );
+    }
+
+    return { received: true, status: 'accepted', detail: 'worktree_cleanup' };
+  }
+
+  if (!isProjectInScope(config.mrReview.projectPathFilters, projectPath))
+    return {
+      received: true,
+      status: 'skipped',
+      reason: 'project_out_of_scope',
+    };
+
+  if (pull_request.state !== 'open')
+    return { received: true, status: 'skipped', reason: 'pr_not_open' };
+
+  if (pull_request.draft)
+    return { received: true, status: 'skipped', reason: 'draft_pr' };
+
+  // The worktree is checked out from the base repo's clone, where a fork's branch doesn't exist — or a same-named base branch would be reviewed instead.
+  if (pull_request.head?.repo?.full_name !== projectPath)
+    return { received: true, status: 'skipped', reason: 'fork_pr' };
+
+  const isInitial = action === 'opened' || action === 'reopened';
+  const isReReview = action === 'synchronize';
+  const isMarkedReady = action === 'ready_for_review';
+  // Config isn't parsed yet, so this can't check review.requires_reviewer here — the post-parse check below rejects it when that's off.
+  const isReviewerRequest = action === 'review_requested';
+
+  if (!isInitial && !isReReview && !isMarkedReady && !isReviewerRequest)
+    return {
+      received: true,
+      status: 'skipped',
+      reason: 'not_review_trigger',
+    };
+
+  const sourceBranch: string = pull_request.head?.ref ?? '';
+  const sourceSha: string = pull_request.head?.sha ?? '';
+  const targetBranch: string = pull_request.base?.ref ?? '';
+  const defaultBranch: string = repository?.default_branch ?? '';
+
+  // Resolved once here (never throws) so the workflow's instruction node needn't re-fetch it.
+  const harnessConfig = await parseHarnessYml(host, projectPath);
+  const { parsed } = harnessConfig;
+
+  // Reviewer-request-only events were never triggers before this feature.
+  if (isReviewerRequest && !parsed?.review.requires_reviewer)
+    return {
+      received: true,
+      status: 'skipped',
+      reason: 'not_review_trigger',
+    };
+
+  // Runs before branch filtering so a PR with no bot reviewer short-circuits early.
+  if (parsed?.review.requires_reviewer) {
+    // Opening with reviewers also sends a separate `review_requested` per reviewer — that one triggers the review, or the PR is reviewed twice.
+    if (action === 'opened')
+      return {
+        received: true,
+        status: 'skipped',
+        reason: 'review_requested_follows',
+      };
+
+    // `review_requested` fires once per added reviewer, naming only that one — so unlike GitLab, no previous/current diff is needed.
+    const botRequested = isReviewerRequest
+      ? (requested_reviewer as GitHubUser | undefined)?.login?.toLowerCase() ===
+        config.github.username
+      : ((pull_request.requested_reviewers ?? []) as GitHubUser[]).some(
+          (r) => r.login?.toLowerCase() === config.github.username,
+        ) ||
+        // GitHub drops a reviewer from requested_reviewers once they submit a review, unlike GitLab's reviewers list.
+        (await isStillReviewer(projectPath, prNumber, config.github.username));
+
+    if (!botRequested)
+      return {
+        received: true,
+        status: 'skipped',
+        reason: 'not_reviewer_harness',
+      };
+  }
+
+  return startReviewRun({
+    host,
+    projectPath,
+    codeChangeRequestNumber: prNumber,
+    sourceBranch,
+    sourceSha,
+    targetBranch,
+    defaultBranch,
+    authorId:
+      typeof pull_request.user?.id === 'number'
+        ? pull_request.user.id
+        : undefined,
+    harnessConfig,
+    firstReview: isInitial || isMarkedReady,
   });
-  return { received: true, status: 'accepted', detail: 'worktree_cleanup' };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -189,7 +318,7 @@ async function handleCommentEvent(event: string, body: any) {
       reason: 'pr_not_open',
     };
 
-  const botUsername = config.github.username.toLowerCase();
+  const botUsername = config.github.username;
   const isBotAuthored =
     ((comment.user as GitHubUser | undefined)?.login ?? '').toLowerCase() ===
     botUsername;

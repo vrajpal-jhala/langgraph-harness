@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { errors } from './errors.js';
+import { errors, isNotFoundApiError } from './errors.js';
 import { logger } from './logger.js';
 
 const GITHUB_FETCH_TIMEOUT_MS = 15_000;
@@ -150,16 +150,25 @@ export async function upsertIssueComment(
   body: string,
   commentId?: number,
 ): Promise<number> {
+  if (commentId) {
+    try {
+      await githubFetch(
+        `${repoPath(projectPath)}/issues/comments/${commentId}`,
+        { method: 'PATCH', body: JSON.stringify({ body }) },
+      );
+
+      return commentId;
+    } catch (err) {
+      // Deleted by someone — post a fresh one rather than failing every later run.
+      if (!isNotFoundApiError(err)) throw err;
+    }
+  }
+
   const res = await githubFetch(
-    commentId
-      ? `${repoPath(projectPath)}/issues/comments/${commentId}`
-      : `${repoPath(projectPath)}/issues/${issueNumber}/comments`,
-    {
-      method: commentId ? 'PATCH' : 'POST',
-      body: JSON.stringify({ body }),
-    },
+    `${repoPath(projectPath)}/issues/${issueNumber}/comments`,
+    { method: 'POST', body: JSON.stringify({ body }) },
   );
-  return commentId ?? ((await res.json()) as { id: number }).id;
+  return ((await res.json()) as { id: number }).id;
 }
 
 export async function createDraftPullRequest(params: {
@@ -252,4 +261,231 @@ export async function updatePullRequest(params: {
     if (errors?.length)
       throw new Error(`GitHub GraphQL error: ${errors[0].message}`);
   }
+}
+
+// Review threads' resolved state is GraphQL-only — shaped like the MCP tool's get_review_comments output so one parser reads both.
+export async function fetchReviewThreads(
+  projectPath: string,
+  prNumber: string,
+): Promise<string> {
+  const [owner, name] = projectPath.split('/');
+  const res = await githubFetch(graphqlUrl, {
+    method: 'POST',
+    body: JSON.stringify({
+      query:
+        'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviewThreads(first: 100) { nodes { isResolved comments(first: 1) { nodes { author { login } createdAt } } } } } } }',
+      variables: { owner, name, number: Number(prNumber) },
+    }),
+  });
+  const { data, errors } = (await res.json()) as {
+    data?: {
+      repository?: {
+        pullRequest?: {
+          reviewThreads: {
+            nodes: Array<{
+              isResolved: boolean;
+              comments: {
+                nodes: Array<{
+                  author: { login: string } | null;
+                  createdAt: string;
+                }>;
+              };
+            }>;
+          };
+        };
+      };
+    };
+    errors?: { message: string }[];
+  };
+  if (errors?.length)
+    throw new Error(`GitHub GraphQL error: ${errors[0].message}`);
+
+  const threads = data?.repository?.pullRequest?.reviewThreads.nodes ?? [];
+  return JSON.stringify({
+    review_threads: threads.map((thread) => ({
+      is_resolved: thread.isResolved,
+      comments: thread.comments.nodes.map((comment) => ({
+        author: comment.author?.login,
+        created_at: comment.createdAt,
+      })),
+    })),
+  });
+}
+
+async function fetchOwnReviews(projectPath: string, prNumber: string) {
+  const reviews: { id: number; state: string }[] = [];
+  for (let page = 1; ; page++) {
+    const res = await githubFetch(
+      `${repoPath(projectPath)}/pulls/${prNumber}/reviews?per_page=100&page=${page}`,
+    );
+    const batch = (await res.json()) as {
+      id: number;
+      state: string;
+      user: { login: string } | null;
+    }[];
+    for (const r of batch)
+      if (r.user?.login.toLowerCase() === config.github.username)
+        reviews.push({ id: r.id, state: r.state });
+    if (batch.length < 100) return reviews;
+  }
+}
+
+async function deletePendingReview(
+  projectPath: string,
+  prNumber: string,
+  reviewId: number,
+) {
+  await githubFetch(
+    `${repoPath(projectPath)}/pulls/${prNumber}/reviews/${reviewId}`,
+    { method: 'DELETE' },
+  );
+}
+
+// One request, so GitHub posts every comment or none of them.
+export async function createPullRequestReview(
+  projectPath: string,
+  prNumber: string,
+  review: {
+    event: 'APPROVE' | 'COMMENT' | 'REQUEST_CHANGES';
+    body?: string;
+    commit_id?: string;
+    comments: {
+      path: string;
+      body: string;
+      line: number;
+      side: 'LEFT' | 'RIGHT';
+      start_line?: number;
+      start_side?: 'LEFT' | 'RIGHT';
+    }[];
+  },
+) {
+  const before = await fetchOwnReviews(projectPath, prNumber);
+  const submitted = before.filter((r) => r.state !== 'PENDING');
+  // REQUEST_CHANGES blocks merging, so it's only for withdrawing the bot's own approval.
+  if (
+    review.event === 'REQUEST_CHANGES' &&
+    submitted[submitted.length - 1]?.state !== 'APPROVED'
+  )
+    throw new Error(
+      "REQUEST_CHANGES only withdraws an approval of yours, and your latest review isn't one. Submit again with event COMMENT.",
+    );
+  // GitHub allows one pending review per account, and it blocks creating another.
+  const pending = before.find((r) => r.state === 'PENDING');
+  if (pending) await deletePendingReview(projectPath, prNumber, pending.id);
+  try {
+    const res = await githubFetch(
+      `${repoPath(projectPath)}/pulls/${prNumber}/reviews`,
+      { method: 'POST', body: JSON.stringify(review) },
+    );
+    const { id, state } = (await res.json()) as { id: number; state: string };
+    return { id, state };
+  } catch (err) {
+    // A timeout or 5xx can arrive after GitHub already created the review.
+    const created = (
+      await fetchOwnReviews(projectPath, prNumber).catch(() => [])
+    ).find((r) => r.state !== 'PENDING' && !before.some((b) => b.id === r.id));
+    if (created) return created;
+    throw err;
+  }
+}
+
+export async function replyToReviewComment(
+  projectPath: string,
+  prNumber: string,
+  commentId: number,
+  body: string,
+) {
+  const res = await githubFetch(
+    `${repoPath(projectPath)}/pulls/${prNumber}/comments/${commentId}/replies`,
+    { method: 'POST', body: JSON.stringify({ body }) },
+  );
+  return ((await res.json()) as { id: number }).id;
+}
+
+export async function setReviewThreadResolved(
+  threadId: string,
+  resolved: boolean,
+) {
+  const mutation = resolved ? 'resolveReviewThread' : 'unresolveReviewThread';
+  const res = await githubFetch(graphqlUrl, {
+    method: 'POST',
+    body: JSON.stringify({
+      query: `mutation($id: ID!) { ${mutation}(input: { threadId: $id }) { thread { isResolved } } }`,
+      variables: { id: threadId },
+    }),
+  });
+  const { errors } = (await res.json()) as { errors?: { message: string }[] };
+  if (errors?.length)
+    throw new Error(`GitHub GraphQL error: ${errors[0].message}`);
+}
+
+export async function fetchPullRequestFilePatch(
+  projectPath: string,
+  prNumber: string,
+  path: string,
+  signal?: AbortSignal,
+) {
+  for (let page = 1; ; page++) {
+    const res = await githubFetch(
+      `${repoPath(projectPath)}/pulls/${prNumber}/files?per_page=100&page=${page}`,
+      undefined,
+      signal,
+    );
+    const files = (await res.json()) as { filename: string; patch?: string }[];
+    const file = files.find((f) => f.filename === path);
+    if (file || files.length < 100) return file?.patch;
+  }
+}
+
+export async function fetchReviewThreadTarget(threadId: string) {
+  const res = await githubFetch(graphqlUrl, {
+    method: 'POST',
+    body: JSON.stringify({
+      query:
+        'query($id: ID!) { node(id: $id) { ... on PullRequestReviewThread { pullRequest { number repository { nameWithOwner } } } } }',
+      variables: { id: threadId },
+    }),
+  });
+  const { data } = (await res.json()) as {
+    data?: {
+      node?: {
+        pullRequest?: { number: number; repository: { nameWithOwner: string } };
+      } | null;
+    };
+  };
+  const pr = data?.node?.pullRequest;
+  return pr
+    ? { projectPath: pr.repository.nameWithOwner, prNumber: pr.number }
+    : undefined;
+}
+
+// The latest of the bot's request, review and removal events decides — a removal after its last review means it's no longer a reviewer.
+export async function isStillReviewer(
+  projectPath: string,
+  prNumber: number,
+  login: string,
+): Promise<boolean> {
+  type TimelineEvent = {
+    event?: string;
+    user?: { login?: string };
+    requested_reviewer?: { login?: string };
+  };
+  let latest: string | undefined;
+  for (let page = 1; ; page++) {
+    const res = await githubFetch(
+      `${repoPath(projectPath)}/issues/${prNumber}/timeline?per_page=100&page=${page}`,
+    );
+    const events = (await res.json()) as TimelineEvent[];
+    for (const e of events) {
+      const isBot =
+        e.event === 'reviewed'
+          ? e.user?.login?.toLowerCase() === login
+          : (e.event === 'review_requested' ||
+              e.event === 'review_request_removed') &&
+            e.requested_reviewer?.login?.toLowerCase() === login;
+      if (isBot) latest = e.event;
+    }
+    if (events.length < 100) break;
+  }
+  return latest === 'review_requested' || latest === 'reviewed';
 }

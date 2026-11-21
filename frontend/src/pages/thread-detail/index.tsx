@@ -132,9 +132,12 @@ const ThreadDetailPage = () => {
   const abortRef = useRef<AbortController | null>(null);
   const { user } = useAuth();
   // Only hides the buttons; the server still checks every abort and retry.
+  const authorAccountId =
+    thread?.metadata?.source === 'github' ? user?.githubId : user?.gitlabId;
   const canMutate =
     user?.role === Role.Admin ||
-    (user?.gitlabId != null && thread?.metadata?.mrAuthorId === user.gitlabId);
+    (authorAccountId != null &&
+      thread?.metadata?.codeChangeRequestAuthorId === authorAccountId);
   const retryRun = useConfirmAction({
     title: 'Retry run',
     message: 'Retry this run from this checkpoint?',
@@ -440,13 +443,19 @@ const ThreadDetailPage = () => {
     : null;
   const threadMetrics = useMemo(() => {
     const toolOutputs = new Map<string, boolean>();
+    // A GitHub review posts all its comments in one call, so they're counted from what that call reports.
+    const postedComments = new Map<string, number>();
 
     for (const run of runs) {
       for (const { event, data } of run.events) {
         if (event === 'tool_output') {
           const parsedOutput = data.output
-            ? (safeJsonParse(data.output) as { error?: unknown } | undefined)
+            ? (safeJsonParse(data.output) as
+                { error?: unknown; commentsPosted?: unknown } | undefined)
             : undefined;
+          if (typeof parsedOutput?.commentsPosted === 'number') {
+            postedComments.set(data.id, parsedOutput.commentsPosted);
+          }
           const didToolCallSucceed = data.output ? !parsedOutput?.error : true;
 
           if (didToolCallSucceed) {
@@ -474,6 +483,14 @@ const ThreadDetailPage = () => {
           toolOutputs.has(id)
         ) {
           created++;
+        } else if (name === 'submit_review') {
+          created += postedComments.get(id) ?? 0;
+        } else if (
+          name === 'resolve_review_thread' &&
+          toolOutputs.has(id) &&
+          input.resolved !== false
+        ) {
+          resolved++;
         } else if (
           name === 'gitlab__delete_draft_note' &&
           toolOutputs.has(id)
@@ -576,10 +593,15 @@ const ThreadDetailPage = () => {
   const firstInput = runs[0]?.input;
   const externalLink =
     firstInput && isMrReviewRunInput(firstInput)
-      ? {
-          url: `${config.gitlabUrl}/${firstInput.query.projectId}/-/merge_requests/${firstInput.query.mrIid}`,
-          label: 'Open merge request',
-        }
+      ? firstInput.provider === 'github'
+        ? {
+            url: `${config.githubUrl}/${firstInput.query.projectPath}/pull/${firstInput.query.codeChangeRequestNumber}`,
+            label: 'Open pull request',
+          }
+        : {
+            url: `${config.gitlabUrl}/${firstInput.query.projectPath}/-/merge_requests/${firstInput.query.codeChangeRequestNumber}`,
+            label: 'Open merge request',
+          }
       : firstInput && isWorkItemResolveRunInput(firstInput)
         ? firstInput.provider === 'github'
           ? {
