@@ -334,14 +334,33 @@ export async function fetchReviewThreadTarget(threadId: string) {
     : undefined;
 }
 
-export async function hasReviewed(
+// The latest of the bot's request, review and removal events decides — a removal after its last review means it's no longer a reviewer.
+export async function isStillReviewer(
   projectPath: string,
   prNumber: number,
   login: string,
 ): Promise<boolean> {
-  const res = await githubFetch(
-    `${repoPath(projectPath)}/pulls/${prNumber}/reviews?per_page=100`,
-  );
-  const reviews = (await res.json()) as { user?: { login?: string } }[];
-  return reviews.some((review) => review.user?.login === login);
+  type TimelineEvent = {
+    event?: string;
+    user?: { login?: string };
+    requested_reviewer?: { login?: string };
+  };
+  let latest: string | undefined;
+  for (let page = 1; ; page++) {
+    const res = await githubFetch(
+      `${repoPath(projectPath)}/issues/${prNumber}/timeline?per_page=100&page=${page}`,
+    );
+    const events = (await res.json()) as TimelineEvent[];
+    for (const e of events) {
+      const isBot =
+        e.event === 'reviewed'
+          ? e.user?.login === login
+          : (e.event === 'review_requested' ||
+              e.event === 'review_request_removed') &&
+            e.requested_reviewer?.login === login;
+      if (isBot) latest = e.event;
+    }
+    if (events.length < 100) break;
+  }
+  return latest === 'review_requested' || latest === 'reviewed';
 }

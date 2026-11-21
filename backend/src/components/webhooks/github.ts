@@ -14,7 +14,7 @@ import { startWorkItemResolveRun } from './work-item.js';
 import { githubWebhookAuth } from '#utils/auth.js';
 import { config, isProjectInScope } from '#utils/config.js';
 import { gitHosts } from '#utils/git-host.js';
-import { hasReviewed } from '#utils/github.js';
+import { isStillReviewer } from '#utils/github.js';
 import { parseHarnessYml } from '#utils/harness-config.js';
 import { logger } from '#utils/logger.js';
 import { isAutomatedStatusNote } from '#utils/notes.js';
@@ -245,7 +245,7 @@ async function handlePullRequestEvent(body: any) {
           (r) => r.login === config.github.username,
         ) ||
         // GitHub drops a reviewer from requested_reviewers once they submit a review, unlike GitLab's reviewers list.
-        (await hasReviewed(projectPath, prNumber, config.github.username));
+        (await isStillReviewer(projectPath, prNumber, config.github.username));
 
     if (!botRequested)
       return {
