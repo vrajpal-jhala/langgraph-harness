@@ -232,13 +232,12 @@ flowchart TB
 
 - Semantic memory: an LLM-curated store (project-scoped and personal/chat-scoped), plain Postgres columns (`category`/`title`/`content`/`evidence`, no vector search), loaded in full into the system prompt rather than retrieved by similarity — browsable at `/memories`
 - Postgres checkpointer + retry, React UI with live SSE + analytics (retry/abort/delete actions on top of live viewing, not read-only)
-- Git providers: sign-in via GitLab or GitHub OAuth (linked into one account by verified email, or from Settings), admin rights from each provider's own username list; each provider is all-or-nothing in config, and one left out is switched off entirely — sign-in, webhook route, MCP tools, the workflows that need it — and its existing runs can't be retried or restarted
+- Git providers: sign-in via GitLab or GitHub OAuth (linked into one account by verified email, or from Settings), admin rights from each provider's own username list; each provider is all-or-nothing in config, and one left out is switched off entirely — sign-in, webhook route, MCP tools, the workflows that need it — and its existing runs can't be retried or restarted; every workflow, Chat's git-host tools and analytics' by-repo view work on either provider
 
 ### 🟨 Partial
 
 - **Episodic memory** — run events are persisted to Postgres and are retrievable via plain text/regex search (`search_review_content`/`search_chat_content`, chat-workflow tools only) — not yet semantic/RAG-based, and not yet consolidated into distilled facts (that's `SUM`'s still-unbuilt job)
 - **Guardrails** — the remaining gap is narrower than it used to be: position validation and a reply-quality critic are both built (see above); a hard numeric comment cap is the one piece not yet built
-- **GitHub support** — every workflow and Chat's git-host tools run on GitHub repos too; the one gap left is analytics' by-repo view, which groups on the project path alone, so the same path on both providers lands in one row
 - **Evolving memories (Supermemory)** — real and wired (self-hosted service, ingested via `scrape_issues.ts`, queried by chat's `search_project_history`/`get_project_issue`/`list_projects` tools), linking and updating memories rather than a static one-shot extraction — but the code's own comment calls it a PoC: hardcoded to 2 GitLab projects (`supermemoryProjects` in `config.ts`), chat-only, not available to MR Review, Work Item Resolve, or Task Resolve
 
 ### ⬜ Pipeline
