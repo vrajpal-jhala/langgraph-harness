@@ -63,7 +63,7 @@ const queryProjectMemoriesSchema = z.object({
     .string()
     .optional()
     .describe(
-      'GitLab project path (e.g. group/repo). Omit for a per-project count overview.',
+      'Project key: a GitLab project path (e.g. group/repo) or @github/owner/repo for GitHub. Omit for a per-project count overview.',
     ),
   categories: z
     .array(z.enum(MEMORY_CATEGORIES as [string, ...string[]]))

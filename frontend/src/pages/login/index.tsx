@@ -68,7 +68,7 @@ const LoginPage = () => {
         </div>
         <Stack align="center" gap={4}>
           <Title order={1} className="login-page__title">
-            The AI coding agent platform for GitLab
+            The AI coding agent platform for GitLab and GitHub
           </Title>
           <Text
             c="dimmed"
@@ -79,9 +79,9 @@ const LoginPage = () => {
             <Text component="span" c="blue" inherit>
               langgraph-harness
             </Text>{' '}
-            reviews merge requests, resolves issues autonomously, and remembers
-            what matters project by project — putting that context to work
-            everywhere it operates.
+            reviews merge and pull requests, resolves issues autonomously, and
+            remembers what matters project by project — putting that context to
+            work everywhere it operates.
           </Text>
         </Stack>
         <Group justify="center">
