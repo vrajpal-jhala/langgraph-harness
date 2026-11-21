@@ -179,7 +179,7 @@ export function parseOwnComments(
 
   const own = THREAD_HEADS[provider](parsed).filter(
     (head) =>
-      head.author === username &&
+      head.author?.toLowerCase() === username &&
       // A comment from this run is guaranteed unresolved, not a real observation.
       (runStartedAtMs === undefined ||
         !head.createdAt ||

@@ -324,7 +324,7 @@ async function fetchOwnReviews(projectPath: string, prNumber: string) {
       user: { login: string } | null;
     }[];
     for (const r of batch)
-      if (r.user?.login === config.github.username)
+      if (r.user?.login.toLowerCase() === config.github.username)
         reviews.push({ id: r.id, state: r.state });
     if (batch.length < 100) return reviews;
   }
@@ -479,10 +479,10 @@ export async function isStillReviewer(
     for (const e of events) {
       const isBot =
         e.event === 'reviewed'
-          ? e.user?.login === login
+          ? e.user?.login?.toLowerCase() === login
           : (e.event === 'review_requested' ||
               e.event === 'review_request_removed') &&
-            e.requested_reviewer?.login === login;
+            e.requested_reviewer?.login?.toLowerCase() === login;
       if (isBot) latest = e.event;
     }
     if (events.length < 100) break;

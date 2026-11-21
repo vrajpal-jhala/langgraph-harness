@@ -78,7 +78,8 @@ async function handleIssuesEvent(body: any) {
   // `assigned`/`unassigned` fire once per added or removed assignee, naming only that one — so unlike GitLab, no previous/current diff is needed.
   if (
     action === 'unassigned' &&
-    (assignee as GitHubUser | undefined)?.login === config.github.username
+    (assignee as GitHubUser | undefined)?.login?.toLowerCase() ===
+      config.github.username
   ) {
     const existingThread = await threadsDal.findByMetadata(issueMetadata);
     if (!existingThread)
@@ -93,11 +94,12 @@ async function handleIssuesEvent(body: any) {
 
   const isBotAssignment =
     action === 'assigned' &&
-    (assignee as GitHubUser | undefined)?.login === config.github.username;
+    (assignee as GitHubUser | undefined)?.login?.toLowerCase() ===
+      config.github.username;
   const isReopenedWithBot =
     action === 'reopened' &&
     ((issue?.assignees ?? []) as GitHubUser[]).some(
-      (a) => a.login === config.github.username,
+      (a) => a.login?.toLowerCase() === config.github.username,
     );
 
   if (!isBotAssignment && !isReopenedWithBot)
@@ -249,10 +251,10 @@ async function handlePullRequestEvent(body: any) {
 
     // `review_requested` fires once per added reviewer, naming only that one — so unlike GitLab, no previous/current diff is needed.
     const botRequested = isReviewerRequest
-      ? (requested_reviewer as GitHubUser | undefined)?.login ===
+      ? (requested_reviewer as GitHubUser | undefined)?.login?.toLowerCase() ===
         config.github.username
       : ((pull_request.requested_reviewers ?? []) as GitHubUser[]).some(
-          (r) => r.login === config.github.username,
+          (r) => r.login?.toLowerCase() === config.github.username,
         ) ||
         // GitHub drops a reviewer from requested_reviewers once they submit a review, unlike GitLab's reviewers list.
         (await isStillReviewer(projectPath, prNumber, config.github.username));
@@ -316,7 +318,7 @@ async function handleCommentEvent(event: string, body: any) {
       reason: 'pr_not_open',
     };
 
-  const botUsername = config.github.username.toLowerCase();
+  const botUsername = config.github.username;
   const isBotAuthored =
     ((comment.user as GitHubUser | undefined)?.login ?? '').toLowerCase() ===
     botUsername;

@@ -27,7 +27,7 @@ function usernamesFrom(value: unknown): Set<string> {
     entries
       .map((entry) =>
         typeof entry === 'object' && entry !== null
-          ? (entry as { username?: string }).username
+          ? (entry as { username?: string }).username?.toLowerCase()
           : undefined,
       )
       .filter((u): u is string => !!u),
@@ -179,7 +179,8 @@ async function handleNoteEvent(body: any) {
       reason: 'mr_not_open',
     };
 
-  const isBotAuthored = user?.username === config.gitlab.username;
+  const isBotAuthored =
+    user?.username?.toLowerCase() === config.gitlab.username;
   const noteText: string = object_attributes?.note ?? '';
 
   // Same bot identity as work-item-resolve, so mr-review's own status note would otherwise pass as bot feedback and re-trigger a run on every review pass.

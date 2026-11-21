@@ -98,7 +98,8 @@ export const config = {
     pat: process.env.GITLAB_PAT || '',
     apiUrl: gitlabApiUrl,
     mcpUrl: process.env.GITLAB_MCP_URL || 'http://localhost:3002/mcp',
-    username: process.env.GITLAB_BOT_USERNAME || '',
+    // Logins are case-insensitive, so every comparison lowercases the other side.
+    username: (process.env.GITLAB_BOT_USERNAME || '').toLowerCase(),
     commitIdentity: {
       name: process.env.GITLAB_BOT_NAME || 'langgraph-harness',
       email: process.env.GITLAB_BOT_EMAIL || 'bot@example.com',
@@ -118,7 +119,8 @@ export const config = {
         ? 'https://github.com'
         : new URL(githubApiUrl).origin,
     mcpUrl: process.env.GITHUB_MCP_URL || 'http://localhost:8082/mcp',
-    username: process.env.GITHUB_BOT_USERNAME || '',
+    // Logins are case-insensitive, so every comparison lowercases the other side.
+    username: (process.env.GITHUB_BOT_USERNAME || '').toLowerCase(),
     commitIdentity: {
       name: process.env.GITHUB_BOT_NAME || 'langgraph-harness',
       email: process.env.GITHUB_BOT_EMAIL || 'bot@example.com',
