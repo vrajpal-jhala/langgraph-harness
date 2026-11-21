@@ -877,7 +877,7 @@ export const tools = {
       ),
     ),
   }),
-  getMockableNames: (provider: GitProvider) =>
+  getWriteNames: (provider: GitProvider) =>
     providerTools[provider]
       .filter(mcpToolFilter(REVIEW_TOOLS[provider].write, provider))
       .map((t) => t.name),

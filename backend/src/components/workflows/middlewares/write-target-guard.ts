@@ -11,7 +11,9 @@ import {
 } from '#components/workflows/emit.js';
 import type { SandboxAgentRuntime } from '#components/workflows/state.js';
 
+import { config } from '#utils/config.js';
 import { parseRepoKey } from '#utils/git-host.js';
+import { fetchReviewThreadTarget } from '#utils/github.js';
 import { mcpToolName } from '#utils/helpers.js';
 
 type RunTarget = {
@@ -26,10 +28,18 @@ const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const githubRepoMatches = (args: ToolArgs, { projectPath }: RunTarget) =>
   samePath(`${args.owner}/${args.repo}`, projectPath);
 
-// The identifiers in the prompt are only a hint, so a prompt-injected issue or comment could otherwise point a write at any repo the bot token reaches.
+const githubPullRequestMatches = (args: ToolArgs, target: RunTarget) =>
+  githubRepoMatches(args, target) &&
+  String(args.pullNumber) === target.codeChangeRequestNumber;
+
+const gitlabMergeRequestMatches = (args: ToolArgs, target: RunTarget) =>
+  samePath(decodeURIComponent(String(args.project_id)), target.projectPath) &&
+  String(args.merge_request_iid) === target.codeChangeRequestNumber;
+
+// The identifiers in the prompt are only a hint, so a prompt-injected issue, comment or diff could otherwise point a write at any repo the bot token reaches.
 const targetMatches: Record<
   string,
-  (args: ToolArgs, target: RunTarget) => boolean
+  (args: ToolArgs, target: RunTarget) => boolean | Promise<boolean>
 > = {
   // A pull request's conversation comments are issue comments on GitHub, so its number is a valid target too.
   [mcpToolName(GitProvider.GitHub, 'add_issue_comment')]: (args, target) =>
@@ -37,21 +47,47 @@ const targetMatches: Record<
     [target.issueNumber, target.codeChangeRequestNumber].includes(
       String(args.issue_number),
     ),
-  [mcpToolName(GitProvider.GitHub, 'add_reply_to_pull_request_comment')]: (
+  [mcpToolName(GitProvider.GitHub, 'add_reply_to_pull_request_comment')]:
+    githubPullRequestMatches,
+  [mcpToolName(GitProvider.GitHub, 'add_comment_to_pending_review')]:
+    githubPullRequestMatches,
+  [mcpToolName(GitProvider.GitHub, 'pull_request_review_write')]: async (
     args,
     target,
-  ) =>
-    githubRepoMatches(args, target) &&
-    String(args.pullNumber) === target.codeChangeRequestNumber,
-  [mcpToolName(GitProvider.GitLab, 'create_merge_request_discussion_note')]: (
-    args,
-    target,
-  ) =>
-    samePath(decodeURIComponent(String(args.project_id)), target.projectPath) &&
-    String(args.merge_request_iid) === target.codeChangeRequestNumber,
+  ) => {
+    if (!githubPullRequestMatches(args, target)) return false;
+    if (
+      config.mock.workflow ||
+      (args.method !== 'resolve_thread' && args.method !== 'unresolve_thread')
+    )
+      return true;
+    // The server ignores owner/repo/pullNumber for these and acts on threadId alone.
+    const thread = await fetchReviewThreadTarget(String(args.threadId)).catch(
+      () => undefined,
+    );
+    return (
+      !!thread &&
+      samePath(thread.projectPath, target.projectPath) &&
+      String(thread.prNumber) === target.codeChangeRequestNumber
+    );
+  },
+  ...Object.fromEntries(
+    [
+      'create_merge_request_discussion_note',
+      'create_draft_note',
+      'bulk_publish_draft_notes',
+      'publish_draft_note',
+      'approve_merge_request',
+      'unapprove_merge_request',
+      'resolve_merge_request_thread',
+    ].map((tool) => [
+      mcpToolName(GitProvider.GitLab, tool),
+      gitlabMergeRequestMatches,
+    ]),
+  ),
 };
 
-export function writeTargetGuardMiddleware() {
+export function writeTargetGuardMiddleware(writeToolNames: Set<string>) {
   return createMiddleware({
     name: 'WriteTargetGuard',
     wrapToolCall: async (request, handler) => {
@@ -59,10 +95,8 @@ export function writeTargetGuardMiddleware() {
         .configurable;
       const host = configurable?.host;
       const { name, args, id } = request.toolCall;
-      const isWrite = [...(host?.issueTools.write ?? [])].some(
-        (tool) => host && mcpToolName(host.provider, tool) === name,
-      );
-      if (!host || !configurable?.repoKey || !isWrite) return handler(request);
+      if (!host || !configurable?.repoKey || !writeToolNames.has(name))
+        return handler(request);
 
       const target: RunTarget = {
         projectPath: parseRepoKey(configurable.repoKey).projectPath,
@@ -73,7 +107,7 @@ export function writeTargetGuardMiddleware() {
         codeChangeRequestNumber: configurable.codeChangeRequestNumber ?? null,
       };
       // A write tool with no rule here is refused rather than let through unchecked.
-      if (targetMatches[name]?.(args as ToolArgs, target))
+      if (await targetMatches[name]?.(args as ToolArgs, target))
         return handler(request);
 
       const allowed = [

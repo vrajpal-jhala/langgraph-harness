@@ -312,6 +312,28 @@ export async function fetchReviewThreads(
   });
 }
 
+export async function fetchReviewThreadTarget(threadId: string) {
+  const res = await githubFetch(graphqlUrl, {
+    method: 'POST',
+    body: JSON.stringify({
+      query:
+        'query($id: ID!) { node(id: $id) { ... on PullRequestReviewThread { pullRequest { number repository { nameWithOwner } } } } }',
+      variables: { id: threadId },
+    }),
+  });
+  const { data } = (await res.json()) as {
+    data?: {
+      node?: {
+        pullRequest?: { number: number; repository: { nameWithOwner: string } };
+      } | null;
+    };
+  };
+  const pr = data?.node?.pullRequest;
+  return pr
+    ? { projectPath: pr.repository.nameWithOwner, prNumber: pr.number }
+    : undefined;
+}
+
 export async function hasReviewed(
   projectPath: string,
   prNumber: number,

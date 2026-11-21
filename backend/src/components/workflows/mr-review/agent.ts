@@ -30,6 +30,7 @@ import {
   summarizeContextMiddleware,
   toolOutputCapMiddleware,
   trailingQuestionGuardMiddleware,
+  writeTargetGuardMiddleware,
 } from '#components/workflows/middlewares/index.js';
 import {
   commentCriticMiddleware,
@@ -255,6 +256,8 @@ function buildAgent(
     duplicateCallGuardMiddleware({
       readToolNames: new Set(tools.getMrReadNames(host.provider)),
     }),
+    // Outside the GitHub hold, so a comment aimed elsewhere is rejected when it's made rather than forwarded at submit.
+    writeTargetGuardMiddleware(new Set(tools.getWriteNames(host.provider))),
     extractProjectMemoryMiddleware({
       llm,
       provider: modelConfig.provider,
@@ -286,7 +289,7 @@ function buildAgent(
     ...(config.mock.workflow
       ? [
           toolEmulatorMiddleware({
-            tools: tools.getMockableNames(host.provider),
+            tools: tools.getWriteNames(host.provider),
           }),
         ]
       : []),

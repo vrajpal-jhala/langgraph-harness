@@ -40,7 +40,7 @@ import {
 import { tools } from './tools.js';
 
 import { llms } from '#utils/config.js';
-import { describeToolCalls } from '#utils/helpers.js';
+import { describeToolCalls, mcpToolName } from '#utils/helpers.js';
 import { buildChatModel } from '#utils/llm.js';
 
 const resumeOnCodeChangeRequestBlock = (host: GitHost) =>
@@ -217,7 +217,13 @@ function buildAgent(model: string, host: GitHost): CompiledAgent {
     duplicateCallGuardMiddleware({
       readToolNames: new Set(tools.getReadNames(host)),
     }),
-    writeTargetGuardMiddleware(),
+    writeTargetGuardMiddleware(
+      new Set(
+        [...host.issueTools.write].map((tool) =>
+          mcpToolName(host.provider, tool),
+        ),
+      ),
+    ),
     extractProjectMemoryMiddleware({
       llm,
       provider: modelConfig.provider,
