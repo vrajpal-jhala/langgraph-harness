@@ -164,6 +164,7 @@ declare const auth: import("better-auth").Auth<{
 		github?: {
 			clientId: string;
 			clientSecret: string;
+			scope: string[];
 			overrideUserInfoOnSignIn: true;
 			mapProfileToUser: (profile: import("better-auth").GithubProfile) => {
 				githubUsername: string;
@@ -545,6 +546,7 @@ type ChatRunInput = {
 	tools: {
 		server: boolean;
 		gitlab: boolean;
+		github: boolean;
 		webSearch: boolean;
 	};
 };
@@ -1557,6 +1559,7 @@ export declare const app: Elysia<"", {
 							model: "openai/gpt-5-mini" | "google/gemini-2.5-flash-lite" | "anthropic/claude-haiku-4.5" | "anthropic/claude-sonnet-5" | "qwen3.6:latest" | "qwen3.6:27b" | "qwen3.5:latest" | "gemma4:31b" | "QuantTrio/Qwen3.6-35B-A3B-AWQ" | "cyankiwi/Qwen3.6-27B-AWQ-INT4" | "Qwen/Qwen3.8-27B-FP8" | "gemini-flash-latest" | "gemini-flash-lite-latest" | "openai/gpt-oss-120b";
 							tools: {
 								gitlab: boolean;
+								github: boolean;
 								server: boolean;
 								webSearch: boolean;
 							};

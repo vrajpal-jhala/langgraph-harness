@@ -152,6 +152,7 @@ const ChatPage = () => {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [serverTools, setServerTools] = useState(false);
   const [gitlabTools, setGitlabTools] = useState(false);
+  const [githubTools, setGithubTools] = useState(false);
   const { providers } = useAuth();
   const [webSearchTools, setWebSearchTools] = useState(false);
   const [sending, setSending] = useState(false);
@@ -300,6 +301,7 @@ const ChatPage = () => {
         setThinking(lastRun.input.reasoning ?? false);
         setServerTools(lastRun.input.tools?.server ?? false);
         setGitlabTools(lastRun.input.tools?.gitlab ?? false);
+        setGithubTools(lastRun.input.tools?.github ?? false);
         setWebSearchTools(lastRun.input.tools?.webSearch ?? false);
       }
 
@@ -435,6 +437,7 @@ const ChatPage = () => {
         tools: {
           server: serverTools,
           gitlab: gitlabTools,
+          github: githubTools,
           webSearch: webSearchTools,
         },
       });
@@ -748,6 +751,15 @@ const ChatPage = () => {
                       labelPosition="left"
                       checked={gitlabTools}
                       onChange={(e) => setGitlabTools(e.currentTarget.checked)}
+                    />
+                  )}
+                  {providers.github && (
+                    <Switch
+                      size="xs"
+                      label="GitHub tools"
+                      labelPosition="left"
+                      checked={githubTools}
+                      onChange={(e) => setGithubTools(e.currentTarget.checked)}
                     />
                   )}
                   <Switch

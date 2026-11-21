@@ -11,7 +11,7 @@ import type {
   Workflow,
   WorkItemResolveRunInput,
 } from '#types.js';
-import { RunKind, RunStatus } from '#types.js';
+import { GitProvider, RunKind, RunStatus } from '#types.js';
 
 import { analyticsService } from '#components/analytics/service.js';
 import { settingsService } from '#components/settings/service.js';
@@ -24,7 +24,7 @@ import { broadcast } from '#components/ws/index.js';
 import { runsDal } from './dal.js';
 import { runPubSub } from './pubsub.js';
 
-import { getGitlabAccessToken } from '#utils/auth.js';
+import { getAccessToken } from '#utils/auth.js';
 import { config, llms } from '#utils/config.js';
 import { errors, RunAbortedError } from '#utils/errors.js';
 import {
@@ -74,7 +74,8 @@ function recordRunSummary(
 async function resolveSecrets(session?: Session) {
   if (!session) return undefined;
   return {
-    gitlabToken: await getGitlabAccessToken(session.id),
+    gitlabToken: await getAccessToken(session.id, GitProvider.GitLab),
+    githubToken: await getAccessToken(session.id, GitProvider.GitHub),
     openRouterKey: await settingsService.getOpenRouterKey(session.id),
     userId: session.id,
   };

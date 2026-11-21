@@ -160,6 +160,8 @@ export const auth = betterAuth({
       github: {
         clientId: config.github.oauth.clientId,
         clientSecret: config.github.oauth.clientSecret,
+        // Chat's GitHub tools act with this token, like GitLab's `api` scope.
+        scope: ['repo'],
         // Same trade-off as GitLab's.
         overrideUserInfoOnSignIn: true,
         mapProfileToUser: (profile) => ({

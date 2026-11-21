@@ -9,23 +9,30 @@ import {
   throwOnToolError,
 } from '#utils/helpers.js';
 
-let adapter: MCPAdapter | null = null;
-let toolsPromise: Promise<DynamicStructuredTool[]> | null = null;
-
-async function connect(): Promise<DynamicStructuredTool[]> {
-  adapter = new MCPAdapter({
+export function createGithubMcpAdapter(
+  token: string,
+  toolsets: string,
+): MCPAdapter {
+  return new MCPAdapter({
     ...mcpToolNameOptions('github'),
     servers: {
       github: {
         transport: 'http',
         url: config.github.mcpUrl,
         headers: {
-          Authorization: `Bearer ${config.github.pat}`,
-          'X-MCP-Toolsets': 'issues,pull_requests',
+          Authorization: `Bearer ${token}`,
+          'X-MCP-Toolsets': toolsets,
         },
       },
     },
   });
+}
+
+let adapter: MCPAdapter | null = null;
+let toolsPromise: Promise<DynamicStructuredTool[]> | null = null;
+
+async function connect(): Promise<DynamicStructuredTool[]> {
+  adapter = createGithubMcpAdapter(config.github.pat, 'issues,pull_requests');
 
   const listed = await listMcpTools(
     adapter,

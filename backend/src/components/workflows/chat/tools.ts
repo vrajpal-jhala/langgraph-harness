@@ -17,6 +17,7 @@ import {
 import { memoriesDal } from '#components/memories/dal.js';
 import { runsDal } from '#components/runs/dal.js';
 import { threadsDal } from '#components/threads/dal.js';
+import { createGithubMcpAdapter } from '#components/workflows/github-mcp.js';
 import {
   createGitlabMcpAdapter,
   terminateGitlabSession,
@@ -725,16 +726,20 @@ const searchChatContent = tool(
 type BuildChatToolsOptions = {
   server: boolean;
   gitlab: boolean;
+  github: boolean;
   webSearch: boolean;
   gitlabToken?: string;
+  githubToken?: string;
 };
 
-// Built fresh per run, not a module singleton like the workflows' shared bot connection — GitLab's token rides as a per-request header, so the MCP client must be constructed and torn down within the run's own lifetime.
+// Built fresh per run, not a module singleton like the workflows' shared bot connections — the user's token rides as a per-request header, so the MCP client must be constructed and torn down within the run's own lifetime.
 export async function buildChatTools({
   server,
   gitlab,
+  github,
   webSearch,
   gitlabToken,
+  githubToken,
 }: BuildChatToolsOptions): Promise<{
   tools: DynamicStructuredTool[];
   close: () => Promise<void>;
@@ -748,12 +753,14 @@ export async function buildChatTools({
     searchChatThreads,
     searchChatContent,
   ];
-  let adapter: MCPAdapter | null = null;
+  let gitlabAdapter: MCPAdapter | null = null;
+  let githubAdapter: MCPAdapter | null = null;
 
   const close = async () => {
     // Must terminate before close(): close() aborts the transport's request signal, which would cancel the DELETE terminateSession() sends.
-    await terminateGitlabSession(adapter);
-    await adapter?.close();
+    await terminateGitlabSession(gitlabAdapter);
+    await gitlabAdapter?.close();
+    await githubAdapter?.close();
   };
 
   // Not configured everywhere (PoC) — skip rather than register tools that can only ever error.
@@ -773,15 +780,15 @@ export async function buildChatTools({
 
   // No token → no GitLab client at all, so we never open an unusable connection.
   if (gitlab && gitlabToken) {
-    adapter = createGitlabMcpAdapter(gitlabToken);
+    gitlabAdapter = createGitlabMcpAdapter(gitlabToken);
 
     let gitlabTools: DynamicStructuredTool[];
 
     try {
-      gitlabTools = await adapter.listTools();
+      gitlabTools = await gitlabAdapter.listTools();
     } catch (err) {
       // not close(): its getClient() re-runs discovery, retrying the connection that just failed
-      await adapter.close();
+      await gitlabAdapter.close();
       throw err;
     }
 
@@ -794,6 +801,24 @@ export async function buildChatTools({
     }
 
     tools.push(...throwOnToolError(gitlabTools));
+  }
+
+  if (github && githubToken) {
+    githubAdapter = createGithubMcpAdapter(
+      githubToken,
+      'context,repos,issues,pull_requests',
+    );
+
+    try {
+      const githubTools = assertMcpToolNames(
+        await githubAdapter.listTools(),
+        'github',
+      );
+      tools.push(...throwOnToolError(githubTools));
+    } catch (err) {
+      await close();
+      throw err;
+    }
   }
 
   if (webSearch) {

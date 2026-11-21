@@ -2,6 +2,8 @@ import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { MessagesValue, StateSchema } from '@langchain/langgraph';
 import { z } from 'zod';
 
+import type { ChatRunInput } from '#types.js';
+
 import { llms } from '#utils/config.js';
 
 const chatStateSchema = z.object({
@@ -24,7 +26,7 @@ export type ChatConfigurable = {
   openRouterKey: string;
   chatTools: DynamicStructuredTool[];
   resuming?: boolean;
-  toolsEnabled?: { server: boolean; gitlab: boolean; webSearch: boolean };
+  toolsEnabled?: ChatRunInput['tools'];
   userId?: string;
   currentThreadId?: string;
 };

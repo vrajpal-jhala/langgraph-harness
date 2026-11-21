@@ -17,7 +17,7 @@ They share the Postgres checkpointer, the project/personal-memory store, and the
 
 So none of them is a variant of another's loop — though Work Item Resolve and Task Resolve go further and share the exact same compiled agent (`agent.ts`: same middleware stack, same tool set), differing only in what triggers a run and what supplies the task.
 
-A deployment runs on GitLab, GitHub, or both. Work Item Resolve, Task Resolve and MR Review take the provider from the run itself (`GitHost` in `utils/git-host.ts`); Chat's GitLab tools are GitLab-only.
+A deployment runs on GitLab, GitHub, or both. Work Item Resolve, Task Resolve and MR Review take the provider from the run itself (`GitHost` in `utils/git-host.ts`); Chat attaches GitLab and GitHub tools separately, each with the signed-in user's own token.
 
 **Status legend**
 
