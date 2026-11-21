@@ -138,6 +138,10 @@ async function handlePullRequestEvent(body: any) {
 
   // PR lifecycle end — clean up its worktree, independent of the review flow below. No memories cleanup: codeChangeRequestNumber metadata isn't reliably attributable to one PR, and the curator retires stale memories on its own anyway.
   if (action === 'closed') {
+    // Otherwise a queued or running review still posts on a pull request nobody will merge.
+    const thread = await threadsDal.findByMetadata(prMetadata);
+    if (thread) await threadsService.stopRuns(thread.id);
+
     await repositoriesManager.cleanupWorktree({
       repo: host.repoKey(projectPath),
       entityType: 'code_change_request',
@@ -150,6 +154,9 @@ async function handlePullRequestEvent(body: any) {
       project: projectPath,
       codeChangeRequestNumber: String(prNumber),
     });
+    // Its worktree is removed below, so a follow-up still running would push to a finished branch.
+    if (resolveThread) await threadsService.stopRuns(resolveThread.id);
+
     // A task has no issue — its worktree is keyed by the thread instead.
     const target =
       resolveThread?.kind === RunKind.TaskResolve
@@ -169,7 +176,6 @@ async function handlePullRequestEvent(body: any) {
     }
 
     // Fire-and-forget — analytics only.
-    const thread = await threadsDal.findByMetadata(prMetadata);
     if (thread) {
       analyticsService
         .recordFinalOwnComments(host, thread.id, projectPath, String(prNumber))
@@ -196,6 +202,10 @@ async function handlePullRequestEvent(body: any) {
 
   if (pull_request.draft)
     return { received: true, status: 'skipped', reason: 'draft_pr' };
+
+  // The worktree is checked out from the base repo's clone, where a fork's branch doesn't exist — or a same-named base branch would be reviewed instead.
+  if (pull_request.head?.repo?.full_name !== projectPath)
+    return { received: true, status: 'skipped', reason: 'fork_pr' };
 
   const isInitial = action === 'opened' || action === 'reopened';
   const isReReview = action === 'synchronize';

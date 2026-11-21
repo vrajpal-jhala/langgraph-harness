@@ -232,6 +232,10 @@ async function handleMergeRequestEvent(body: any) {
 
   // MR lifecycle end — clean up its worktree, independent of the review flow below. No memories cleanup: codeChangeRequestNumber metadata isn't reliably attributable to one MR, and the curator retires stale memories on its own anyway.
   if (action === 'merge' || action === 'close') {
+    // Otherwise a queued or running review still posts on a merge request nobody will merge.
+    const thread = await threadsDal.findByMetadata(mrMetadata);
+    if (thread) await threadsService.stopRuns(thread.id);
+
     await repositoriesManager.cleanupWorktree({
       repo: host.repoKey(projectPath),
       entityType: 'code_change_request',
@@ -244,6 +248,9 @@ async function handleMergeRequestEvent(body: any) {
       project: projectPath,
       codeChangeRequestNumber: String(mrIid),
     });
+    // Its worktree is removed below, so a follow-up still running would push to a finished branch.
+    if (resolveThread) await threadsService.stopRuns(resolveThread.id);
+
     // Stored as a raw JSON number from the original webhook payload, not pre-stringified — coerce below.
     const issueIidFromMetadata = resolveThread?.metadata?.number;
     if (issueIidFromMetadata !== undefined && issueIidFromMetadata !== null) {
@@ -264,7 +271,6 @@ async function handleMergeRequestEvent(body: any) {
     }
 
     // Fire-and-forget — analytics only.
-    const thread = await threadsDal.findByMetadata(mrMetadata);
     if (thread) {
       analyticsService
         .recordFinalOwnComments(host, thread.id, projectPath, String(mrIid))
@@ -291,6 +297,13 @@ async function handleMergeRequestEvent(body: any) {
 
   if (object_attributes?.draft)
     return { received: true, status: 'skipped', reason: 'draft_mr' };
+
+  // The worktree is checked out from the target project's clone, where a fork's branch doesn't exist — or a same-named target branch would be reviewed instead.
+  if (
+    object_attributes?.source_project_id !==
+    object_attributes?.target_project_id
+  )
+    return { received: true, status: 'skipped', reason: 'fork_mr' };
 
   const isInitial = action === 'open' || action === 'reopen';
   const isReReview = action === 'update' && !!object_attributes?.oldrev;

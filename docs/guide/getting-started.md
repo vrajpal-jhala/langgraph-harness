@@ -123,7 +123,9 @@ This brings up Postgres/Redis/the auxiliary services via Docker Compose, runs pe
 ## 6. Trigger a run
 
 - **GitLab:** with the webhook from step 3a in place, opening or updating a merge request triggers a review, and assigning an issue to the bot account starts an issue-resolve run that ends in a draft merge request.
-- **GitHub:** with the webhook (or `gh webhook forward`) from step 3b running, assigning an issue to the bot account starts an issue-resolve run that ends in a draft pull request.
+- **GitHub:** with the webhook (or `gh webhook forward`) from step 3b running, opening or pushing to a pull request triggers a review, and assigning an issue to the bot account starts an issue-resolve run that ends in a draft pull request.
+
+Merge and pull requests opened from a fork aren't reviewed.
 
 For local testing without a real GitLab webhook, [`scripts/test.sh`](https://github.com/vrajpal-jhala/langgraph-harness/blob/main/scripts/test.sh) posts synthetic GitLab webhook payloads straight at your local backend. They're unsigned, so this works in dev mode (`NODE_ENV=development`), which skips the signature check. It's useful for exercising the routing/filter logic, though the agent still calls the real GitLab API to fetch context, so it needs a real project and merge request to point at.
 
