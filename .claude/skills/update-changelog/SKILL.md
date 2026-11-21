@@ -92,14 +92,13 @@ consistent across 30+ releases:
 - One bullet per distinct change.
 - `**Bold one-line hook naming the symptom or capability**` — em dash — plain-
   prose explanation of the fix/behavior in user terms.
-- End the bullet with a link to the GitHub issue it resolves, or to its PR
-  when there's no issue: ` ([#62](https://github.com/vrajpal-jhala/langgraph-harness/issues/62))`
-  or `.../pull/71`. Use a full URL, not a bare `#62`: release notes autolink
-  `#62` but `CHANGELOG.md` viewed on GitHub or the docs site doesn't. Prefer
-  the issue only when it's specific to this entry; an umbrella issue that
-  several entries share gets each entry's own PR instead. Two PRs are fine
-  when one entry genuinely spans both. The PR number isn't known before the
-  PR exists, so add it once it's opened, before merge.
+- End the bullet with a link to the PR that shipped it, as GitHub's own
+  release notes do: ` ([#74](https://github.com/vrajpal-jhala/langgraph-harness/pull/74))`.
+  Always the PR, never the issue: every change has one, and it links its
+  issue. Use a full URL, not a bare `#74`: release notes autolink `#74` but
+  `CHANGELOG.md` viewed on GitHub or the docs site doesn't. List two PRs
+  when one entry genuinely spans both. The PR number isn't known until the
+  PR is open, so add it then, before merge.
 - No internal file paths, function names, or variable names in the prose.
   Describe outcomes ("the run now retries once before giving up"), not
   implementation ("wrapped the call in `retryWithBackoff`").
