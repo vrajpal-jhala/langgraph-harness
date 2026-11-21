@@ -33,6 +33,7 @@ import Icon from '@/components/icon';
 
 import { api } from '@/api';
 import { Context } from '@/contexts';
+import { useAuth } from '@/hooks/useAuth';
 import { formatDuration } from '@/utils';
 
 const REPOS_PER_PAGE = 20;
@@ -50,7 +51,20 @@ type TrendPoint = NonNullable<
   Awaited<ReturnType<typeof api.analytics.trend.get>>['data']
 >[number];
 
-const RepoName = ({ row }: { row: RepoRow }) => {
+const RepoName = ({
+  row,
+  showProvider,
+}: {
+  row: RepoRow;
+  showProvider: boolean;
+}) => {
+  if (!showProvider) {
+    return (
+      <Text size="sm" truncate>
+        {row.repo}
+      </Text>
+    );
+  }
   const github = row.provider === GitProvider.GitHub;
   return (
     <Group gap={6} wrap="nowrap">
@@ -140,6 +154,7 @@ const formatChartDate = (label: unknown) => {
 
 const AnalyticsPage = () => {
   const { handleError } = use(Context);
+  const { providers } = useAuth();
   const theme = useMantineTheme();
   const isMobile =
     useMediaQuery(`(max-width: ${theme.breakpoints.sm})`) ?? false;
@@ -225,6 +240,10 @@ const AnalyticsPage = () => {
   }, [kind, selectedProject, page, handleError]);
 
   const totalPages = Math.max(1, Math.ceil(totalRepos / REPOS_PER_PAGE));
+  // A disabled provider's old runs can still sit next to the live one's, so mixed rows count too.
+  const showProvider =
+    (providers.gitlab && providers.github) ||
+    repos.some((row) => row.provider !== repos[0].provider);
   const isEmpty = overview !== null && overview.total === 0;
   const repoUnit = kind === RunKind.WorkItemResolve ? 'Issue' : 'MR';
 
@@ -814,7 +833,7 @@ const AnalyticsPage = () => {
                       radius="md"
                       padding="sm"
                     >
-                      <RepoName row={row} />
+                      <RepoName row={row} showProvider={showProvider} />
                       <Group gap="xs" mt={4}>
                         <Text size="xs" c="dimmed">
                           {row.totalThreads} {repoUnit}
@@ -862,7 +881,7 @@ const AnalyticsPage = () => {
                         {repos.map((row) => (
                           <Table.Tr key={`${row.provider}:${row.repo}`}>
                             <Table.Td>
-                              <RepoName row={row} />
+                              <RepoName row={row} showProvider={showProvider} />
                             </Table.Td>
                             <Table.Td>{row.totalThreads}</Table.Td>
                             <Table.Td>{row.totalRuns}</Table.Td>
