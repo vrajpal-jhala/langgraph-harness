@@ -8,7 +8,7 @@ Drop a `.harness.yml` at the root of a project's default branch to customize how
 
 - **`review.instructions` / `resolve.instructions`** — repo-specific guidance (conventions, review checklists, language-specific notes) fed to the agent as scoped context. Under `review`, `match` globs let you attach a doc only when the changed files warrant it — a TypeScript style guide doesn't need to load for a Python-only change.
 - **`review.exclude_branches`** — skip review entirely for branches that don't need it (release branches, WIP branches, a `staging` promotion merge).
-- **`review.requires_reviewer`** — opt into requiring the bot be explicitly added as a reviewer before it reviews, instead of reviewing every merge or pull request by default.
+- **`review.requires_reviewer`** — opt into requiring the bot be explicitly added as a reviewer before it reviews, instead of reviewing every merge or pull request by default. GitHub won't let a pull request's author be requested as a reviewer, so with this on, the bot's own pull requests aren't reviewed on GitHub.
 
 Both sections apply the same way on GitLab and GitHub. `resolve` covers issue runs and tasks.
 

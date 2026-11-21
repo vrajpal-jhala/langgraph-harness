@@ -824,7 +824,8 @@ const submitReview = tool(
     const hasBody = !!body?.trim();
     if (event === 'COMMENT' && !comments.length && !replies.length && !hasBody)
       return {
-        error:
+        submitted: false,
+        reason:
           "Nothing to submit: a COMMENT review needs at least one comment or reply. With nothing to say, don't submit.",
       };
 

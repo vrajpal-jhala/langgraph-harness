@@ -358,6 +358,7 @@ export const agent = {
           toolCallMade,
           draftNotes,
           commentCriticScreenedIds: new Set<string>(),
+          commentCriticInlineVerdicts: new Map<string, boolean>(),
           memoryCandidates,
           memoryReflectNudged,
           noToolCallNudged,

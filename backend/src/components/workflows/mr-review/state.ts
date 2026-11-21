@@ -59,6 +59,7 @@ export type WorkflowConfigurable = {
   toolCallMade: { called: boolean };
   draftNotes: Map<string, { id: string; body: string }>;
   commentCriticScreenedIds: Set<string>;
+  commentCriticInlineVerdicts: Map<string, boolean>;
   memoryCandidates: MemoryCandidate[];
   memoryReflectNudged: { nudged: boolean };
   noToolCallNudged: { nudged: boolean };

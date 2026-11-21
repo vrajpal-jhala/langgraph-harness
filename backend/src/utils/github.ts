@@ -312,6 +312,35 @@ export async function fetchReviewThreads(
   });
 }
 
+async function fetchOwnReviews(projectPath: string, prNumber: string) {
+  const reviews: { id: number; state: string }[] = [];
+  for (let page = 1; ; page++) {
+    const res = await githubFetch(
+      `${repoPath(projectPath)}/pulls/${prNumber}/reviews?per_page=100&page=${page}`,
+    );
+    const batch = (await res.json()) as {
+      id: number;
+      state: string;
+      user: { login: string } | null;
+    }[];
+    for (const r of batch)
+      if (r.user?.login === config.github.username)
+        reviews.push({ id: r.id, state: r.state });
+    if (batch.length < 100) return reviews;
+  }
+}
+
+async function deletePendingReview(
+  projectPath: string,
+  prNumber: string,
+  reviewId: number,
+) {
+  await githubFetch(
+    `${repoPath(projectPath)}/pulls/${prNumber}/reviews/${reviewId}`,
+    { method: 'DELETE' },
+  );
+}
+
 // One request, so GitHub posts every comment or none of them.
 export async function createPullRequestReview(
   projectPath: string,
@@ -330,12 +359,34 @@ export async function createPullRequestReview(
     }[];
   },
 ) {
-  const res = await githubFetch(
-    `${repoPath(projectPath)}/pulls/${prNumber}/reviews`,
-    { method: 'POST', body: JSON.stringify(review) },
-  );
-  const { id, state } = (await res.json()) as { id: number; state: string };
-  return { id, state };
+  const before = await fetchOwnReviews(projectPath, prNumber);
+  const submitted = before.filter((r) => r.state !== 'PENDING');
+  // REQUEST_CHANGES blocks merging, so it's only for withdrawing the bot's own approval.
+  if (
+    review.event === 'REQUEST_CHANGES' &&
+    submitted[submitted.length - 1]?.state !== 'APPROVED'
+  )
+    throw new Error(
+      "REQUEST_CHANGES only withdraws an approval of yours, and your latest review isn't one. Submit again with event COMMENT.",
+    );
+  // GitHub allows one pending review per account, and it blocks creating another.
+  const pending = before.find((r) => r.state === 'PENDING');
+  if (pending) await deletePendingReview(projectPath, prNumber, pending.id);
+  try {
+    const res = await githubFetch(
+      `${repoPath(projectPath)}/pulls/${prNumber}/reviews`,
+      { method: 'POST', body: JSON.stringify(review) },
+    );
+    const { id, state } = (await res.json()) as { id: number; state: string };
+    return { id, state };
+  } catch (err) {
+    // A timeout or 5xx can arrive after GitHub already created the review.
+    const created = (
+      await fetchOwnReviews(projectPath, prNumber).catch(() => [])
+    ).find((r) => r.state !== 'PENDING' && !before.some((b) => b.id === r.id));
+    if (created) return created;
+    throw err;
+  }
 }
 
 export async function replyToReviewComment(

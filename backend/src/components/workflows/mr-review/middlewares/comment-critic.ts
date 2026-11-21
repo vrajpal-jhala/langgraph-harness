@@ -291,20 +291,56 @@ export function commentCriticMiddleware({
         }
 
         const screenedIds = configurable?.commentCriticScreenedIds;
+        const inlineVerdicts = configurable?.commentCriticInlineVerdicts;
+        // A resubmit (e.g. after a rejected line) reuses each comment's earlier verdict, keyed by its text, instead of screening it again.
+        const withheldBefore =
+          inline?.filter((draft) => inlineVerdicts?.get(draft.body)) ?? [];
         // A single-draft publish only publishes the named draft, so only that one is screened
-        const drafts =
-          inline ??
-          [...(configurable?.draftNotes?.values() ?? [])].filter(
-            (draft) =>
-              !screenedIds?.has(draft.id) &&
-              (publishTarget === null || draft.id === publishTarget),
+        const drafts = inline
+          ? inline.filter((draft) => !inlineVerdicts?.has(draft.body))
+          : [...(configurable?.draftNotes?.values() ?? [])].filter(
+              (draft) =>
+                !screenedIds?.has(draft.id) &&
+                (publishTarget === null || draft.id === publishTarget),
+            );
+
+        const renderBucket = (
+          items: { id: string; body: string }[],
+          label: string,
+        ) =>
+          items.length
+            ? `${label}\n${items.map((d) => `- ${d.body}`).join('\n')}`
+            : '';
+
+        const withheldNote = (items: { id: string; body: string }[]) =>
+          renderBucket(
+            items,
+            `${items.length} draft comment(s) were withheld before ` +
+              `publishing as non-actionable noise and were not posted:`,
           );
+
+        const joinNotes = (...notes: string[]) =>
+          notes.filter(Boolean).join('\n\n');
+
+        const withoutDropped = (dropped: { id: string }[]) =>
+          inline && dropped.length && flow.withoutDrafts
+            ? {
+                ...effectiveRequest,
+                toolCall: {
+                  ...effectiveRequest.toolCall,
+                  args: flow.withoutDrafts(
+                    effectiveRequest.toolCall.args,
+                    new Set(dropped.map((d) => d.id)),
+                  ),
+                },
+              }
+            : effectiveRequest;
 
         if (!drafts.length) {
           // every currently-tracked draft has already been screened (first attempt succeeded, or this is a retry of the same batch) — publish as-is
           return attachNote(
-            await handler(effectiveRequest),
-            strippedNoteNotice,
+            await handler(withoutDropped(withheldBefore)),
+            joinNotes(withheldNote(withheldBefore), strippedNoteNotice),
           );
         }
 
@@ -373,12 +409,14 @@ export function commentCriticMiddleware({
           });
 
           return attachNote(
-            await handler(effectiveRequest),
-            strippedNoteNotice,
+            await handler(withoutDropped(withheldBefore)),
+            joinNotes(withheldNote(withheldBefore), strippedNoteNotice),
           );
         } finally {
           // Marks the batch screened regardless of outcome — a later publish attempt must never re-invoke the critic on drafts already resolved.
-          if (!inline) for (const draft of drafts) screenedIds?.add(draft.id);
+          for (const draft of drafts)
+            if (inline) inlineVerdicts?.set(draft.body, false);
+            else screenedIds?.add(draft.id);
         }
 
         const dropped: { id: string; body: string }[] = [];
@@ -393,7 +431,8 @@ export function commentCriticMiddleware({
           handled.add(verdict.id);
 
           try {
-            if (!inline)
+            if (inline) inlineVerdicts?.set(draft.body, true);
+            else
               await withdrawDraft?.(
                 verdict.id,
                 request.runtime as WorkflowRuntime,
@@ -418,20 +457,6 @@ export function commentCriticMiddleware({
           maxRetries: MAX_CRITIC_RETRIES,
         });
 
-        const renderBucket = (
-          items: { id: string; body: string }[],
-          label: string,
-        ) =>
-          items.length
-            ? `${label}\n${items.map((d) => `- ${d.body}`).join('\n')}`
-            : '';
-
-        const withheldNote = renderBucket(
-          dropped,
-          `${dropped.length} draft comment(s) were withheld before ` +
-            `publishing as non-actionable noise and were not posted:`,
-        );
-
         const failedNote = renderBucket(
           failed,
           `${failed.length} draft comment(s) were flagged as ` +
@@ -439,23 +464,13 @@ export function commentCriticMiddleware({
             `error, so they will still be published:`,
         );
 
-        const note = [withheldNote, failedNote, strippedNoteNotice]
-          .filter(Boolean)
-          .join('\n\n');
-
-        const publishRequest =
-          inline && dropped.length && flow.withoutDrafts
-            ? {
-                ...effectiveRequest,
-                toolCall: {
-                  ...effectiveRequest.toolCall,
-                  args: flow.withoutDrafts(
-                    effectiveRequest.toolCall.args,
-                    new Set(dropped.map((d) => d.id)),
-                  ),
-                },
-              }
-            : effectiveRequest;
+        const allDropped = [...withheldBefore, ...dropped];
+        const note = joinNotes(
+          withheldNote(allDropped),
+          failedNote,
+          strippedNoteNotice,
+        );
+        const publishRequest = withoutDropped(allDropped);
 
         let result: Awaited<ReturnType<typeof handler>>;
 
