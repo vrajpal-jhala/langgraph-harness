@@ -1,6 +1,7 @@
 import { sql, type SqlBool } from 'kysely';
 
 import type {
+  GitProvider,
   NewThread,
   ThreadFilters,
   ThreadMetadata,
@@ -265,17 +266,18 @@ export const threadsDal = {
     return { data, total: Number(count) };
   },
 
-  listProjects: async () => {
-    const rows = await db
+  listProjects: () =>
+    db
       .selectFrom('threads')
-      .select(sql<string>`metadata->>'project'`.as('project'))
+      .select([
+        sql<GitProvider>`metadata->>'source'`.as('provider'),
+        sql<string>`metadata->>'project'`.as('project'),
+      ])
       .where(sql<SqlBool>`metadata->>'project' IS NOT NULL`)
       .distinct()
       .orderBy(sql`metadata->>'project'`)
-      .execute();
-
-    return rows.map((r) => r.project);
-  },
+      .orderBy(sql`metadata->>'source'`)
+      .execute(),
 
   // Excludes threads with any run still queued/running, even if it isn't the latest one, so a sweep never races an in-flight run.
   findStaleThreadIds: async (kind: RunKind, retentionMs: number) => {

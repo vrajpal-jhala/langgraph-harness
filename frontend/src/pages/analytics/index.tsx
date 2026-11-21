@@ -34,7 +34,7 @@ import Icon from '@/components/icon';
 import { api } from '@/api';
 import { Context } from '@/contexts';
 import { useAuth } from '@/hooks/useAuth';
-import { formatDuration } from '@/utils';
+import { formatDuration, showsProvider } from '@/utils';
 
 const REPOS_PER_PAGE = 20;
 
@@ -185,7 +185,7 @@ const AnalyticsPage = () => {
     });
     api.threads.projects.get().then(({ data, error }) => {
       if (error) handleError(error.value, 'Failed to fetch projects');
-      if (data) setProjects(data);
+      if (data) setProjects([...new Set(data.map((p) => p.project))]);
     });
   }, [handleError]);
 
@@ -240,10 +240,10 @@ const AnalyticsPage = () => {
   }, [kind, selectedProject, page, handleError]);
 
   const totalPages = Math.max(1, Math.ceil(totalRepos / REPOS_PER_PAGE));
-  // A disabled provider's old runs can still sit next to the live one's, so mixed rows count too.
-  const showProvider =
-    (providers.gitlab && providers.github) ||
-    repos.some((row) => row.provider !== repos[0].provider);
+  const showProvider = showsProvider(
+    providers,
+    repos.map((row) => row.provider),
+  );
   const isEmpty = overview !== null && overview.total === 0;
   const repoUnit = kind === RunKind.WorkItemResolve ? 'Issue' : 'MR';
 

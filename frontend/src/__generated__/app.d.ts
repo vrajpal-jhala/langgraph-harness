@@ -1271,7 +1271,11 @@ export declare const app: Elysia<"", {
 					query: {};
 					headers: {};
 					response: {
-						200: string[];
+						200: {
+							provider: GitProvider;
+							project: string;
+							repoKey: string;
+						}[];
 						422: {
 							type: "validation";
 							on: string;
