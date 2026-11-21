@@ -69,7 +69,7 @@ flowchart TB
   %% ---------- TASK-RESOLVE HARNESS ----------
   subgraph HARNESS4["Task-Resolve Harness — separate LangGraph workflow, shares agent.ts with Work-Item-Resolve"]
     direction TB
-    UP4["Admin API submission or schedule<br/>free-text prompt + GitLab or GitHub repo, no issue · one-time/recurring schedules fire the same way · GitLab MR comments trigger a reply via the same webhook as HARNESS2"]
+    UP4["Admin API submission or schedule<br/>free-text prompt + GitLab or GitHub repo, no issue · one-time/recurring schedules fire the same way · MR/PR comments (GitLab or GitHub) trigger a reply via the same webhook as HARNESS2"]
     Q4["Own BullMQ queue<br/>same atomic-dedup pattern as Work-Item-Resolve"]
     SANDBOX4["OpenSandbox container<br/>ephemeral · no git host creds"]
     subgraph LOOP4["Agent loop — same compiled agent as HARNESS2"]
@@ -238,7 +238,7 @@ flowchart TB
 
 - **Episodic memory** — run events are persisted to Postgres and are retrievable via plain text/regex search (`search_review_content`/`search_chat_content`, chat-workflow tools only) — not yet semantic/RAG-based, and not yet consolidated into distilled facts (that's `SUM`'s still-unbuilt job)
 - **Guardrails** — the remaining gap is narrower than it used to be: position validation and a reply-quality critic are both built (see above); a hard numeric comment cap is the one piece not yet built
-- **GitHub support** — Work Item Resolve, Task Resolve and MR Review run on GitHub repos (draft PRs, status comments, schedules, PR reviews), but Chat's git-host tools are still GitLab-only; analytics' by-repo view groups on the project path alone, so the same path on both providers lands in one row
+- **GitHub support** — every workflow and Chat's git-host tools run on GitHub repos too; the one gap left is analytics' by-repo view, which groups on the project path alone, so the same path on both providers lands in one row
 - **Evolving memories (Supermemory)** — real and wired (self-hosted service, ingested via `scrape_issues.ts`, queried by chat's `search_project_history`/`get_project_issue`/`list_projects` tools), linking and updating memories rather than a static one-shot extraction — but the code's own comment calls it a PoC: hardcoded to 2 GitLab projects (`supermemoryProjects` in `config.ts`), chat-only, not available to MR Review, Work Item Resolve, or Task Resolve
 
 ### ⬜ Pipeline
