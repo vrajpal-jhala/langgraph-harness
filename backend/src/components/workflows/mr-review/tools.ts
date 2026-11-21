@@ -40,11 +40,23 @@ import type {
 
 import { config, llms } from '#utils/config.js';
 import {
+  type DiffLineMap,
+  parseDiffLineMap,
+  validateSidedPosition,
+} from '#utils/diff.js';
+import {
   findRepeatedText,
   generationLoopReason,
   IDLE_TOOL_CALL_MS,
   REPEATED_TEXT_THRESHOLD,
 } from '#utils/generation-loop.js';
+import {
+  createPullRequestReview,
+  fetchPullRequestFilePatch,
+  fetchReviewThreadTarget,
+  replyToReviewComment,
+  setReviewThreadResolved,
+} from '#utils/github.js';
 import { mcpToolFilter, mcpToolName, messageContent } from '#utils/helpers.js';
 import { buildChatModel } from '#utils/llm.js';
 import { logger } from '#utils/logger.js';
@@ -731,6 +743,280 @@ const spawnSubagent = tool(
   },
 );
 
+async function diffLineMapFor(
+  configurable: Partial<WorkflowConfigurable>,
+  path: string,
+  signal?: AbortSignal,
+): Promise<DiffLineMap | undefined> {
+  const cached = configurable.diffLineMapCache?.get(path);
+  if (cached) return cached;
+
+  const {
+    worktreePath,
+    sourceBranch,
+    targetBranch,
+    revived,
+    projectPath,
+    codeChangeRequestNumber,
+  } = configurable;
+  let diff = '';
+
+  if (!revived && worktreePath && sourceBranch && targetBranch) {
+    try {
+      const base = await gitService.mergeBase(
+        worktreePath,
+        sourceBranch,
+        targetBranch,
+        signal,
+      );
+      diff = await gitService.fileDiff(
+        worktreePath,
+        base,
+        sourceBranch,
+        path,
+        signal,
+      );
+    } catch (err) {
+      logger.error(
+        { err, path },
+        'submit_review local diff for position validation failed — falling back to GitHub',
+      );
+    }
+  }
+
+  // A revived retry's branch is gone, so its diff only exists on GitHub.
+  if (!diff.trim() && projectPath && codeChangeRequestNumber) {
+    try {
+      diff =
+        (await fetchPullRequestFilePatch(
+          projectPath,
+          codeChangeRequestNumber,
+          path,
+          signal,
+        )) ?? '';
+    } catch (err) {
+      logger.error(
+        { err, path },
+        'submit_review failed to fetch the file diff from GitHub — skipping position validation for this comment',
+      );
+    }
+  }
+
+  if (!diff.trim()) return undefined;
+  const map = parseDiffLineMap(diff);
+  configurable.diffLineMapCache?.set(path, map);
+  return map;
+}
+
+const side = z
+  .enum(['LEFT', 'RIGHT'])
+  .describe(
+    '"RIGHT" for added or unchanged lines, "LEFT" for removed lines — the side of the diff `line` is on',
+  );
+
+const submitReview = tool(
+  async ({ event, body, comments, replies }, runtime: GitToolRuntime) => {
+    const configurable = runtime.configurable ?? {};
+    const { projectPath, codeChangeRequestNumber } = configurable;
+    if (!projectPath || !codeChangeRequestNumber)
+      return { error: 'No pull request in this run.' };
+
+    const hasBody = !!body?.trim();
+    if (event === 'COMMENT' && !comments.length && !replies.length && !hasBody)
+      return {
+        error:
+          "Nothing to submit: a COMMENT review needs at least one comment or reply. With nothing to say, don't submit.",
+      };
+
+    const invalid: { path: string; line: number; error: string }[] = [];
+    for (const c of comments) {
+      const map = await diffLineMapFor(configurable, c.path, runtime.signal);
+      if (!map) {
+        logger.warn(
+          { path: c.path },
+          'submit_review has no diff line map — comment goes to GitHub unchecked',
+        );
+        continue;
+      }
+      const verdict = validateSidedPosition(map, {
+        line: c.line,
+        side: c.side,
+        startLine: c.startLine,
+        startSide: c.startSide,
+      });
+      if (verdict.error)
+        invalid.push({ path: c.path, line: c.line, error: verdict.error });
+    }
+    if (invalid.length)
+      return {
+        error: `${invalid.length} comment(s) aren't on a line of the diff, so nothing was posted. Re-read the diff for those lines and submit again with every comment.`,
+        invalid,
+      };
+
+    if (config.mock.workflow)
+      return {
+        review: { state: event },
+        commentsPosted: comments.length,
+        repliesPosted: replies.length,
+      };
+
+    // Replies alone don't need a review; GitHub rejects a COMMENT review with nothing in it.
+    const needsReview = comments.length > 0 || hasBody || event !== 'COMMENT';
+    let review: { id: number; state: string } | undefined;
+    if (needsReview) {
+      const { worktreePath, sourceBranch, revived } = configurable;
+      // Anchors the comments to the commit their lines were checked against, even if the branch moved since.
+      const commitId =
+        !revived && worktreePath && sourceBranch
+          ? await gitService
+              .revParse(worktreePath, sourceBranch, runtime.signal)
+              .catch(() => undefined)
+          : undefined;
+      try {
+        review = await createPullRequestReview(
+          projectPath,
+          codeChangeRequestNumber,
+          {
+            event,
+            ...(hasBody && { body }),
+            ...(commitId && { commit_id: commitId }),
+            comments: comments.map((c) => ({
+              path: c.path,
+              body: c.body,
+              line: c.line,
+              side: c.side,
+              ...(c.startLine != null && {
+                start_line: c.startLine,
+                start_side: c.startSide ?? c.side,
+              }),
+            })),
+          },
+        );
+      } catch (err) {
+        return {
+          error: `The review wasn't posted, and neither were its comments or replies: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+    }
+
+    const repliesFailed: { commentId: number; error: string }[] = [];
+    for (const r of replies) {
+      try {
+        await replyToReviewComment(
+          projectPath,
+          codeChangeRequestNumber,
+          r.commentId,
+          r.body,
+        );
+      } catch (err) {
+        repliesFailed.push({
+          commentId: r.commentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return {
+      ...(review && { review }),
+      commentsPosted: review ? comments.length : 0,
+      repliesPosted: replies.length - repliesFailed.length,
+      ...(repliesFailed.length && {
+        error: `${repliesFailed.length} reply(s) failed to post — retry only those, with submit_review's replies alone.`,
+        repliesFailed,
+      }),
+    };
+  },
+  {
+    name: 'submit_review',
+    description:
+      "Posts this pull request's review in one step: its event, its line comments and its replies on existing threads. GitHub posts the comments all together or not at all; a comment whose line isn't on the diff is rejected before anything is posted.",
+    schema: z.object({
+      event: z
+        .enum(['APPROVE', 'COMMENT', 'REQUEST_CHANGES'])
+        .describe('The review outcome'),
+      body: z
+        .string()
+        .optional()
+        .describe(
+          'Only for REQUEST_CHANGES, as the one-line reason an approval is withdrawn',
+        ),
+      comments: z
+        .array(
+          z.object({
+            path: z.string().describe('File path, as in the diff'),
+            line: z
+              .number()
+              .int()
+              .describe(
+                'Line number on `side` — the last line, for a ranged comment',
+              ),
+            side,
+            startLine: z
+              .number()
+              .int()
+              .optional()
+              .describe('First line of a ranged comment'),
+            startSide: side.optional(),
+            body: z.string().min(1),
+          }),
+        )
+        .default([])
+        .describe('New inline comments'),
+      replies: z
+        .array(
+          z.object({
+            commentId: z
+              .number()
+              .int()
+              .describe(
+                "The thread's first comment id — the number after #discussion_r in its html_url",
+              ),
+            body: z.string().min(1),
+          }),
+        )
+        .default([])
+        .describe('Replies on existing review threads'),
+    }),
+  },
+);
+
+const resolveReviewThread = tool(
+  async ({ threadId, resolved }, runtime: GitToolRuntime) => {
+    const { projectPath, codeChangeRequestNumber } = runtime.configurable ?? {};
+    if (config.mock.workflow) return { threadId, isResolved: resolved };
+
+    const thread = await fetchReviewThreadTarget(threadId).catch(
+      () => undefined,
+    );
+    if (
+      !thread ||
+      thread.projectPath.toLowerCase() !== projectPath?.toLowerCase() ||
+      String(thread.prNumber) !== codeChangeRequestNumber
+    )
+      return {
+        error: `${threadId} isn't a review thread on this pull request.`,
+      };
+
+    try {
+      await setReviewThreadResolved(threadId, resolved);
+      return { threadId, isResolved: resolved };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  },
+  {
+    name: 'resolve_review_thread',
+    description:
+      'Resolves a review thread on this pull request, or reopens one with resolved: false.',
+    schema: z.object({
+      threadId: z
+        .string()
+        .describe("The thread's id from get_review_comments (PRRT_…)"),
+      resolved: z.boolean().default(true),
+    }),
+  },
+);
+
 const GIT_READ_TOOLS = new Set([
   gitChangedFiles.name,
   gitDiff.name,
@@ -789,21 +1075,13 @@ const REVIEW_TOOLS: Record<GitProvider, ReviewToolSet> = {
       'get_merge_request_file_diff',
     ]),
   },
+  // Writes go through submit_review and resolve_review_thread instead, which always target the run's own pull request.
   [GitProvider.GitHub]: {
     // One tool covers metadata, files, diff, reviews and comments, picked by `method`.
     read: new Set(['pull_request_read']),
-    write: new Set([
-      // pending review, approval and resolving threads, picked by `method`
-      'pull_request_review_write',
-      'add_comment_to_pending_review',
-      'add_reply_to_pull_request_comment',
-    ]),
+    write: new Set(),
     revivedDiff: new Set(),
-    internal: new Set([
-      'pull_request_read',
-      'add_comment_to_pending_review',
-      'add_reply_to_pull_request_comment',
-    ]),
+    internal: new Set(),
   },
 };
 
@@ -854,6 +1132,9 @@ export const tools = {
       providerTools[provider] = [
         ...baseTools,
         ...allowedFrom(allTools, provider),
+        ...(provider === GitProvider.GitHub
+          ? [submitReview, resolveReviewThread]
+          : []),
       ];
     }
   },

@@ -312,6 +312,80 @@ export async function fetchReviewThreads(
   });
 }
 
+// One request, so GitHub posts every comment or none of them.
+export async function createPullRequestReview(
+  projectPath: string,
+  prNumber: string,
+  review: {
+    event: 'APPROVE' | 'COMMENT' | 'REQUEST_CHANGES';
+    body?: string;
+    commit_id?: string;
+    comments: {
+      path: string;
+      body: string;
+      line: number;
+      side: 'LEFT' | 'RIGHT';
+      start_line?: number;
+      start_side?: 'LEFT' | 'RIGHT';
+    }[];
+  },
+) {
+  const res = await githubFetch(
+    `${repoPath(projectPath)}/pulls/${prNumber}/reviews`,
+    { method: 'POST', body: JSON.stringify(review) },
+  );
+  const { id, state } = (await res.json()) as { id: number; state: string };
+  return { id, state };
+}
+
+export async function replyToReviewComment(
+  projectPath: string,
+  prNumber: string,
+  commentId: number,
+  body: string,
+) {
+  const res = await githubFetch(
+    `${repoPath(projectPath)}/pulls/${prNumber}/comments/${commentId}/replies`,
+    { method: 'POST', body: JSON.stringify({ body }) },
+  );
+  return ((await res.json()) as { id: number }).id;
+}
+
+export async function setReviewThreadResolved(
+  threadId: string,
+  resolved: boolean,
+) {
+  const mutation = resolved ? 'resolveReviewThread' : 'unresolveReviewThread';
+  const res = await githubFetch(graphqlUrl, {
+    method: 'POST',
+    body: JSON.stringify({
+      query: `mutation($id: ID!) { ${mutation}(input: { threadId: $id }) { thread { isResolved } } }`,
+      variables: { id: threadId },
+    }),
+  });
+  const { errors } = (await res.json()) as { errors?: { message: string }[] };
+  if (errors?.length)
+    throw new Error(`GitHub GraphQL error: ${errors[0].message}`);
+}
+
+export async function fetchPullRequestFilePatch(
+  projectPath: string,
+  prNumber: string,
+  path: string,
+  signal?: AbortSignal,
+) {
+  for (let page = 1; ; page++) {
+    const res = await githubFetch(
+      `${repoPath(projectPath)}/pulls/${prNumber}/files?per_page=100&page=${page}`,
+      undefined,
+      signal,
+    );
+    const files = (await res.json()) as { filename: string; patch?: string }[];
+    const file = files.find((f) => f.filename === path);
+    if (file || files.length < 100) return file?.patch;
+  }
+}
+
 export async function fetchReviewThreadTarget(threadId: string) {
   const res = await githubFetch(graphqlUrl, {
     method: 'POST',

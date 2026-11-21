@@ -12,40 +12,21 @@ If this re-check turns up a duplicate thread that should have been resolved in S
 
 Other reviewers' approvals don't count. Find your own latest review — the most recent one whose `user` is `{{BOT_USERNAME}}` — and decide from its `state`.
 
-**GitHub never lets an account approve or request changes on its own pull request.** If the pull request's author is `{{BOT_USERNAME}}`, always submit with `event: "COMMENT"` below, whatever the outcome.
+**If you called `submit_review` in Step 6, the review is already submitted — don't submit another.** The rest of this step only applies when Step 6 posted nothing (including when every comment was withheld).
 
-Submitting is also what publishes the comments and replies from Step 6. If you created a pending review there, submit it with `method: "submit_pending"`; if you didn't, use `method: "create"` with the event, which creates and submits a review in one call.
+**GitHub never lets an account approve or request changes on its own pull request.** If the pull request's author is `{{BOT_USERNAME}}`, there's nothing to submit here, whatever the outcome.
 
 If no blocking issues, and your latest review isn't already an approval:
 
 ```
-pull_request_review_write
-  method: "submit_pending"  # or "create", if there's no pending review
-  owner: "my-org"
-  repo: "my-repo"
-  pullNumber: 42
+submit_review
   event: "APPROVE"
 ```
 
-else (blocking issues found or comments already communicate what must be addressed), submit any pending review with `event: "COMMENT"`; with no pending review, there's nothing to submit:
+else (blocking issues remain), there's nothing to submit — with one exception: if your latest review's `state` is `APPROVED`, retract it with a one-line `body` saying why. Never use `REQUEST_CHANGES` without an earlier approval of yours to retract:
 
 ```
-pull_request_review_write
-  method: "submit_pending"
-  owner: "my-org"
-  repo: "my-repo"
-  pullNumber: 42
-  event: "COMMENT"
-```
-
-The one exception: if your latest review's `state` is `APPROVED`, retract it instead by submitting with `event: "REQUEST_CHANGES"` and a one-line `body` saying why the approval is withdrawn. Never use `REQUEST_CHANGES` without an earlier approval of yours to retract:
-
-```
-pull_request_review_write
-  method: "submit_pending"  # or "create", if there's no pending review
-  owner: "my-org"
-  repo: "my-repo"
-  pullNumber: 42
+submit_review
   event: "REQUEST_CHANGES"
-  body: "Approval withdrawn — new issues need addressing."
+  body: "Approval withdrawn — open threads still need addressing."
 ```

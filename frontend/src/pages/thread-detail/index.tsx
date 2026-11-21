@@ -443,24 +443,18 @@ const ThreadDetailPage = () => {
     : null;
   const threadMetrics = useMemo(() => {
     const toolOutputs = new Map<string, boolean>();
-    // GitHub comments are held until the review is submitted, so they're counted from what the submit verified as posted.
-    const confirmedComments = new Map<string, number>();
+    // A GitHub review posts all its comments in one call, so they're counted from what that call reports.
+    const postedComments = new Map<string, number>();
 
     for (const run of runs) {
       for (const { event, data } of run.events) {
         if (event === 'tool_output') {
           const parsedOutput = data.output
             ? (safeJsonParse(data.output) as
-                | {
-                    error?: unknown;
-                    verification?: { confirmedInReviewThreads?: unknown[] };
-                  }
-                | undefined)
+                { error?: unknown; commentsPosted?: unknown } | undefined)
             : undefined;
-          const confirmed =
-            parsedOutput?.verification?.confirmedInReviewThreads;
-          if (Array.isArray(confirmed)) {
-            confirmedComments.set(data.id, confirmed.length);
+          if (typeof parsedOutput?.commentsPosted === 'number') {
+            postedComments.set(data.id, parsedOutput.commentsPosted);
           }
           const didToolCallSucceed = data.output ? !parsedOutput?.error : true;
 
@@ -489,9 +483,14 @@ const ThreadDetailPage = () => {
           toolOutputs.has(id)
         ) {
           created++;
-        } else if (name === 'github__pull_request_review_write') {
-          created += confirmedComments.get(id) ?? 0;
-          if (input.method === 'resolve_thread') resolved++;
+        } else if (name === 'submit_review') {
+          created += postedComments.get(id) ?? 0;
+        } else if (
+          name === 'resolve_review_thread' &&
+          toolOutputs.has(id) &&
+          input.resolved !== false
+        ) {
+          resolved++;
         } else if (
           name === 'gitlab__delete_draft_note' &&
           toolOutputs.has(id)

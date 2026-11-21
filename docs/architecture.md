@@ -4,7 +4,7 @@ Layered view of langgraph-harness: the LangGraph **Harness/Loop**, the **Memory 
 
 Four harnesses exist side by side, not one plugging into another:
 
-- **MR Review** (below) — webhook on MR/PR events (GitLab or GitHub) → debounced queue → agent loop over the provider's MCP tools → draft notes (GitLab) or a held-then-submitted pending review (GitHub).
+- **MR Review** (below) — webhook on MR/PR events (GitLab or GitHub) → debounced queue → agent loop over the provider's MCP tools → draft notes (GitLab) or one review submitted with all its comments (GitHub).
 - **Work Item Resolve** — webhook on issue assignment + MR/PR comments (GitLab or GitHub) → its own FIFO queue → agent loop inside an ephemeral sandboxed container → draft MR or PR / MR reply.
 - **Task Resolve** — admin submits a free-text prompt plus a GitLab or GitHub repo URL via the API, or schedules one to fire once or on a recurring cadence (no issue, no assignment webhook) → opens its own draft MR or PR directly; on GitLab, MR comments on it trigger a reply through the same webhook path Work Item Resolve uses → draft MR or PR / MR reply.
 - **Chat** — user message via API, no webhook and no queue at all, runs immediately → agent loop with a human-approval gate on write-capable tool calls → reply streamed to the UI.
@@ -45,9 +45,9 @@ flowchart TB
       LLM["LLM agent<br/>OpenRouter / Ollama"]
       TOOLS["GitLab or GitHub MCP tools<br/>read + write allowlist"]
       SUBAGENT["Verifier sub-agent<br/>read-only, per file, parallel · depth-capped, no posting tools"]
-      GUARD["End-loop guardrails<br/>position validation · reply-quality critic · GitHub comments held until submit · no hard comment cap yet"]
+      GUARD["End-loop guardrails<br/>position validation · reply-quality critic · no hard comment cap yet"]
     end
-    REPLY["Reply<br/>draft notes or pending review · inline comments · approve"]
+    REPLY["Reply<br/>draft notes or one-call review · inline comments · approve"]
     UI["React UI<br/>live runs + history, retry/abort/delete"]
   end
 
@@ -198,7 +198,7 @@ flowchart TB
 - Webhook triggers on GitLab MR events and GitHub `pull_request` events (opened/reopened, ready for review, bot requested as reviewer, `synchronize` for re-reviews — with `review.requires_reviewer` on, an earlier review by the bot counts, since GitHub drops a reviewer from the requested list once they review), BullMQ queue (debounce + concurrency), LangGraph workflow + working state
 - Agent loop (`createAgent`, `todoListMiddleware`), a per-provider MCP tool allowlist (GitLab or GitHub), tool-call loop; one shared `code-review` skill with per-provider fragments for each host-specific step
 - `spawn_subagent` delegates per-file diff verification to an isolated read-only Verifier sub-agent (`read_text_file`/`git_grep`/`read_multiple_files`/`list_directory` only, no posting tools) — one spawn per file, dispatched in parallel in the same turn, depth-capped (no `spawn_subagent` of its own, so no further nesting); it returns findings only, the main agent stays the sole poster/writer
-- Position validation before a draft note reaches GitLab or a comment reaches a GitHub pending review, plus a reply-quality critic that screens every draft comment before publish, dropping hedged/praise-y non-issues — on GitHub, where a pending comment can't be withdrawn, comments and replies are held locally (schema- and position-checked) until submit so the critic can drop rejected ones, then submitted and verified against the PR's review threads; the one gap left in this pair is a hard numeric cap on comment count, which doesn't exist yet
+- Position validation before a draft note reaches GitLab or a review reaches GitHub, plus a reply-quality critic that screens every draft comment before publish, dropping hedged/praise-y non-issues — on GitHub the agent posts a review through one `submit_review` call carrying its event, comments and replies, so the critic drops rejected comments from that call and GitHub posts the rest all together or not at all; the one gap left in this pair is a hard numeric cap on comment count, which doesn't exist yet
 - Reply path (GitLab: draft notes, inline comments, approve/unapprove; GitHub: one submitted review per pass, approving, commenting, or requesting changes only to withdraw its own earlier approval), Postgres checkpointer + retry
 - Procedural memory (skills `.md` via `load_skill`), React UI with live SSE
 

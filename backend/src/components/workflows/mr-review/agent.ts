@@ -36,7 +36,6 @@ import {
   commentCriticMiddleware,
   draftIntegrityMiddleware,
   dynamicDiffToolsMiddleware,
-  githubPendingReviewMiddleware,
 } from './middlewares/index.js';
 import {
   type MrReviewToolContext,
@@ -207,26 +206,11 @@ const gitlabReviewMiddleware = (llm: BaseChatModel, modelConfig: LLM) => [
   }),
 ];
 
-// GitHub comments are held back until submit, so the critic sits outside the pending-review middleware and withdraws a rejected one from the hold before anything reaches GitHub.
 const githubReviewMiddleware = (llm: BaseChatModel, modelConfig: LLM) => [
   commentCriticMiddleware({
     llm,
     provider: modelConfig.provider,
     gitProvider: GitProvider.GitHub,
-    withdrawDraft: async (draftId, { configurable }) => {
-      configurable?.heldReviewComments?.delete(draftId);
-    },
-  }),
-  githubPendingReviewMiddleware({
-    pullRequestReadTool: tools.getInternal(
-      mcpToolName(GitProvider.GitHub, 'pull_request_read'),
-    ),
-    addCommentTool: tools.getInternal(
-      mcpToolName(GitProvider.GitHub, 'add_comment_to_pending_review'),
-    ),
-    addReplyTool: tools.getInternal(
-      mcpToolName(GitProvider.GitHub, 'add_reply_to_pull_request_comment'),
-    ),
   }),
 ];
 
@@ -256,7 +240,6 @@ function buildAgent(
     duplicateCallGuardMiddleware({
       readToolNames: new Set(tools.getMrReadNames(host.provider)),
     }),
-    // Outside the GitHub hold, so a comment aimed elsewhere is rejected when it's made rather than forwarded at submit.
     writeTargetGuardMiddleware(new Set(tools.getWriteNames(host.provider))),
     extractProjectMemoryMiddleware({
       llm,
@@ -380,7 +363,6 @@ export const agent = {
           noToolCallNudged,
           trailingQuestionNudged,
           host,
-          heldReviewComments: new Map(),
           repoKey,
           projectPath,
           codeChangeRequestNumber,

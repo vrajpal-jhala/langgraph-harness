@@ -64,10 +64,6 @@ export type WorkflowConfigurable = {
   noToolCallNudged: { nudged: boolean };
   trailingQuestionNudged: { nudged: boolean };
   host: GitHost;
-  heldReviewComments: Map<
-    string,
-    { toolName: string; args: Record<string, unknown> }
-  >;
   repoKey: string;
   projectPath: string;
   codeChangeRequestNumber: string;

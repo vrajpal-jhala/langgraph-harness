@@ -11,9 +11,7 @@ import {
 } from '#components/workflows/emit.js';
 import type { SandboxAgentRuntime } from '#components/workflows/state.js';
 
-import { config } from '#utils/config.js';
 import { parseRepoKey } from '#utils/git-host.js';
-import { fetchReviewThreadTarget } from '#utils/github.js';
 import { mcpToolName } from '#utils/helpers.js';
 
 type RunTarget = {
@@ -28,10 +26,6 @@ const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const githubRepoMatches = (args: ToolArgs, { projectPath }: RunTarget) =>
   samePath(`${args.owner}/${args.repo}`, projectPath);
 
-const githubPullRequestMatches = (args: ToolArgs, target: RunTarget) =>
-  githubRepoMatches(args, target) &&
-  String(args.pullNumber) === target.codeChangeRequestNumber;
-
 const gitlabMergeRequestMatches = (args: ToolArgs, target: RunTarget) =>
   samePath(decodeURIComponent(String(args.project_id)), target.projectPath) &&
   String(args.merge_request_iid) === target.codeChangeRequestNumber;
@@ -39,7 +33,7 @@ const gitlabMergeRequestMatches = (args: ToolArgs, target: RunTarget) =>
 // The identifiers in the prompt are only a hint, so a prompt-injected issue, comment or diff could otherwise point a write at any repo the bot token reaches.
 const targetMatches: Record<
   string,
-  (args: ToolArgs, target: RunTarget) => boolean | Promise<boolean>
+  (args: ToolArgs, target: RunTarget) => boolean
 > = {
   // A pull request's conversation comments are issue comments on GitHub, so its number is a valid target too.
   [mcpToolName(GitProvider.GitHub, 'add_issue_comment')]: (args, target) =>
@@ -47,30 +41,12 @@ const targetMatches: Record<
     [target.issueNumber, target.codeChangeRequestNumber].includes(
       String(args.issue_number),
     ),
-  [mcpToolName(GitProvider.GitHub, 'add_reply_to_pull_request_comment')]:
-    githubPullRequestMatches,
-  [mcpToolName(GitProvider.GitHub, 'add_comment_to_pending_review')]:
-    githubPullRequestMatches,
-  [mcpToolName(GitProvider.GitHub, 'pull_request_review_write')]: async (
+  [mcpToolName(GitProvider.GitHub, 'add_reply_to_pull_request_comment')]: (
     args,
     target,
-  ) => {
-    if (!githubPullRequestMatches(args, target)) return false;
-    if (
-      config.mock.workflow ||
-      (args.method !== 'resolve_thread' && args.method !== 'unresolve_thread')
-    )
-      return true;
-    // The server ignores owner/repo/pullNumber for these and acts on threadId alone.
-    const thread = await fetchReviewThreadTarget(String(args.threadId)).catch(
-      () => undefined,
-    );
-    return (
-      !!thread &&
-      samePath(thread.projectPath, target.projectPath) &&
-      String(thread.prNumber) === target.codeChangeRequestNumber
-    );
-  },
+  ) =>
+    githubRepoMatches(args, target) &&
+    String(args.pullNumber) === target.codeChangeRequestNumber,
   ...Object.fromEntries(
     [
       'create_merge_request_discussion_note',
@@ -107,7 +83,7 @@ export function writeTargetGuardMiddleware(writeToolNames: Set<string>) {
         codeChangeRequestNumber: configurable.codeChangeRequestNumber ?? null,
       };
       // A write tool with no rule here is refused rather than let through unchecked.
-      if (await targetMatches[name]?.(args as ToolArgs, target))
+      if (targetMatches[name]?.(args as ToolArgs, target))
         return handler(request);
 
       const allowed = [

@@ -36,6 +36,8 @@ const VerdictSchema = z.object({
 
 type ToolCall = { name: string; id?: string; args: Record<string, unknown> };
 
+type Draft = { id: string; body: string };
+
 type ReviewFlow = {
   // Lists comments left over from an earlier run, to screen them too.
   listDrafts?: string;
@@ -43,6 +45,12 @@ type ReviewFlow = {
   draftIdFrom: (call: ToolCall, resultContent: string) => string | undefined;
   // undefined: not a publish; null: publishes every draft; a string: publishes only that draft.
   publishTarget: (call: ToolCall) => string | null | undefined;
+  // A publish that carries its comments in its own args, so a dropped one is removed from them instead of withdrawn from the host.
+  inlineDrafts?: (call: ToolCall) => Draft[] | undefined;
+  withoutDrafts?: (
+    args: Record<string, unknown>,
+    droppedIds: Set<string>,
+  ) => Record<string, unknown>;
   // The arg carrying a review-level summary, which Step 6 forbids — stripped deterministically.
   summaryArg: (call: ToolCall) => string | undefined;
 };
@@ -55,14 +63,12 @@ const GITLAB_SINGLE_PUBLISH = mcpToolName(
   GitProvider.GitLab,
   'publish_draft_note',
 );
-const GITHUB_REVIEW_WRITE = mcpToolName(
-  GitProvider.GitHub,
-  'pull_request_review_write',
-);
-const GITHUB_DRAFT_TOOLS = new Set([
-  mcpToolName(GitProvider.GitHub, 'add_comment_to_pending_review'),
-  mcpToolName(GitProvider.GitHub, 'add_reply_to_pull_request_comment'),
-]);
+const GITHUB_SUBMIT_REVIEW = 'submit_review';
+
+type InlineArgs = {
+  comments?: { body?: string }[];
+  replies?: { body?: string }[];
+};
 
 const REVIEW_FLOWS: Record<GitProvider, ReviewFlow> = {
   [GitProvider.GitLab]: {
@@ -84,20 +90,30 @@ const REVIEW_FLOWS: Record<GitProvider, ReviewFlow> = {
         ? 'note'
         : undefined,
   },
-  // Held back by githubPendingReviewMiddleware rather than created on GitHub, so the tool call id is the draft's id.
   [GitProvider.GitHub]: {
-    createsDraft: (call) => GITHUB_DRAFT_TOOLS.has(call.name),
-    draftIdFrom: (call) => call.id,
-    // create with an event submits a new review in one call, publishing any held replies along with it.
-    publishTarget: (call) =>
-      call.name === GITHUB_REVIEW_WRITE &&
-      (call.args.method === 'submit_pending' ||
-        (call.args.method === 'create' && !!call.args.event))
-        ? null
-        : undefined,
-    // GitHub may require a body to request changes, where it's the one-line reason for withdrawing an approval.
+    createsDraft: () => false,
+    draftIdFrom: () => undefined,
+    publishTarget: () => undefined,
+    inlineDrafts: (call) => {
+      if (call.name !== GITHUB_SUBMIT_REVIEW) return undefined;
+      const { comments = [], replies = [] } = call.args as InlineArgs;
+      return [
+        ...comments.map((c, i) => ({ id: `comment-${i}`, body: c.body ?? '' })),
+        ...replies.map((r, i) => ({ id: `reply-${i}`, body: r.body ?? '' })),
+      ];
+    },
+    withoutDrafts: (args, droppedIds) => {
+      const { comments = [], replies = [] } = args as InlineArgs;
+      return {
+        ...args,
+        comments: comments.filter((_, i) => !droppedIds.has(`comment-${i}`)),
+        replies: replies.filter((_, i) => !droppedIds.has(`reply-${i}`)),
+      };
+    },
+    // GitHub needs a body to request changes, where it's the one-line reason for withdrawing an approval.
     summaryArg: (call) =>
-      call.name === GITHUB_REVIEW_WRITE && call.args.event !== 'REQUEST_CHANGES'
+      call.name === GITHUB_SUBMIT_REVIEW &&
+      call.args.event !== 'REQUEST_CHANGES'
         ? 'body'
         : undefined,
   },
@@ -136,7 +152,8 @@ export function commentCriticMiddleware({
   llm: BaseChatModel;
   provider: LLMProvider;
   gitProvider: GitProvider;
-  withdrawDraft: (draftId: string, runtime: WorkflowRuntime) => Promise<void>;
+  // Unneeded for a flow whose drafts are inline.
+  withdrawDraft?: (draftId: string, runtime: WorkflowRuntime) => Promise<void>;
 }) {
   const flow = REVIEW_FLOWS[gitProvider];
   // Default structured-output method is silently ignored by Ollama models — force tool-calling instead.
@@ -217,8 +234,9 @@ export function commentCriticMiddleware({
 
       const summaryArg = flow.summaryArg(call);
       const publishTarget = flow.publishTarget(call);
+      const inline = flow.inlineDrafts?.(call);
 
-      if (summaryArg || publishTarget !== undefined) {
+      if (summaryArg || publishTarget !== undefined || inline) {
         const summary = call.args[summaryArg ?? ''];
         const hasNote =
           typeof summary === 'string' && summary.trim().length > 0;
@@ -262,20 +280,25 @@ export function commentCriticMiddleware({
           return result;
         };
 
-        if (publishTarget === undefined || !configurable?.draftNotes?.size) {
+        if (
+          !inline &&
+          (publishTarget === undefined || !configurable?.draftNotes?.size)
+        ) {
           return attachNote(
             await handler(effectiveRequest),
             strippedNoteNotice,
           );
         }
 
-        const screenedIds = configurable.commentCriticScreenedIds;
+        const screenedIds = configurable?.commentCriticScreenedIds;
         // A single-draft publish only publishes the named draft, so only that one is screened
-        const drafts = [...configurable.draftNotes.values()].filter(
-          (draft) =>
-            !screenedIds?.has(draft.id) &&
-            (publishTarget === null || draft.id === publishTarget),
-        );
+        const drafts =
+          inline ??
+          [...(configurable?.draftNotes?.values() ?? [])].filter(
+            (draft) =>
+              !screenedIds?.has(draft.id) &&
+              (publishTarget === null || draft.id === publishTarget),
+          );
 
         if (!drafts.length) {
           // every currently-tracked draft has already been screened (first attempt succeeded, or this is a retry of the same batch) — publish as-is
@@ -355,9 +378,7 @@ export function commentCriticMiddleware({
           );
         } finally {
           // Marks the batch screened regardless of outcome — a later publish attempt must never re-invoke the critic on drafts already resolved.
-          for (const draft of drafts) {
-            configurable.commentCriticScreenedIds?.add(draft.id);
-          }
+          if (!inline) for (const draft of drafts) screenedIds?.add(draft.id);
         }
 
         const dropped: { id: string; body: string }[] = [];
@@ -365,14 +386,18 @@ export function commentCriticMiddleware({
         const handled = new Set<string>();
 
         for (const verdict of verdicts) {
-          const draft = configurable.draftNotes.get(verdict.id);
+          const draft = drafts.find((d) => d.id === verdict.id);
           if (!verdict.drop || !draft || handled.has(verdict.id)) {
             continue;
           }
           handled.add(verdict.id);
 
           try {
-            await withdrawDraft(verdict.id, request.runtime as WorkflowRuntime);
+            if (!inline)
+              await withdrawDraft?.(
+                verdict.id,
+                request.runtime as WorkflowRuntime,
+              );
             dropped.push({ id: draft.id, body: draft.body });
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err);
@@ -418,11 +443,25 @@ export function commentCriticMiddleware({
           .filter(Boolean)
           .join('\n\n');
 
+        const publishRequest =
+          inline && dropped.length && flow.withoutDrafts
+            ? {
+                ...effectiveRequest,
+                toolCall: {
+                  ...effectiveRequest.toolCall,
+                  args: flow.withoutDrafts(
+                    effectiveRequest.toolCall.args,
+                    new Set(dropped.map((d) => d.id)),
+                  ),
+                },
+              }
+            : effectiveRequest;
+
         let result: Awaited<ReturnType<typeof handler>>;
 
         // this batch is now marked screened, so a retry skips straight to the base handler — this is the only chance to tell the model what got withheld/failed above.
         try {
-          result = await handler(effectiveRequest);
+          result = await handler(publishRequest);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           return new ToolMessage({
