@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'langgraph-harness',
   description:
-    'Self-hosted AI coding agent platform for GitLab, built with LangGraph. Reviews merge requests, resolves issues autonomously, and chats with full project context.',
+    'Self-hosted AI coding agent platform for GitLab and GitHub, built with LangGraph. An open-source alternative to GitLab Duo and the GitHub Copilot coding agent: reviews merge and pull requests, resolves issues autonomously, and chats with full project context.',
   base: '/langgraph-harness/',
   cleanUrls: true,
   lastUpdated: true,
@@ -24,7 +24,7 @@ export default defineConfig({
       {
         property: 'og:title',
         content:
-          'langgraph-harness — Self-Hosted AI Coding Agent Platform for GitLab',
+          'langgraph-harness — Self-Hosted AI Coding Agent Platform for GitLab and GitHub',
       },
     ],
     [
@@ -32,7 +32,7 @@ export default defineConfig({
       {
         property: 'og:description',
         content:
-          'Self-hosted AI coding agent platform for GitLab, built with LangGraph. Reviews merge requests, resolves issues autonomously, and chats with full project context.',
+          'Self-hosted AI coding agent platform for GitLab and GitHub, built with LangGraph. An open-source alternative to GitLab Duo and the GitHub Copilot coding agent: reviews merge and pull requests, resolves issues autonomously, and chats with full project context.',
       },
     ],
     [
@@ -56,7 +56,7 @@ export default defineConfig({
       {
         name: 'twitter:title',
         content:
-          'langgraph-harness — Self-Hosted AI Coding Agent Platform for GitLab',
+          'langgraph-harness — Self-Hosted AI Coding Agent Platform for GitLab and GitHub',
       },
     ],
     [
@@ -64,7 +64,7 @@ export default defineConfig({
       {
         name: 'twitter:description',
         content:
-          'Self-hosted AI coding agent platform for GitLab, built with LangGraph. Reviews merge requests, resolves issues autonomously, and chats with full project context.',
+          'Self-hosted AI coding agent platform for GitLab and GitHub, built with LangGraph. An open-source alternative to GitLab Duo and the GitHub Copilot coding agent: reviews merge and pull requests, resolves issues autonomously, and chats with full project context.',
       },
     ],
     [

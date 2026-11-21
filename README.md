@@ -4,9 +4,9 @@
 
 # langgraph-harness
 
-**Self-hosted AI coding agent platform for GitLab, built with LangGraph**
+**Self-hosted AI coding agent platform for GitLab and GitHub, built with LangGraph**
 
-Reviews merge requests, resolves work items and tasks autonomously, and chats with full project context — remembering what matters so every run builds on the last.
+Reviews merge and pull requests, resolves issues and tasks autonomously, and chats with full project context — remembering what matters so every run builds on the last. An open-source alternative to GitLab Duo and the GitHub Copilot coding agent that runs on your own infrastructure.
 
 Battle-tested in production since mid-2026 — **133 releases**, 1k+ reviews, 67% comment acceptance rate (Sept 29 2026, [see snapshot](#screenshots)). [Development history →](CHANGELOG.md) every failure and fix, documented.
 
@@ -63,9 +63,9 @@ Everything else is tracked in [open issues](https://github.com/vrajpal-jhala/lan
 
 - **Frontend** — React admin UI (Dashboard, Threads, Chat, Workflows) for monitoring runs and chatting directly with the agent
 - **Backend** — Elysia API server running a LangGraph agent with persistent checkpoints
-- **Agent** — Multi-provider LLM (OpenRouter, Gemini, Groq, Ollama, or sglang) with GitLab MCP tools and skill-based workflows
+- **Agent** — Multi-provider LLM (OpenRouter, Gemini, Groq, Ollama, or sglang) with GitLab and GitHub MCP tools and skill-based workflows
 - **Queue** — BullMQ; debounced re-reviews, capped concurrency, live queue state in the UI
-- **Memory** — context engineering for GitLab: durable, project-scoped facts learned across reviews; personal memory in Chat
+- **Memory** — context engineering for GitLab and GitHub repos: durable, project-scoped facts learned across reviews; personal memory in Chat
 
 ## Quick Start
 

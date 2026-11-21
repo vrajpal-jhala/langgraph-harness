@@ -19,7 +19,7 @@ export const orientationSteps: TourStepConfig[] = [
     mobileNav: true,
     title: 'Threads',
     content:
-      'A Thread is one ongoing conversation or task — for example, everything related to a single merge request.',
+      'A Thread is one ongoing conversation or task — for example, everything related to a single merge or pull request.',
   },
   {
     target: '[data-tour="threads-list"]',
@@ -33,14 +33,14 @@ export const orientationSteps: TourStepConfig[] = [
     mobileNav: true,
     title: 'Chat',
     content:
-      'Chat directly with the GitLab-aware assistant outside of a merge request — ask questions, request changes, or just talk something through.',
+      'Chat directly with the GitLab- and GitHub-aware assistant outside of a merge or pull request — ask questions, request changes, or just talk something through.',
   },
   {
     target: '[data-tour="chat-composer"]',
     route: '/chat/new',
     title: 'Start a conversation',
     content:
-      'Type a message below to start chatting. Toggle GitLab tools, server tools, or extended reasoning from the "+" menu, and pick a model on the right.',
+      'Type a message below to start chatting. Toggle GitLab or GitHub tools, server tools, or extended reasoning from the "+" menu, and pick a model on the right.',
   },
   {
     target: '[data-tour="nav-memories"]',
