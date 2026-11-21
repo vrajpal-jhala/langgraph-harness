@@ -1,6 +1,11 @@
 import { sql } from 'kysely';
 
-import type { NewRunSummary, NudgeStats, OwnCommentsSummary } from '#types.js';
+import type {
+  GitProvider,
+  NewRunSummary,
+  NudgeStats,
+  OwnCommentsSummary,
+} from '#types.js';
 import { RunKind } from '#types.js';
 
 import { db } from '#utils/db.js';
@@ -212,6 +217,8 @@ export const analyticsDal = {
     offset: number;
   }) => {
     const repoExpr = sql<string>`coalesce(threads.metadata->>'project', '(unknown)')`;
+    // GitLab and GitHub can share a path (e.g. the same demo repo on both), so a path alone would merge them.
+    const providerExpr = sql<GitProvider>`threads.metadata->>'source'`;
 
     const base = () =>
       db
@@ -226,6 +233,7 @@ export const analyticsDal = {
 
     const rows = await base()
       .select((eb) => [
+        providerExpr.as('provider'),
         repoExpr.as('repo'),
         eb.fn.countAll<string>().as('totalRuns'),
         sql<string>`count(distinct runs.thread_id)`.as('totalThreads'),
@@ -235,7 +243,7 @@ export const analyticsDal = {
           .as('failedRuns'),
         eb.fn.avg<string>('duration_ms').as('avgDurationMs'),
       ])
-      .groupBy(repoExpr)
+      .groupBy([providerExpr, repoExpr])
       .orderBy('totalRuns', 'desc')
       .limit(limit)
       .offset(offset)
@@ -243,7 +251,10 @@ export const analyticsDal = {
 
     const { total } = await db
       .selectFrom(
-        base().select(repoExpr.as('repo')).groupBy(repoExpr).as('repos'),
+        base()
+          .select([providerExpr.as('provider'), repoExpr.as('repo')])
+          .groupBy([providerExpr, repoExpr])
+          .as('repos'),
       )
       .select((eb) => eb.fn.countAll<string>().as('total'))
       .executeTakeFirstOrThrow();
@@ -253,6 +264,7 @@ export const analyticsDal = {
         const totalRuns = Number(row.totalRuns);
         const totalThreads = Number(row.totalThreads);
         return {
+          provider: row.provider,
           repo: row.repo,
           totalRuns,
           totalThreads,

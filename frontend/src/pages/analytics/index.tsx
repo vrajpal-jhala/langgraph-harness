@@ -20,9 +20,14 @@ import {
   useMantineTheme,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconChartBar, IconHelpCircle } from '@tabler/icons-react';
+import {
+  IconBrandGithub,
+  IconBrandGitlab,
+  IconChartBar,
+  IconHelpCircle,
+} from '@tabler/icons-react';
 
-import { RunKind } from '@/types';
+import { GitProvider, RunKind } from '@/types';
 
 import Icon from '@/components/icon';
 
@@ -44,6 +49,22 @@ type RepoRow = NonNullable<
 type TrendPoint = NonNullable<
   Awaited<ReturnType<typeof api.analytics.trend.get>>['data']
 >[number];
+
+const RepoName = ({ row }: { row: RepoRow }) => {
+  const github = row.provider === GitProvider.GitHub;
+  return (
+    <Group gap={6} wrap="nowrap">
+      <Icon
+        as={github ? IconBrandGithub : IconBrandGitlab}
+        aria-label={github ? 'GitHub' : 'GitLab'}
+        role="img"
+      />
+      <Text size="sm" truncate>
+        {row.repo}
+      </Text>
+    </Group>
+  );
+};
 
 const KIND_OPTIONS = [
   { label: 'Reviews', value: RunKind.MrReview },
@@ -787,10 +808,13 @@ const AnalyticsPage = () => {
               ) : isMobile ? (
                 <Stack gap="xs">
                   {repos.map((row) => (
-                    <Card key={row.repo} withBorder radius="md" padding="sm">
-                      <Text size="sm" truncate>
-                        {row.repo}
-                      </Text>
+                    <Card
+                      key={`${row.provider}:${row.repo}`}
+                      withBorder
+                      radius="md"
+                      padding="sm"
+                    >
+                      <RepoName row={row} />
                       <Group gap="xs" mt={4}>
                         <Text size="xs" c="dimmed">
                           {row.totalThreads} {repoUnit}
@@ -836,11 +860,9 @@ const AnalyticsPage = () => {
                       </Table.Thead>
                       <Table.Tbody>
                         {repos.map((row) => (
-                          <Table.Tr key={row.repo}>
+                          <Table.Tr key={`${row.provider}:${row.repo}`}>
                             <Table.Td>
-                              <Text size="sm" truncate>
-                                {row.repo}
-                              </Text>
+                              <RepoName row={row} />
                             </Table.Td>
                             <Table.Td>{row.totalThreads}</Table.Td>
                             <Table.Td>{row.totalRuns}</Table.Td>

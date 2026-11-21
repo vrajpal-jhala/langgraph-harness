@@ -2406,6 +2406,7 @@ export declare const app: Elysia<"", {
 					response: {
 						200: {
 							repos: {
+								provider: GitProvider;
 								repo: string;
 								totalRuns: number;
 								totalThreads: number;
