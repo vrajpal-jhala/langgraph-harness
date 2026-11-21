@@ -20,15 +20,21 @@ import {
   useMantineTheme,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconChartBar, IconHelpCircle } from '@tabler/icons-react';
+import {
+  IconBrandGithub,
+  IconBrandGitlab,
+  IconChartBar,
+  IconHelpCircle,
+} from '@tabler/icons-react';
 
-import { RunKind } from '@/types';
+import { GitProvider, RunKind } from '@/types';
 
 import Icon from '@/components/icon';
 
 import { api } from '@/api';
 import { Context } from '@/contexts';
-import { formatDuration } from '@/utils';
+import { useAuth } from '@/hooks/useAuth';
+import { formatDuration, showsProvider } from '@/utils';
 
 const REPOS_PER_PAGE = 20;
 
@@ -44,6 +50,35 @@ type RepoRow = NonNullable<
 type TrendPoint = NonNullable<
   Awaited<ReturnType<typeof api.analytics.trend.get>>['data']
 >[number];
+
+const RepoName = ({
+  row,
+  showProvider,
+}: {
+  row: RepoRow;
+  showProvider: boolean;
+}) => {
+  if (!showProvider) {
+    return (
+      <Text size="sm" truncate>
+        {row.repo}
+      </Text>
+    );
+  }
+  const github = row.provider === GitProvider.GitHub;
+  return (
+    <Group gap={6} wrap="nowrap">
+      <Icon
+        as={github ? IconBrandGithub : IconBrandGitlab}
+        aria-label={github ? 'GitHub' : 'GitLab'}
+        role="img"
+      />
+      <Text size="sm" truncate>
+        {row.repo}
+      </Text>
+    </Group>
+  );
+};
 
 const KIND_OPTIONS = [
   { label: 'Reviews', value: RunKind.MrReview },
@@ -119,6 +154,7 @@ const formatChartDate = (label: unknown) => {
 
 const AnalyticsPage = () => {
   const { handleError } = use(Context);
+  const { providers } = useAuth();
   const theme = useMantineTheme();
   const isMobile =
     useMediaQuery(`(max-width: ${theme.breakpoints.sm})`) ?? false;
@@ -149,7 +185,7 @@ const AnalyticsPage = () => {
     });
     api.threads.projects.get().then(({ data, error }) => {
       if (error) handleError(error.value, 'Failed to fetch projects');
-      if (data) setProjects(data);
+      if (data) setProjects([...new Set(data.map((p) => p.project))]);
     });
   }, [handleError]);
 
@@ -204,6 +240,10 @@ const AnalyticsPage = () => {
   }, [kind, selectedProject, page, handleError]);
 
   const totalPages = Math.max(1, Math.ceil(totalRepos / REPOS_PER_PAGE));
+  const showProvider = showsProvider(
+    providers,
+    repos.map((row) => row.provider),
+  );
   const isEmpty = overview !== null && overview.total === 0;
   const repoUnit = kind === RunKind.WorkItemResolve ? 'Issue' : 'MR';
 
@@ -787,10 +827,13 @@ const AnalyticsPage = () => {
               ) : isMobile ? (
                 <Stack gap="xs">
                   {repos.map((row) => (
-                    <Card key={row.repo} withBorder radius="md" padding="sm">
-                      <Text size="sm" truncate>
-                        {row.repo}
-                      </Text>
+                    <Card
+                      key={`${row.provider}:${row.repo}`}
+                      withBorder
+                      radius="md"
+                      padding="sm"
+                    >
+                      <RepoName row={row} showProvider={showProvider} />
                       <Group gap="xs" mt={4}>
                         <Text size="xs" c="dimmed">
                           {row.totalThreads} {repoUnit}
@@ -836,11 +879,9 @@ const AnalyticsPage = () => {
                       </Table.Thead>
                       <Table.Tbody>
                         {repos.map((row) => (
-                          <Table.Tr key={row.repo}>
+                          <Table.Tr key={`${row.provider}:${row.repo}`}>
                             <Table.Td>
-                              <Text size="sm" truncate>
-                                {row.repo}
-                              </Text>
+                              <RepoName row={row} showProvider={showProvider} />
                             </Table.Td>
                             <Table.Td>{row.totalThreads}</Table.Td>
                             <Table.Td>{row.totalRuns}</Table.Td>

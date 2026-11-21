@@ -24,6 +24,7 @@ import {
 } from '@tabler/icons-react';
 
 import {
+  GitProvider,
   type Memory,
   MEMORY_CATEGORIES,
   type MemoryCategory,
@@ -38,7 +39,11 @@ import { api } from '@/api';
 import { Context } from '@/contexts';
 import { useAuth } from '@/hooks/useAuth';
 import { useConfirmAction } from '@/hooks/useConfirmAction';
-import { formatDate } from '@/utils';
+import { formatDate, showsProvider } from '@/utils';
+
+type Project = NonNullable<
+  Awaited<ReturnType<typeof api.threads.projects.get>>['data']
+>[number];
 
 const CATEGORY_LABEL: Record<string, string> = {
   knowledge: 'Knowledge',
@@ -80,7 +85,7 @@ function entryFooterText(entry: Memory): string {
 
 const MemoriesPage = () => {
   const { handleError } = use(Context);
-  const { user } = useAuth();
+  const { user, providers } = useAuth();
   const deleteMemory = useConfirmAction<{
     id: string;
     category: MemoryCategory;
@@ -92,7 +97,7 @@ const MemoriesPage = () => {
     destructive: true,
   });
   const [selected, setSelected] = useState<string | null>(null);
-  const [projects, setProjects] = useState<string[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [projectCounts, setProjectCounts] = useState<Record<string, number>>(
     {},
   );
@@ -143,19 +148,28 @@ const MemoriesPage = () => {
   );
 
   // Projects surface which ones actually have memories up front, instead of making the user pick each one to find out.
-  const options = useMemo(
-    () => [
+  const options = useMemo(() => {
+    const labelProvider = showsProvider(
+      providers,
+      projects.map((p) => p.provider),
+    );
+    return [
       // Personal pinned first
       { value: MemoryScope.Personal, label: 'Personal' },
       ...[...projects]
         .sort((a, b) => {
-          const diff = (projectCounts[b] ?? 0) - (projectCounts[a] ?? 0);
-          return diff !== 0 ? diff : a.localeCompare(b);
+          const diff =
+            (projectCounts[b.repoKey] ?? 0) - (projectCounts[a.repoKey] ?? 0);
+          return diff !== 0 ? diff : a.project.localeCompare(b.project);
         })
-        .map((project) => ({ value: project, label: project })),
-    ],
-    [projects, projectCounts],
-  );
+        .map(({ provider, project, repoKey }) => ({
+          value: repoKey,
+          label: labelProvider
+            ? `${project} (${provider === GitProvider.GitHub ? 'GitHub' : 'GitLab'})`
+            : project,
+        })),
+    ];
+  }, [projects, projectCounts, providers]);
 
   useEffect(() => {
     if (!selected) return;

@@ -122,7 +122,7 @@ const ThreadsPage = () => {
   // Fetch projects once on mount for the filter dropdown.
   useEffect(() => {
     api.threads.projects.get().then(({ data }) => {
-      if (data) setProjects(data);
+      if (data) setProjects([...new Set(data.map((p) => p.project))]);
     });
   }, []);
 

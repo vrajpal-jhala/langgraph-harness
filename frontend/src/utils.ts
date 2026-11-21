@@ -1,6 +1,8 @@
 import { config } from './config';
+import type { Providers } from './contexts';
 import type {
   ChatRunInput,
+  GitProvider,
   MrReviewRunInput,
   Run,
   RunInput,
@@ -159,3 +161,7 @@ export function getContextMeter(
     : '';
   return { percent, color, tooltipLabel };
 }
+
+// A switched-off provider's old data can still sit next to the live one's, so mixed items count too.
+export const showsProvider = (providers: Providers, shown: GitProvider[]) =>
+  (providers.gitlab && providers.github) || new Set(shown).size > 1;

@@ -8,6 +8,7 @@ import { threadsDal } from './dal.js';
 
 import { checkpointer } from '#utils/db.js';
 import { errors } from '#utils/errors.js';
+import { gitHosts } from '#utils/git-host.js';
 import { logger } from '#utils/logger.js';
 
 async function checkThreadAccess(
@@ -97,5 +98,11 @@ export const threadsService = {
 
   list: (params: ThreadFilters) => threadsDal.list(params),
 
-  listProjects: () => threadsDal.listProjects(),
+  // repoKey is what memories are stored under, so the memories page can open a GitHub repo's.
+  listProjects: async () =>
+    (await threadsDal.listProjects()).map(({ provider, project }) => ({
+      provider,
+      project,
+      repoKey: gitHosts[provider].repoKey(project),
+    })),
 };

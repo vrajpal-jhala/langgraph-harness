@@ -2,6 +2,15 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.6.1] - 2026-11-22
+
+### Fixes
+
+- **Analytics merged a GitLab project and a GitHub repo with the same path into one row** — the "By repository" table grouped runs by path alone, so a repo that exists on both providers showed one row with both providers' runs added together. Each provider now gets its own row, marked with its icon when both providers are in use. ([#80](https://github.com/vrajpal-jhala/langgraph-harness/pull/80))
+- **A GitHub repo's project memories couldn't be opened** — the memories page listed repos by path, but GitHub memories are stored under a separate key, so picking a GitHub repo showed nothing, or the GitLab project's memories when the path existed on both. Each repo now opens its own memories, labeled with its provider when both providers are in use. ([#80](https://github.com/vrajpal-jhala/langgraph-harness/pull/80))
+
+---
+
 ## [0.6.0] - 2026-11-21
 
 ### Features
