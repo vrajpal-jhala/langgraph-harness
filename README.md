@@ -91,6 +91,18 @@ Self-hosted via Docker Compose; production deploys are automated through GitLab 
 
 Curious how this got built? [The Story So Far](https://vrajpal-jhala.github.io/langgraph-harness/journey).
 
+## Built On
+
+langgraph-harness stands on these open-source projects:
+
+- [LangGraph.js](https://github.com/langchain-ai/langgraphjs) and [LangChain.js](https://github.com/langchain-ai/langchainjs): the agent graphs, checkpoints, middleware and MCP adapters
+- [GitLab MCP server](https://github.com/zereight/gitlab-mcp) and [GitHub MCP server](https://github.com/github/github-mcp-server): the agents' GitLab and GitHub tools
+- [OpenSandbox](https://github.com/opensandbox-group/OpenSandbox): isolated sandboxes for code-changing runs
+- [Lightpanda](https://github.com/lightpanda-io/browser) and [Readability](https://github.com/mozilla/readability): the headless browser and content extraction behind web fetch
+- [supermemory](https://github.com/supermemoryai/supermemory): semantic search over project issue history
+- [Elysia](https://github.com/elysiajs/elysia), [Better Auth](https://github.com/better-auth/better-auth), [Kysely](https://github.com/kysely-org/kysely) and [BullMQ](https://github.com/taskforcesh/bullmq): the API server, sign-in, database access and job queues
+- [Mantine](https://github.com/mantinedev/mantine): the UI components
+
 ---
 
-"LangGraph" is a trademark of LangChain, Inc., used here under nominative fair use to describe the framework this project is built on. This project is independent and not affiliated with LangChain, Inc. — see [DISCLAIMER.md](DISCLAIMER.md). Licensed under the [MIT License](LICENSE).
+"LangGraph" is a trademark of LangChain, Inc., used here under nominative fair use to describe the framework this project is built on. GitLab, GitLab Duo, GitHub and GitHub Copilot are trademarks of their respective owners, named here only to describe compatibility and comparison. This project is independent and not affiliated with any of them — see [DISCLAIMER.md](DISCLAIMER.md). Licensed under the [MIT License](LICENSE).
