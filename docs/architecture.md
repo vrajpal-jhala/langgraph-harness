@@ -88,10 +88,10 @@ flowchart TB
     subgraph LOOP3["Agent loop"]
       direction TB
       LLM3["LLM agent<br/>OpenRouter only"]
-      TOOLS3["Personal memory · review/chat search ·<br/>full GitLab MCP (user's own token) · web fetch"]
+      TOOLS3["Personal memory · review/chat search ·<br/>full GitLab MCP + GitHub MCP<br/>(user's own tokens) · web fetch"]
     end
     APPROVAL3["Human-approval gate<br/>pauses write-capable tool calls for user decision"]
-    REPLY3["Reply<br/>streamed to UI · optional GitLab writes as the user"]
+    REPLY3["Reply<br/>streamed to UI · optional GitLab/GitHub writes as the user"]
   end
 
   %% ---------- MEMORY ----------
@@ -224,7 +224,7 @@ flowchart TB
 ### 🟩 Built — Chat harness
 
 - No webhook, no queue — `startMode: 'immediate'`, runs synchronously when the user sends a message; `interruptible: true` so a paused run can resume later, not just abort
-- Tool surface built fresh per run, scoped to the signed-in user: personal-memory CRUD, review/chat content + thread search always on; the full GitLab MCP toolset (not an allowlist, unlike MR Review) gated on the user's own OAuth token; web-page fetch (headless browser + Readability) gated behind a toggle
+- Tool surface built fresh per run, scoped to the signed-in user: personal-memory CRUD, review/chat content + thread search always on; the full GitLab MCP toolset (not an allowlist, unlike MR Review) gated on the user's own GitLab OAuth token, and GitHub MCP's `context`/`repos`/`issues`/`pull_requests` toolsets gated on their GitHub OAuth token; web-page fetch (headless browser + Readability) gated behind a toggle
 - Human-approval gate: any tool call the MCP server itself doesn't mark `readOnlyHint` pauses the run for the user to approve/decline before it executes — a real pause/resume via forking the LangGraph checkpoint, not a soft prompt instruction
 - Reply streamed to the UI; GitLab writes only ever happen as the signed-in user's own token, never a shared bot credential
 
