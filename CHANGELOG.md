@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.6.2] - 2026-11-24
+
+### Fixes
+
+- **An unused provider's MCP server still ran** — both MCP containers started even on a single-provider deployment. Now only the configured providers' servers start; a manual `docker compose up -d` needs `COMPOSE_PROFILES` (e.g. `gitlab,github`) to include them. ([#81](https://github.com/vrajpal-jhala/langgraph-harness/pull/81))
+
+---
+
 ## [0.6.1] - 2026-11-22
 
 ### Fixes

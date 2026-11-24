@@ -16,9 +16,14 @@ mkdir -p "${DATA_PATH}/app"
 mkdir -p "${DATA_PATH}/supermemory"
 mkdir -p "${DATA_PATH}/opensandbox"
 
+# The backend only connects to a configured provider's MCP server, so skip the other's.
+mcp=()
+[ -n "${GITLAB_PAT:-}" ] && mcp+=(gitlab-mcp)
+[ -n "${GITHUB_PAT:-}" ] && mcp+=(github-mcp)
+
 docker compose up -d --build postgres redis
 docker compose --profile migrate run --rm db-migrate
-docker compose up -d --build lightpanda gitlab-mcp github-mcp supermemory opensandbox monitoring
+docker compose up -d --build lightpanda "${mcp[@]}" supermemory opensandbox monitoring
 docker compose up -d --no-deps backend frontend
 
 echo "Deploy complete. Server running at http://localhost:3698 and App running at http://localhost:5173"
