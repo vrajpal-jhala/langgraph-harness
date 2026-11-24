@@ -13,7 +13,7 @@ They share the Postgres checkpointer, the project/personal-memory store, and the
 
 - **MR Review** — GitLab or GitHub MCP tools (bot token) against a bare worktree, no sandbox.
 - **Work Item Resolve and Task Resolve** — sandbox shell + file access, a read+reply MCP allowlist for the run's provider (GitLab or GitHub, bot token), and a web-fetch tool (headless browser + Readability, SSRF-guarded).
-- **Chat** — the user's own GitLab token against the full MCP toolset, plus personal memory and its own web-fetch tools.
+- **Chat** — the user's own GitLab and GitHub tokens against those providers' MCP tools, plus personal memory and its own web-fetch tools.
 
 So none of them is a variant of another's loop — though Work Item Resolve and Task Resolve go further and share the exact same compiled agent (`agent.ts`: same middleware stack, same tool set), differing only in what triggers a run and what supplies the task.
 
