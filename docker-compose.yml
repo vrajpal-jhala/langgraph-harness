@@ -56,6 +56,8 @@ services:
       # Token comes from each request's Authorization header, not the env.
       REMOTE_AUTHORIZATION: 'true'
       HOST: 0.0.0.0
+      # Its DNS-rebinding guard rejects any non-loopback Host header, and the backend calls it as gitlab-mcp:3002.
+      MCP_ALLOWED_HOSTS: gitlab-mcp:3002
       GITLAB_API_URL: ${GITLAB_API_URL}
       GITLAB_TOOLSETS: all
       GITLAB_DISABLE_VERSION_CHECK: 'true'

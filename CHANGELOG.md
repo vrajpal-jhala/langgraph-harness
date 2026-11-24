@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.6.3] - 2026-11-24
+
+### Fixes
+
+- **The backend didn't start after upgrading to 0.6.x with Docker** — the `gitlab-mcp` container rejected the backend's requests because they didn't come from `localhost`, so the backend couldn't load its GitLab tools and kept restarting. The container now accepts requests from the backend. ([#82](https://github.com/vrajpal-jhala/langgraph-harness/pull/82))
+
+---
+
 ## [0.6.2] - 2026-11-24
 
 ### Fixes
