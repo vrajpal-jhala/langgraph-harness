@@ -16,10 +16,15 @@ set -a && source backend/.env && set +a
 : "${DATA_PATH:?DATA_PATH is not set in backend/.env}"
 mkdir -p "$DATA_PATH"
 
+# The backend only connects to a configured provider's MCP server, so skip the other's.
+mcp=()
+[ -n "${GITLAB_PAT:-}" ] && mcp+=(gitlab-mcp)
+[ -n "${GITHUB_PAT:-}" ] && mcp+=(github-mcp)
+
 docker compose build backend frontend db-migrate github-mcp supermemory opensandbox monitoring
 docker compose --profile migrate run --rm db-migrate
 # New service? Add it here too — this deploy flow never creates one automatically.
-docker compose up -d lightpanda gitlab-mcp github-mcp supermemory docker-socket-proxy-kata opensandbox docker-socket-proxy-system monitoring
+docker compose up -d lightpanda "${mcp[@]}" supermemory docker-socket-proxy-kata opensandbox docker-socket-proxy-system monitoring
 docker compose up -d --no-deps --force-recreate backend frontend
 
 echo "Pruning build cache unused for 7+ days..."

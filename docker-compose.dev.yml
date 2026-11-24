@@ -54,6 +54,7 @@ services:
     restart: unless-stopped
 
   gitlab-mcp:
+    profiles: [gitlab]
     image: zereight050/gitlab-mcp:2.3.4
     container_name: harness_gitlab_mcp
     environment:
@@ -78,6 +79,7 @@ services:
     restart: unless-stopped
 
   github-mcp:
+    profiles: [github]
     # Distroless, with no shell or health subcommand, so busybox is copied in only for the health check.
     build:
       dockerfile_inline: |

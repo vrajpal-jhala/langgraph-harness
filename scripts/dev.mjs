@@ -23,10 +23,24 @@ const composeArgs = [
   'docker-compose.dev.yml',
 ];
 
-const up = spawnSync('docker', [...composeArgs, 'up', '-d', '--wait'], {
+// The backend only connects to a configured provider's MCP server, so skip the other's.
+const COMPOSE_PROFILES = [
+  process.env.GITLAB_PAT && 'gitlab',
+  process.env.GITHUB_PAT && 'github',
+]
+  .filter(Boolean)
+  .join(',');
+const composeOptions = {
   stdio: 'inherit',
   cwd: root,
-});
+  env: { ...process.env, COMPOSE_PROFILES },
+};
+
+const up = spawnSync(
+  'docker',
+  [...composeArgs, 'up', '-d', '--wait'],
+  composeOptions,
+);
 if (up.status !== 0) process.exit(up.status ?? 1);
 
 const migrate = spawnSync('npm', ['run', 'migrate'], {
@@ -44,10 +58,7 @@ let exited = false;
 function shutdown(code) {
   if (exited) return;
   exited = true;
-  spawnSync('docker', [...composeArgs, 'down'], {
-    stdio: 'inherit',
-    cwd: root,
-  });
+  spawnSync('docker', [...composeArgs, 'down'], composeOptions);
   process.exit(code ?? 0);
 }
 
