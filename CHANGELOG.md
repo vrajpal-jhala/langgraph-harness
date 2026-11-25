@@ -6,7 +6,7 @@ All notable changes to langgraph-harness are documented here.
 
 ### Features
 
-- **A stopped run now says why** — a run stopped early used to fail with just "Aborted". It now names the reason and who caused it, such as the merge request being merged or someone clicking Stop. A run cancelled while still queued says the same instead of "Cancelled".
+- **A stopped run now says why** — a run stopped early used to fail with just "Aborted". It now names the reason and who caused it, such as the merge request being merged or someone clicking Stop. A run cancelled while still queued says the same instead of "Cancelled". ([#85](https://github.com/vrajpal-jhala/langgraph-harness/pull/85))
 
 ---
 
