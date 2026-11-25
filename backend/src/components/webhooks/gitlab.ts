@@ -45,6 +45,7 @@ async function handleIssueAssignmentEvent(
   const issueIid = object_attributes?.iid;
   const projectPath = project?.path_with_namespace;
   const action = object_attributes?.action;
+  const by = user?.username ? ` by @${user.username}` : '';
 
   if (!issueIid || !projectPath || !config.gitlab.username)
     return {
@@ -70,7 +71,8 @@ async function handleIssueAssignmentEvent(
   if (action === 'close') {
     const existingThread = await threadsDal.findByMetadata(issueMetadata);
     // Otherwise a run already underway still opens or updates an MR for an issue nobody wants anymore.
-    if (existingThread) await threadsService.stopRuns(existingThread.id);
+    if (existingThread)
+      await threadsService.stopRuns(existingThread.id, `Issue closed${by}`);
 
     // Worktree cleanup is the fallback for an issue closed with no MR ever opened — once one exists, its own merge/close event owns it instead.
     if (existingThread?.metadata?.codeChangeRequestNumber)
@@ -112,7 +114,7 @@ async function handleIssueAssignmentEvent(
         status: 'skipped',
         reason: 'no_matching_thread',
       };
-    await threadsService.stopRuns(existingThread.id);
+    await threadsService.stopRuns(existingThread.id, `Agent unassigned${by}`);
     return { received: true, status: 'accepted', detail: 'runs_stopped' };
   }
 
@@ -216,7 +218,7 @@ async function handleNoteEvent(body: any) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleMergeRequestEvent(body: any) {
-  const { object_attributes, project, changes, reviewers } = body ?? {};
+  const { object_attributes, project, changes, reviewers, user } = body ?? {};
 
   const action = object_attributes?.action;
   const mrIid = object_attributes?.iid;
@@ -233,9 +235,11 @@ async function handleMergeRequestEvent(body: any) {
 
   // MR lifecycle end — clean up its worktree, independent of the review flow below. No memories cleanup: codeChangeRequestNumber metadata isn't reliably attributable to one MR, and the curator retires stale memories on its own anyway.
   if (action === 'merge' || action === 'close') {
+    const by = user?.username ? ` by @${user.username}` : '';
+    const stopReason = `Merge request ${action === 'merge' ? 'merged' : 'closed'}${by}`;
     // Otherwise a queued or running review still posts on a merge request nobody will merge.
     const thread = await threadsDal.findByMetadata(mrMetadata);
-    if (thread) await threadsService.stopRuns(thread.id);
+    if (thread) await threadsService.stopRuns(thread.id, stopReason);
 
     await repositoriesManager.cleanupWorktree({
       repo: host.repoKey(projectPath),
@@ -250,7 +254,8 @@ async function handleMergeRequestEvent(body: any) {
       codeChangeRequestNumber: String(mrIid),
     });
     // Its worktree is removed below, so a follow-up still running would push to a finished branch.
-    if (resolveThread) await threadsService.stopRuns(resolveThread.id);
+    if (resolveThread)
+      await threadsService.stopRuns(resolveThread.id, stopReason);
 
     // Stored as a raw JSON number from the original webhook payload, not pre-stringified — coerce below.
     const issueIidFromMetadata = resolveThread?.metadata?.number;

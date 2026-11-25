@@ -300,21 +300,21 @@ export const runsService = {
     return run;
   },
 
-  abort: (runId: string) => {
+  abort: (runId: string, reason: string) => {
     const controller = abortControllers.get(runId);
     if (!controller) throw errors.runs.notActive();
-    controller.abort();
+    controller.abort(new DOMException(reason, 'AbortError'));
   },
 
   // Kept separate from abort() since abort() also has an internal caller (threadsService.delete()) that skips this ownership check.
-  requestAbort: async (id: string, runId: string) => {
+  requestAbort: async (id: string, runId: string, session: Session) => {
     await runsService.getById(runId, id); // confirms runId belongs to thread id
-    runsService.abort(runId);
+    runsService.abort(runId, `Stopped by ${session.name}`);
   },
 
   abortAll: () => {
     for (const controller of abortControllers.values()) {
-      controller.abort();
+      controller.abort(new DOMException('Server restarting', 'AbortError'));
     }
   },
 
@@ -472,7 +472,8 @@ async function execute<TInput, TSecrets>(
           : isRunAborted
             ? err.message
             : isAbort
-              ? 'Aborted'
+              ? ((controller.signal.reason as DOMException | undefined)
+                  ?.message ?? 'Aborted')
               : err instanceof Error
                 ? err.message
                 : 'Unknown error';

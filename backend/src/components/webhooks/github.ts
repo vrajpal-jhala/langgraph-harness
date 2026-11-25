@@ -26,6 +26,8 @@ const host = gitHosts[GitProvider.GitHub];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleIssuesEvent(body: any) {
   const { action, issue, repository, assignee, sender } = body ?? {};
+  const senderLogin = (sender as GitHubUser | undefined)?.login;
+  const by = senderLogin ? ` by @${senderLogin}` : '';
   const issueNumber = issue?.number;
   const projectPath: string | undefined = repository?.full_name;
 
@@ -53,7 +55,8 @@ async function handleIssuesEvent(body: any) {
   if (action === 'closed') {
     const existingThread = await threadsDal.findByMetadata(issueMetadata);
     // Otherwise a run already underway still opens or updates a PR for an issue nobody wants anymore.
-    if (existingThread) await threadsService.stopRuns(existingThread.id);
+    if (existingThread)
+      await threadsService.stopRuns(existingThread.id, `Issue closed${by}`);
 
     // Worktree cleanup is the fallback for an issue closed with no PR ever opened — once one exists, its own close event owns it instead.
     if (existingThread?.metadata?.codeChangeRequestNumber)
@@ -88,7 +91,7 @@ async function handleIssuesEvent(body: any) {
         status: 'skipped',
         reason: 'no_matching_thread',
       };
-    await threadsService.stopRuns(existingThread.id);
+    await threadsService.stopRuns(existingThread.id, `Agent unassigned${by}`);
     return { received: true, status: 'accepted', detail: 'runs_stopped' };
   }
 
@@ -125,7 +128,8 @@ async function handleIssuesEvent(body: any) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handlePullRequestEvent(body: any) {
-  const { action, pull_request, repository, requested_reviewer } = body ?? {};
+  const { action, pull_request, repository, requested_reviewer, sender } =
+    body ?? {};
   const prNumber = pull_request?.number;
   const projectPath: string | undefined = repository?.full_name;
 
@@ -140,9 +144,12 @@ async function handlePullRequestEvent(body: any) {
 
   // PR lifecycle end — clean up its worktree, independent of the review flow below. No memories cleanup: codeChangeRequestNumber metadata isn't reliably attributable to one PR, and the curator retires stale memories on its own anyway.
   if (action === 'closed') {
+    const senderLogin = (sender as GitHubUser | undefined)?.login;
+    const by = senderLogin ? ` by @${senderLogin}` : '';
+    const stopReason = `Pull request ${pull_request.merged ? 'merged' : 'closed'}${by}`;
     // Otherwise a queued or running review still posts on a pull request nobody will merge.
     const thread = await threadsDal.findByMetadata(prMetadata);
-    if (thread) await threadsService.stopRuns(thread.id);
+    if (thread) await threadsService.stopRuns(thread.id, stopReason);
 
     await repositoriesManager.cleanupWorktree({
       repo: host.repoKey(projectPath),
@@ -157,7 +164,8 @@ async function handlePullRequestEvent(body: any) {
       codeChangeRequestNumber: String(prNumber),
     });
     // Its worktree is removed below, so a follow-up still running would push to a finished branch.
-    if (resolveThread) await threadsService.stopRuns(resolveThread.id);
+    if (resolveThread)
+      await threadsService.stopRuns(resolveThread.id, stopReason);
 
     // A task has no issue — its worktree is keyed by the thread instead.
     const target =
