@@ -195,7 +195,7 @@ export const api = new Elysia({ prefix: '/api' })
           )
           .post('/:runId/abort', async ({ params, session, set }) => {
             await threadsService.assertCanMutate(params.id, session);
-            await runsService.requestAbort(params.id, params.runId);
+            await runsService.requestAbort(params.id, params.runId, session);
             set.status = 204;
           }),
       )
