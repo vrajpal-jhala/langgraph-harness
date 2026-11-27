@@ -2,13 +2,25 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.8.0] - 2026-11-27
+
+### Features
+
+- **Chat can answer analytics questions** — with server tools turned on, you can ask chat things like "what was the review failure rate last week?" or "which repo has the most failed issue runs?" and it answers from the same data as the Analytics page: run counts, success and failure rates by cause, durations, average tokens per run, a per-repo breakdown, a day-by-day trend, and overall user, review, chat and memory totals. It looks at the last 30 days unless you ask about a different period.
+
+### Fixes
+
+- **A chat on a model that's no longer offered couldn't continue** — once a model was removed from the model picker, its chats failed with "Unknown model". The chat now says the model is no longer available above the message box and carries on with the first model in the picker until you pick another. Its earlier messages can no longer be retried.
+
+---
+
 ## [0.7.2] - 2026-11-27
 
 ### Fixes
 
-- **The Abort button disappeared after retrying a run** — a retried run that was still waiting in the queue briefly showed as completed, which hid the button until the page caught up. It now shows as queued.
-- **A queued run couldn't be stopped** — the button only appeared once a run had started. A queued run now shows a Cancel button that takes it out of the queue, and the run says who cancelled it.
-- **A run stopped just as it was starting could still go ahead** — closing an issue, unassigning the bot, merging or closing a merge request, or cancelling a queued run at the moment a worker picked it up marked the run as stopped, but it then carried on in full and could still push changes. It now stays stopped.
+- **The Abort button disappeared after retrying a run** — a retried run that was still waiting in the queue briefly showed as completed, which hid the button until the page caught up. It now shows as queued. ([#89](https://github.com/vrajpal-jhala/langgraph-harness/pull/89))
+- **A queued run couldn't be stopped** — the button only appeared once a run had started. A queued run now shows a Cancel button that takes it out of the queue, and the run says who cancelled it. ([#89](https://github.com/vrajpal-jhala/langgraph-harness/pull/89))
+- **A run stopped just as it was starting could still go ahead** — closing an issue, unassigning the bot, merging or closing a merge request, or cancelling a queued run at the moment a worker picked it up marked the run as stopped, but it then carried on in full and could still push changes. It now stays stopped. ([#89](https://github.com/vrajpal-jhala/langgraph-harness/pull/89))
 
 ---
 
@@ -16,8 +28,8 @@ All notable changes to langgraph-harness are documented here.
 
 ### Fixes
 
-- **A run waiting in the queue could fail right after a restart** — a review, issue or task run queued before the backend restarted could be picked up before the backend had finished starting, and failed straight away with "Workflow not initialized". Queued work now waits until startup is complete.
-- **Issue and task runs cut short by a restart stayed failed** — a restart failed every issue or task run that was queued or underway with "Server restarted", and the issue or merge request kept showing the bot as still working. These runs now start again on their own after a restart, as reviews already did.
+- **A run waiting in the queue could fail right after a restart** — a review, issue or task run queued before the backend restarted could be picked up before the backend had finished starting, and failed straight away with "Workflow not initialized". Queued work now waits until startup is complete. ([#88](https://github.com/vrajpal-jhala/langgraph-harness/pull/88))
+- **Issue and task runs cut short by a restart stayed failed** — a restart failed every issue or task run that was queued or underway with "Server restarted", and the issue or merge request kept showing the bot as still working. These runs now start again on their own after a restart, as reviews already did. ([#88](https://github.com/vrajpal-jhala/langgraph-harness/pull/88))
 
 ---
 
