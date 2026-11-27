@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.10.2] - 2026-11-27
+
+### Fixes
+
+- **Re-reviews started with every earlier review's full working history** — each new review of a merge request carried over every file, diff and search earlier reviews had read, often filling much of its context before it began. It now keeps only what each earlier review was asked and concluded, and the run's timeline shows when it does.
+
+---
+
 ## [0.10.1] - 2026-11-27
 
 ### Fixes
