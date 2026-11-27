@@ -6,11 +6,11 @@ All notable changes to langgraph-harness are documented here.
 
 ### Features
 
-- **Chat can answer analytics questions** — with server tools turned on, you can ask chat things like "what was the review failure rate last week?" or "which repo has the most failed issue runs?" and it answers from the same data as the Analytics page: run counts, success and failure rates by cause, durations, average tokens per run, a per-repo breakdown, a day-by-day trend, and overall user, review, chat and memory totals. It looks at the last 30 days unless you ask about a different period.
+- **Chat can answer analytics questions** — with server tools turned on, you can ask chat things like "what was the review failure rate last week?" or "which repo has the most failed issue runs?" and it answers from the same data as the Analytics page: run counts, success and failure rates by cause, durations, average tokens per run, a per-repo breakdown, a day-by-day trend, and overall user, review, chat and memory totals. It looks at the last 30 days unless you ask about a different period. ([#90](https://github.com/vrajpal-jhala/langgraph-harness/pull/90))
 
 ### Fixes
 
-- **A chat on a model that's no longer offered couldn't continue** — once a model was removed from the model picker, its chats failed with "Unknown model". The chat now says the model is no longer available above the message box and carries on with the first model in the picker until you pick another. Its earlier messages can no longer be retried.
+- **A chat on a model that's no longer offered couldn't continue** — once a model was removed from the model picker, its chats failed with "Unknown model". The chat now says the model is no longer available above the message box and carries on with the first model in the picker until you pick another. Its earlier messages can no longer be retried. ([#90](https://github.com/vrajpal-jhala/langgraph-harness/pull/90))
 
 ---
 
