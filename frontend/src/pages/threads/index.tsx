@@ -226,7 +226,8 @@ const ThreadsPage = () => {
     if (!thread.latest_run_started_at) return null;
     if (
       thread.latest_run_status !== 'completed' &&
-      thread.latest_run_status !== 'failed'
+      thread.latest_run_status !== 'failed' &&
+      thread.latest_run_status !== 'cancelled'
     )
       return null;
     if (thread.latest_run_completed_at) {
@@ -288,6 +289,7 @@ const ThreadsPage = () => {
             { value: 'queued', label: 'Queued' },
             { value: 'completed', label: 'Completed' },
             { value: 'failed', label: 'Failed' },
+            { value: 'cancelled', label: 'Cancelled' },
           ]}
           value={statusFilters}
           onChange={filterStatuses}

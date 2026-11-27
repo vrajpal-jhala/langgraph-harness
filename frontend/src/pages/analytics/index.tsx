@@ -508,8 +508,8 @@ const AnalyticsPage = () => {
                               ]
                             : []),
                           {
-                            name: 'manualAbort',
-                            label: 'Manually aborted',
+                            name: 'cancelled',
+                            label: 'Cancelled',
                             color: 'gray.6',
                           },
                           {
@@ -543,9 +543,13 @@ const AnalyticsPage = () => {
                     <Stack gap="xs">
                       <Stat
                         label="Success rate"
-                        value={`${Math.round((overview.successful / overview.total) * 100)}%`}
+                        value={
+                          overview.successRate === null
+                            ? '—'
+                            : `${Math.round(overview.successRate * 100)}%`
+                        }
                         c={
-                          overview.successful / overview.total >= 0.7
+                          (overview.successRate ?? 0) >= 0.7
                             ? 'green'
                             : undefined
                         }
@@ -585,8 +589,9 @@ const AnalyticsPage = () => {
                         />
                       )}
                       <Stat
-                        label="Manually aborted"
-                        value={overview.errorKinds.manualAbort}
+                        label="Cancelled"
+                        tooltip="Stopped on purpose — someone pressed Stop, or the merge request was merged or closed (the issue closed or unassigned, for work items). Not counted in the success rate."
+                        value={overview.errorKinds.cancelled}
                       />
                       <Stat
                         label="Model error"

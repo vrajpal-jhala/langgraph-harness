@@ -55,8 +55,8 @@ export const analyticsDal = {
           .as('guardAborts'),
         eb.fn
           .countAll<string>()
-          .filterWhere('run_summaries.error_kind', '=', 'manualAbort')
-          .as('manualAborts'),
+          .filterWhere('run_summaries.error_kind', '=', 'cancelled')
+          .as('cancelled'),
         eb.fn
           .countAll<string>()
           .filterWhere('run_summaries.error_kind', '=', 'modelError')
@@ -159,6 +159,7 @@ export const analyticsDal = {
     );
 
     const total = Number(scalars.total);
+    const cancelled = Number(scalars.cancelled);
     const distinctThreads = Number(scalars.distinctThreads);
 
     return {
@@ -167,10 +168,14 @@ export const analyticsDal = {
       // How many times, on average, a thread gets (re-)run — high for mr-review means lots of re-pushes triggering re-review.
       avgRunsPerThread: distinctThreads ? total / distinctThreads : null,
       successful: Number(scalars.successful),
+      successRate:
+        total - cancelled
+          ? Number(scalars.successful) / (total - cancelled)
+          : null,
       errorKinds: {
         timeout: Number(scalars.timeouts),
         guardAbort: Number(scalars.guardAborts),
-        manualAbort: Number(scalars.manualAborts),
+        cancelled,
         modelError: Number(scalars.modelErrors),
         serverRestart: Number(scalars.serverRestarts),
         generationLoop: Number(scalars.generationLoops),
@@ -240,6 +245,11 @@ export const analyticsDal = {
         eb.fn
           .countAll<string>()
           .filterWhere('run_summaries.success', '=', false)
+          .filterWhere(
+            'run_summaries.error_kind',
+            'is distinct from',
+            'cancelled',
+          )
           .as('failedRuns'),
         eb.fn.avg<string>('duration_ms').as('avgDurationMs'),
       ])
@@ -307,8 +317,8 @@ export const analyticsDal = {
           .as('guardAborts'),
         eb.fn
           .countAll<string>()
-          .filterWhere('run_summaries.error_kind', '=', 'manualAbort')
-          .as('manualAborts'),
+          .filterWhere('run_summaries.error_kind', '=', 'cancelled')
+          .as('cancelled'),
         eb.fn
           .countAll<string>()
           .filterWhere('run_summaries.error_kind', '=', 'modelError')
@@ -328,16 +338,17 @@ export const analyticsDal = {
 
     return rows.map((row) => {
       const total = Number(row.total);
+      const decided = total - Number(row.cancelled);
       return {
         date: row.day.toISOString().slice(0, 10),
         avgDurationMs: num(row.avgDurationMs)!,
         avgQueueWaitMs: num(row.avgQueueWaitMs),
         avgLlmBackendWaitMs: num(row.avgLlmBackendWaitMs)!,
         total,
-        successRate: total ? Number(row.successful) / total : null,
+        successRate: decided ? Number(row.successful) / decided : null,
         timeout: Number(row.timeouts),
         guardAbort: Number(row.guardAborts),
-        manualAbort: Number(row.manualAborts),
+        cancelled: Number(row.cancelled),
         modelError: Number(row.modelErrors),
         serverRestart: Number(row.serverRestarts),
         generationLoop: Number(row.generationLoops),

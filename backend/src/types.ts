@@ -957,6 +957,8 @@ export const RunStatus = {
   RUNNING: 'running',
   COMPLETED: 'completed',
   FAILED: 'failed',
+  // Stopped on purpose (user Stop, MR merged/closed, issue closed, unassigned) — kept out of success rate.
+  CANCELLED: 'cancelled',
   SUPERSEDED: 'superseded',
   INTERRUPTED: 'interrupted',
 } as const;
@@ -1006,7 +1008,7 @@ export interface RunTable {
 export type ErrorKind =
   | 'timeout'
   | 'guardAbort'
-  | 'manualAbort'
+  | 'cancelled'
   | 'modelError'
   | 'serverRestart'
   | 'generationLoop';
