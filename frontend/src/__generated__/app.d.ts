@@ -861,7 +861,18 @@ type ExtractProjectMemoryEndEvent = {
 		timestamp: number;
 	};
 };
-type RunStepEvent = RunStepStartEvent | RunStepEndEvent;
+type RunStepRetryEvent = {
+	event: "run_step_retry";
+	data: {
+		id: string;
+		step: typeof RunStep.PrepareWorktree;
+		count: number;
+		total: number;
+		error: string;
+		timestamp: number;
+	};
+};
+type RunStepEvent = RunStepStartEvent | RunStepRetryEvent | RunStepEndEvent;
 type LangGraphEvent = MessageEvent$1 | ReasoningStartEvent | ReasoningEndEvent | CheckpointEvent | ToolInputEvent | ToolOutputEvent;
 type WriterEvent = ToolInputEvent | ToolOutputEvent | MessageEvent$1 | ReasoningStartEvent | ReasoningEndEvent | NodeEvent | AgentPromptEvent | SubagentErrorEvent | ModelRetryEvent | ContextUsageEvent | LlmBackendWaitStartEvent | LlmBackendWaitEndEvent | SummarizeContextStartEvent | SummarizeContextEndEvent | CommentCriticStartEvent | CommentCriticEndEvent | ReplyCriticStartEvent | ReplyCriticEndEvent | CorrectiveNudgeStartEvent | CorrectiveNudgeEndEvent | ExtractProjectMemoryStartEvent | ExtractProjectMemoryEndEvent | InterruptEvent;
 type WorkflowEvent = LangGraphEvent | WriterEvent;

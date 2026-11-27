@@ -1,10 +1,64 @@
-import type { GitHost, RunEvent, WorktreeEntityType } from '#types.js';
+import type {
+  GitHost,
+  RunEvent,
+  RunStepRetryEvent,
+  WorktreeEntityType,
+} from '#types.js';
 import { RunStep } from '#types.js';
 
 import { repositoriesManager } from '#components/repositories/manager.js';
 import { gitService } from '#components/repositories/service.js';
 
 import { config } from '#utils/config.js';
+
+type AcquireWorktreeParams = Omit<
+  Parameters<typeof repositoriesManager.acquireWorktree>[0],
+  'onRetry'
+>;
+
+// acquireWorktree is a plain promise, so its failed attempts are queued here and yielded while it's still pending — otherwise they'd only surface once the whole step ends.
+export async function* acquireWorktreeWithRetryEvents(
+  stepId: string,
+  params: AcquireWorktreeParams,
+): AsyncGenerator<
+  RunStepRetryEvent,
+  Awaited<ReturnType<typeof repositoriesManager.acquireWorktree>>
+> {
+  const pending: RunStepRetryEvent[] = [];
+  let settled = false;
+  let wake = () => {};
+
+  const acquiring = repositoriesManager
+    .acquireWorktree({
+      ...params,
+      onRetry: (attempt, error) => {
+        pending.push({
+          event: 'run_step_retry',
+          data: {
+            id: stepId,
+            step: RunStep.PrepareWorktree,
+            count: attempt + 1,
+            total: config.repositories.worktreeAcquireMaxRetries + 1,
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: Date.now(),
+          },
+        });
+        wake();
+      },
+    })
+    .finally(() => {
+      settled = true;
+      wake();
+    });
+  // Rejection is rethrown by the final await below; this only stops it counting as unhandled while the loop waits.
+  acquiring.catch(() => {});
+
+  while (true) {
+    while (pending.length) yield pending.shift()!;
+    if (settled) return await acquiring;
+    await new Promise<void>((resolve) => (wake = resolve));
+  }
+}
 
 export async function* prepareSandboxedWorktree(params: {
   host: GitHost;
@@ -44,7 +98,7 @@ export async function* prepareSandboxedWorktree(params: {
     data: { id: stepId, step: RunStep.PrepareWorktree, timestamp: Date.now() },
   };
   try {
-    worktree = await repositoriesManager.acquireWorktree({
+    worktree = yield* acquireWorktreeWithRetryEvents(stepId, {
       repo,
       entityType,
       entityId,

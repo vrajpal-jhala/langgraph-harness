@@ -826,7 +826,20 @@ export type ExtractProjectMemoryEndEvent = {
   };
 };
 
-export type RunStepEvent = RunStepStartEvent | RunStepEndEvent;
+export type RunStepRetryEvent = {
+  event: 'run_step_retry';
+  data: {
+    id: string;
+    step: typeof RunStep.PrepareWorktree;
+    count: number;
+    total: number;
+    error: string;
+    timestamp: number;
+  };
+};
+
+export type RunStepEvent =
+  RunStepStartEvent | RunStepRetryEvent | RunStepEndEvent;
 
 export type LangGraphEvent =
   | MessageEvent

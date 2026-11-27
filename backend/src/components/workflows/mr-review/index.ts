@@ -15,6 +15,7 @@ import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
 import { migrateLegacyState } from '#components/workflows/legacy-state-migration.js';
+import { acquireWorktreeWithRetryEvents } from '#components/workflows/sandbox-worktree.js';
 import { translateRunStream } from '#components/workflows/stream-translator.js';
 import { agentNode } from './nodes/agent_node.js';
 import { loadInstructionsNode } from './nodes/load_instructions_node.js';
@@ -222,7 +223,7 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
     };
 
     try {
-      worktree = await repositoriesManager.acquireWorktree({
+      worktree = yield* acquireWorktreeWithRetryEvents(stepId, {
         repo,
         entityType: 'code_change_request',
         entityId: query.codeChangeRequestNumber,

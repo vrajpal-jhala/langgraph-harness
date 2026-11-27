@@ -78,17 +78,25 @@ async function ensureRepositoryWithLock(repo: string, signal?: AbortSignal) {
 }
 
 // Retries `fn` via retryWithBackoff's worktree-acquire policy. `retries` (the number of failed attempts before success) is returned so callers can surface it to the FE — no separate logging here, the FE-visible count already covers it.
+type OnGitRetry = (attempt: number, error: unknown) => void;
+
 async function retryGitOp<T>(
   fn: () => Promise<T>,
+  onRetry?: OnGitRetry,
 ): Promise<{ result: T; retries: number }> {
   const { result, attempt } = await retryWithBackoff(fn, {
     maxRetries: config.repositories.worktreeAcquireMaxRetries,
+    onAttemptFailed: onRetry,
   });
   return { result, retries: attempt };
 }
 
 // Must lock through the fetch, not just the clone — else two calls for the same repo race `git fetch` against the same bare repo.
-async function fetchRepository(repo: string, signal?: AbortSignal) {
+async function fetchRepository(
+  repo: string,
+  signal?: AbortSignal,
+  onRetry?: OnGitRetry,
+) {
   return withLock(repo, async () => {
     const { result, retries } = await retryGitOp(async () => {
       const { path, cloned } = await ensureRepository(repo, signal);
@@ -96,7 +104,7 @@ async function fetchRepository(repo: string, signal?: AbortSignal) {
         // Mock mode never pushes a created branch, so pruning here could delete one still in active use
         await gitService.fetch(repo, path, !config.mock.workflow, signal);
       return { path, cloned };
-    });
+    }, onRetry);
     return { ...result, retries };
   });
 }
@@ -156,6 +164,7 @@ export const repositoriesManager = {
       sha?: string;
       detach?: boolean;
       signal?: AbortSignal;
+      onRetry?: OnGitRetry;
     },
   ) => {
     const {
@@ -165,6 +174,7 @@ export const repositoriesManager = {
       ref,
       sha,
       signal,
+      onRetry,
       detach = true,
     } = params;
     assertSafeRepo(repo);
@@ -178,7 +188,7 @@ export const repositoriesManager = {
         path: barePath,
         cloned,
         retries: fetchRetries,
-      } = await fetchRepository(repo, signal);
+      } = await fetchRepository(repo, signal, onRetry);
 
       // Remote branch tip right after fetch (null if it doesn't exist yet) — leased on a force-push retry.
       const preFetchSha = await gitService
@@ -197,15 +207,18 @@ export const repositoriesManager = {
             `worktree ${key} is already leased (checked out to ${existing.ref})`,
           );
         }
-        ({ result: revived, retries: setupRetries } = await retryGitOp(() =>
-          checkoutWithShaFallback(
-            () => gitService.checkout(worktreePath, ref, detach, signal, true),
-            repo,
-            barePath,
-            ref,
-            sha,
-            signal,
-          ),
+        ({ result: revived, retries: setupRetries } = await retryGitOp(
+          () =>
+            checkoutWithShaFallback(
+              () =>
+                gitService.checkout(worktreePath, ref, detach, signal, true),
+              repo,
+              barePath,
+              ref,
+              sha,
+              signal,
+            ),
+          onRetry,
         ));
       } else {
         if (existing) {
@@ -238,6 +251,7 @@ export const repositoriesManager = {
               signal,
             );
           },
+          onRetry,
         ));
       }
 

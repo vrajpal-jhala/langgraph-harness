@@ -593,6 +593,16 @@ async function accumulateStream(
         } else {
           accumulated.push(event);
         }
+      } else if (event.event === 'run_step_retry') {
+        const last = accumulated[accumulated.length - 1];
+        if (
+          last?.event === 'run_step_retry' &&
+          last.data.id === event.data.id
+        ) {
+          accumulated[accumulated.length - 1] = event;
+        } else {
+          accumulated.push(event);
+        }
       } else {
         accumulated.push(event);
       }

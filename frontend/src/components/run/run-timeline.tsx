@@ -164,6 +164,12 @@ const RunTimeline = ({
             .filter((e) => e.event === 'run_step_end')
             .map((e) => [e.data.id, e]),
         );
+        // A live stream appends every attempt; later entries overwrite earlier ones, so this holds the latest.
+        const runStepRetryById = new Map(
+          run.events
+            .filter((e) => e.event === 'run_step_retry')
+            .map((e) => [e.data.id, e.data]),
+        );
 
         const toolOutputs = new Map(
           run.events
@@ -285,6 +291,7 @@ const RunTimeline = ({
 
           if (
             e.event === 'run_step_end' ||
+            e.event === 'run_step_retry' ||
             e.event === 'tool_output' ||
             e.event === 'node_end' ||
             e.event === 'summarize_context_end' ||
@@ -529,6 +536,9 @@ const RunTimeline = ({
                   done && endEvent.data.step === 'push'
                     ? endEvent.data
                     : undefined;
+                const pendingRetry = done
+                  ? undefined
+                  : runStepRetryById.get(id);
 
                 return (
                   <div
@@ -567,6 +577,14 @@ const RunTimeline = ({
                           (revived from sha)
                         </Text>
                       )}
+                      {pendingRetry && (
+                        <Text
+                          component="span"
+                          c="var(--mantine-color-yellow-9)"
+                        >
+                          (retrying {pendingRetry.count}/{pendingRetry.total})
+                        </Text>
+                      )}
                       {!!worktreeEnd?.retries && (
                         <Text
                           component="span"
@@ -595,6 +613,11 @@ const RunTimeline = ({
                         </Tooltip>
                       )}
                     </span>
+                    {!collapsed.includes(id) && pendingRetry && (
+                      <Text size="sm" c="dimmed" pt="sm">
+                        {pendingRetry.error}
+                      </Text>
+                    )}
                     {!collapsed.includes(id) && done && (
                       <div className="run-timeline__tool-content">
                         <pre>
