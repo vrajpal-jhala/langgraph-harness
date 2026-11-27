@@ -6,7 +6,7 @@ All notable changes to langgraph-harness are documented here.
 
 ### Fixes
 
-- **Reviews on repositories with many memories started with a crowded context** — every saved memory for the repository went into the review's instructions in full, which on a repository with many memories could take tens of thousands of tokens. Reviews now include memories up to a fixed budget, preferences and decisions first and the newest first, list the rest by title, and look up the ones they need by keyword.
+- **Reviews on repositories with many memories started with a crowded context** — every saved memory for the repository went into the review's instructions in full, which on a repository with many memories could take tens of thousands of tokens. Reviews now include memories up to a fixed budget, preferences and decisions first and the newest first, list the rest by title, and look up the ones they need by keyword. ([#95](https://github.com/vrajpal-jhala/langgraph-harness/pull/95))
 
 ---
 
