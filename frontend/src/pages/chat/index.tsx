@@ -2,6 +2,7 @@ import { use, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ActionIcon,
+  Alert,
   Badge,
   Box,
   Button,
@@ -24,6 +25,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import {
+  IconAlertTriangle,
   IconArrowLeft,
   IconLayoutSidebarRightExpand,
   IconPaperclip,
@@ -381,6 +383,15 @@ const ChatPage = () => {
 
   const isArchived = !!thread?.archived_at;
 
+  // An older chat can restore a model that's since been removed from the picker.
+  const unavailableModel =
+    models.length && model && !models.some((m) => m.model === model)
+      ? model
+      : null;
+  const activeModel = unavailableModel ? models[0].model : model;
+  // Keyed by thread so the dismissal doesn't carry over when navigating to another chat.
+  const [dismissedWarningFor, setDismissedWarningFor] = useState<string>();
+
   const handleSend = async () => {
     const trimmed = message.trim();
     // streaming/retrying too — a thread can only ever have one run in flight.
@@ -390,7 +401,7 @@ const ChatPage = () => {
       streaming ||
       retrying ||
       !threadId ||
-      !model ||
+      !activeModel ||
       isArchived
     ) {
       return;
@@ -435,7 +446,7 @@ const ChatPage = () => {
       .runs.post({
         message: trimmed,
         images: images.length ? images : undefined,
-        model,
+        model: activeModel,
         reasoning: thinking,
         tools: {
           server: serverTools,
@@ -659,197 +670,218 @@ const ChatPage = () => {
   }, [visibleRuns]);
 
   const composer = (
-    <Paper
-      className="chat-page__composer"
-      p="sm"
-      radius="md"
-      data-tour="chat-composer"
-    >
-      <Stack gap="md">
-        {images.length > 0 && (
-          <Group gap="xs">
-            {images.map((ref, i) => (
-              <Box key={i} pos="relative">
-                <Image
-                  src={resolveUploadUrl(ref)}
-                  w={56}
-                  h={56}
-                  radius="sm"
-                  fit="cover"
-                  className="chat-page__composer-image"
-                  onClick={() => setLightboxSrc(resolveUploadUrl(ref))}
-                />
-                <CloseButton
-                  size="xs"
-                  pos="absolute"
-                  top={-6}
-                  right={-6}
-                  className="chat-page__composer-image-close-button"
-                  onClick={() =>
-                    setImages((prev) => prev.filter((_, j) => j !== i))
-                  }
-                />
-              </Box>
-            ))}
-          </Group>
-        )}
+    <Stack className="chat-page__composer" gap="xs">
+      {unavailableModel && !isArchived && dismissedWarningFor !== threadId && (
+        <Alert
+          color="yellow"
+          icon={<Icon as={IconAlertTriangle} />}
+          withCloseButton
+          onClose={() => setDismissedWarningFor(threadId)}
+        >
+          {unavailableModel} is no longer available, so this chat will continue
+          with {models[0].name}. Pick another model below to change it.
+        </Alert>
+      )}
+      <Paper
+        className="chat-page__composer-input"
+        p="sm"
+        radius="md"
+        data-tour="chat-composer"
+      >
+        <Stack gap="md">
+          {images.length > 0 && (
+            <Group gap="xs">
+              {images.map((ref, i) => (
+                <Box key={i} pos="relative">
+                  <Image
+                    src={resolveUploadUrl(ref)}
+                    w={56}
+                    h={56}
+                    radius="sm"
+                    fit="cover"
+                    className="chat-page__composer-image"
+                    onClick={() => setLightboxSrc(resolveUploadUrl(ref))}
+                  />
+                  <CloseButton
+                    size="xs"
+                    pos="absolute"
+                    top={-6}
+                    right={-6}
+                    className="chat-page__composer-image-close-button"
+                    onClick={() =>
+                      setImages((prev) => prev.filter((_, j) => j !== i))
+                    }
+                  />
+                </Box>
+              ))}
+            </Group>
+          )}
 
-        <Textarea
-          placeholder={
-            isArchived
-              ? 'This chat is archived and read-only'
-              : 'Ask something...'
-          }
-          disabled={isArchived}
-          autosize
-          variant="unstyled"
-          maxRows={4}
-          px={4}
-          maxLength={MAX_MESSAGE_LENGTH}
-          value={message}
-          onChange={(e) => setMessage(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              void handleSend();
+          <Textarea
+            placeholder={
+              isArchived
+                ? 'This chat is archived and read-only'
+                : 'Ask something...'
             }
-          }}
-        />
+            disabled={isArchived}
+            autosize
+            variant="unstyled"
+            maxRows={4}
+            px={4}
+            maxLength={MAX_MESSAGE_LENGTH}
+            value={message}
+            onChange={(e) => setMessage(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void handleSend();
+              }
+            }}
+          />
 
-        <Group justify="space-between" wrap="wrap" gap="xs">
-          <Group gap="xs">
-            <Popover position="top-start" withArrow shadow="md">
-              <Popover.Target>
-                <Tooltip label="More options">
+          <Group justify="space-between" wrap="wrap" gap="xs">
+            <Group gap="xs">
+              <Popover position="top-start" withArrow shadow="md">
+                <Popover.Target>
+                  <Tooltip label="More options">
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      aria-label="More options"
+                      disabled={isArchived}
+                    >
+                      <Icon as={IconPlus} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Popover.Target>
+                <Popover.Dropdown>
+                  <Stack gap={0} className="chat-composer-menu-switch">
+                    <Switch
+                      size="xs"
+                      label="Thinking"
+                      checked={thinking}
+                      labelPosition="left"
+                      onChange={(e) => setThinking(e.currentTarget.checked)}
+                    />
+                    <Switch
+                      size="xs"
+                      label="Server tools"
+                      labelPosition="left"
+                      checked={serverTools}
+                      onChange={(e) => setServerTools(e.currentTarget.checked)}
+                    />
+                    {providers.gitlab && (
+                      <Switch
+                        size="xs"
+                        label="GitLab tools"
+                        description={!gitlabLinked && 'Link GitLab in Settings'}
+                        labelPosition="left"
+                        disabled={!gitlabLinked}
+                        checked={gitlabLinked && gitlabTools}
+                        onChange={(e) =>
+                          setGitlabTools(e.currentTarget.checked)
+                        }
+                      />
+                    )}
+                    {providers.github && (
+                      <Switch
+                        size="xs"
+                        label="GitHub tools"
+                        description={!githubLinked && 'Link GitHub in Settings'}
+                        labelPosition="left"
+                        disabled={!githubLinked}
+                        checked={githubLinked && githubTools}
+                        onChange={(e) =>
+                          setGithubTools(e.currentTarget.checked)
+                        }
+                      />
+                    )}
+                    <Switch
+                      size="xs"
+                      label="Fetch web pages"
+                      labelPosition="left"
+                      checked={webSearchTools}
+                      onChange={(e) =>
+                        setWebSearchTools(e.currentTarget.checked)
+                      }
+                    />
+                    <Divider my="xs" />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      hidden
+                      onChange={handleImageAttach}
+                    />
+                    <Button
+                      variant="subtle"
+                      color="gray"
+                      size="xs"
+                      justify="flex-start"
+                      leftSection={<Icon as={IconPaperclip} />}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Attach image
+                    </Button>
+                  </Stack>
+                </Popover.Dropdown>
+              </Popover>
+              {contextPercent !== null && (
+                <Tooltip label={contextTooltipLabel}>
+                  <Badge color={contextColor} size="sm">
+                    {contextPercent}%
+                  </Badge>
+                </Tooltip>
+              )}
+            </Group>
+
+            <Group gap="xs">
+              <Select
+                size="xs"
+                variant="unstyled"
+                comboboxProps={{
+                  width: 180,
+                }}
+                data={models.map((m) => ({ value: m.model, label: m.name }))}
+                value={activeModel}
+                onChange={setModel}
+                placeholder="Model"
+                allowDeselect={false}
+                disabled={isArchived}
+              />
+              {streaming ? (
+                <Tooltip label="Stop response">
                   <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    aria-label="More options"
-                    disabled={isArchived}
+                    size="lg"
+                    color="red"
+                    loading={aborting}
+                    onClick={handleAbort}
+                    aria-label="Stop"
                   >
-                    <Icon as={IconPlus} />
+                    <Icon as={IconPlayerStop} />
                   </ActionIcon>
                 </Tooltip>
-              </Popover.Target>
-              <Popover.Dropdown>
-                <Stack gap={0} className="chat-composer-menu-switch">
-                  <Switch
-                    size="xs"
-                    label="Thinking"
-                    checked={thinking}
-                    labelPosition="left"
-                    onChange={(e) => setThinking(e.currentTarget.checked)}
-                  />
-                  <Switch
-                    size="xs"
-                    label="Server tools"
-                    labelPosition="left"
-                    checked={serverTools}
-                    onChange={(e) => setServerTools(e.currentTarget.checked)}
-                  />
-                  {providers.gitlab && (
-                    <Switch
-                      size="xs"
-                      label="GitLab tools"
-                      description={!gitlabLinked && 'Link GitLab in Settings'}
-                      labelPosition="left"
-                      disabled={!gitlabLinked}
-                      checked={gitlabLinked && gitlabTools}
-                      onChange={(e) => setGitlabTools(e.currentTarget.checked)}
-                    />
-                  )}
-                  {providers.github && (
-                    <Switch
-                      size="xs"
-                      label="GitHub tools"
-                      description={!githubLinked && 'Link GitHub in Settings'}
-                      labelPosition="left"
-                      disabled={!githubLinked}
-                      checked={githubLinked && githubTools}
-                      onChange={(e) => setGithubTools(e.currentTarget.checked)}
-                    />
-                  )}
-                  <Switch
-                    size="xs"
-                    label="Fetch web pages"
-                    labelPosition="left"
-                    checked={webSearchTools}
-                    onChange={(e) => setWebSearchTools(e.currentTarget.checked)}
-                  />
-                  <Divider my="xs" />
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    hidden
-                    onChange={handleImageAttach}
-                  />
-                  <Button
-                    variant="subtle"
-                    color="gray"
-                    size="xs"
-                    justify="flex-start"
-                    leftSection={<Icon as={IconPaperclip} />}
-                    onClick={() => fileInputRef.current?.click()}
+              ) : (
+                <Tooltip label="Send message">
+                  <ActionIcon
+                    size="lg"
+                    loading={sending}
+                    disabled={
+                      !message.trim() || !activeModel || retrying || isArchived
+                    }
+                    onClick={handleSend}
+                    aria-label="Send"
                   >
-                    Attach image
-                  </Button>
-                </Stack>
-              </Popover.Dropdown>
-            </Popover>
-            {contextPercent !== null && (
-              <Tooltip label={contextTooltipLabel}>
-                <Badge color={contextColor} size="sm">
-                  {contextPercent}%
-                </Badge>
-              </Tooltip>
-            )}
+                    <Icon as={IconSend} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </Group>
           </Group>
-
-          <Group gap="xs">
-            <Select
-              size="xs"
-              variant="unstyled"
-              comboboxProps={{
-                width: 180,
-              }}
-              data={models.map((m) => ({ value: m.model, label: m.name }))}
-              value={model}
-              onChange={setModel}
-              placeholder="Model"
-              allowDeselect={false}
-              disabled={isArchived}
-            />
-            {streaming ? (
-              <Tooltip label="Stop response">
-                <ActionIcon
-                  size="lg"
-                  color="red"
-                  loading={aborting}
-                  onClick={handleAbort}
-                  aria-label="Stop"
-                >
-                  <Icon as={IconPlayerStop} />
-                </ActionIcon>
-              </Tooltip>
-            ) : (
-              <Tooltip label="Send message">
-                <ActionIcon
-                  size="lg"
-                  loading={sending}
-                  disabled={!message.trim() || !model || retrying || isArchived}
-                  onClick={handleSend}
-                  aria-label="Send"
-                >
-                  <Icon as={IconSend} />
-                </ActionIcon>
-              </Tooltip>
-            )}
-          </Group>
-        </Group>
-      </Stack>
-    </Paper>
+        </Stack>
+      </Paper>
+    </Stack>
   );
 
   const showConversation = displayLoadingRuns || hasMessages;
@@ -891,6 +923,10 @@ const ChatPage = () => {
               collapsed={collapsed}
               onCollapse={handleCollapse}
               onRetry={isArchived ? undefined : handleRetry}
+              canRetry={(run) =>
+                !isChatRunInput(run.input) ||
+                models.some((m) => m.model === run.input.model)
+              }
               onDecision={handleDecision}
               loading={streaming || retrying}
               precedingContextTotalByRunId={precedingContextTotalByRunId}

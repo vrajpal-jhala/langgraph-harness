@@ -14,6 +14,7 @@ import {
   type SearchMode,
 } from '#types.js';
 
+import { analyticsService } from '#components/analytics/service.js';
 import { memoriesDal } from '#components/memories/dal.js';
 import { runsDal } from '#components/runs/dal.js';
 import { threadsDal } from '#components/threads/dal.js';
@@ -723,6 +724,75 @@ const searchChatContent = tool(
   },
 );
 
+const analyticsWindowSchema = {
+  kind: z
+    .enum(Object.values(RunKind) as [RunKind, ...RunKind[]])
+    .describe('Which workflow to report on.'),
+  since: z
+    .union([z.iso.date(), z.iso.datetime({ offset: true })])
+    .optional()
+    .describe(
+      'ISO 8601 date or datetime for the start of the window. Omit for the last 30 days, the same window the analytics dashboard uses.',
+    ),
+};
+
+const getRunAnalytics = tool(
+  ({ kind, since }) =>
+    analyticsService.getOverview({
+      kind,
+      since: since ? new Date(since) : undefined,
+    }),
+  {
+    name: 'get_run_analytics',
+    description:
+      'Aggregate stats for one workflow over a time window: run count, success count, failures by error kind, duration percentiles, average LLM/tool calls, average tokens and context size per run, queue wait. Counts finished runs only (succeeded or failed), not queued or running ones. Durations are milliseconds; success rate is successful / total.',
+    schema: z.object(analyticsWindowSchema),
+  },
+);
+
+const getRunAnalyticsByRepo = tool(
+  ({ kind, since, projectId, limit, offset }) =>
+    analyticsService.getByRepo({
+      kind,
+      since: since ? new Date(since) : undefined,
+      projectId,
+      limit,
+      offset,
+    }),
+  {
+    name: 'get_run_analytics_by_repo',
+    description:
+      'Per-repo breakdown for one workflow over a time window: total and failed runs, thread count, average duration and runs per thread. Paginated; total is the number of repos.',
+    schema: z.object({
+      ...analyticsWindowSchema,
+      projectId: z
+        .string()
+        .optional()
+        .describe('Repo path (e.g. group/repo) to report on just that repo.'),
+      limit: z.number().min(1).max(100).optional().default(25),
+      offset: z.number().min(0).optional().default(0),
+    }),
+  },
+);
+
+const getRunTrend = tool(
+  ({ kind, since }) =>
+    analyticsService.getTrend(kind, since ? new Date(since) : undefined),
+  {
+    name: 'get_run_trend',
+    description:
+      'Day-by-day series for one workflow over a time window: runs, success rate, failures by error kind, average duration and waits. Days with no runs are omitted.',
+    schema: z.object(analyticsWindowSchema),
+  },
+);
+
+const getUsageTotals = tool(() => analyticsService.getUsage(), {
+  name: 'get_usage_totals',
+  description:
+    'All-time totals: users, MR reviews, chats, project memories and personal memories.',
+  schema: z.object({}),
+});
+
 type BuildChatToolsOptions = {
   server: boolean;
   gitlab: boolean;
@@ -778,6 +848,10 @@ export async function buildChatTools({
       queryReviewThreadRuns,
       queryReviewRun,
       searchReviewContent,
+      getRunAnalytics,
+      getRunAnalyticsByRepo,
+      getRunTrend,
+      getUsageTotals,
     );
   }
 
