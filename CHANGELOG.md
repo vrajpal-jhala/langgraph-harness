@@ -6,9 +6,9 @@ All notable changes to langgraph-harness are documented here.
 
 ### Fixes
 
-- **Runs failed by repeating themselves** — a review, issue or task run could get stuck writing the same sentence over and over without calling a tool until it was stopped, and retrying it from the same point failed the same way. The agent's model now gets a penalty for repeating itself.
-- **Review comments were rejected even when aimed at the right merge request** — a review that left out the project or merge request ID, or gave the project's numeric ID instead of its path, had its comment, approval or thread resolution turned away, and often gave up on the comment. It now fills in the run's own merge request when the IDs are missing and accepts the numeric ID of the right project.
-- **Retrying an old run from its first step failed** — retrying a run saved by an older version from its very first step couldn't carry its state over. It now does.
+- **Runs failed by repeating themselves** — a review, issue or task run could get stuck writing the same sentence over and over without calling a tool until it was stopped, and retrying it from the same point failed the same way. The agent's model now gets a penalty for repeating itself. ([#99](https://github.com/vrajpal-jhala/langgraph-harness/pull/99))
+- **Review comments were rejected even when aimed at the right merge request** — a review that left out the project or merge request ID, or gave the project's numeric ID instead of its path, had its comment, approval or thread resolution turned away, and often gave up on the comment. It now fills in the run's own merge request when the IDs are missing and accepts the numeric ID of the right project. ([#99](https://github.com/vrajpal-jhala/langgraph-harness/pull/99))
+- **Retrying an old run from its first step failed** — retrying a run saved by an older version from its very first step couldn't carry its state over. It now does. ([#99](https://github.com/vrajpal-jhala/langgraph-harness/pull/99))
 
 ---
 
