@@ -60,7 +60,10 @@ export const errors = {
     alreadyRunning: () =>
       new AppError(409, 'This thread already has a run in progress'),
     unknownModel: (model: string) =>
-      new AppError(400, `Unknown model: ${model}`),
+      new AppError(
+        400,
+        `${model} is no longer available, so this run can't be continued`,
+      ),
     forbidden: () => new AppError(403, 'Forbidden'),
     notInterrupted: () =>
       new AppError(409, 'Run is not paused awaiting a decision'),

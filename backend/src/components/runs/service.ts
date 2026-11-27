@@ -263,6 +263,10 @@ export const runsService = {
 
     const originalRun = await runsService.getById(runId, id);
 
+    if (!llms.some((l) => l.model === originalRun.input.model)) {
+      throw errors.runs.unknownModel(originalRun.input.model);
+    }
+
     const workflow = workflowsService.forKind(originalRun.kind);
     if (
       !workflow.interruptible ||

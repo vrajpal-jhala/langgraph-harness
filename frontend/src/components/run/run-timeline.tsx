@@ -49,6 +49,7 @@ interface IRunTimelineProps {
   collapsed: string[];
   onCollapse: MouseEventHandler<HTMLElement>;
   onRetry?: (runId: string, checkpointId?: string) => void;
+  canRetry?: (run: Run) => boolean;
   onDecision: (
     runId: string,
     toolCallId: string,
@@ -109,6 +110,7 @@ const RunTimeline = ({
   collapsed,
   onCollapse,
   onRetry,
+  canRetry,
   onDecision,
   loading,
   precedingContextTotalByRunId,
@@ -156,6 +158,7 @@ const RunTimeline = ({
         </div>
       )}
       {runs.map((run) => {
+        const retry = canRetry?.(run) === false ? undefined : onRetry;
         const runStepEndById = new Map(
           run.events
             .filter((e) => e.event === 'run_step_end')
@@ -384,15 +387,15 @@ const RunTimeline = ({
                       <pre>{JSON.stringify(run.input, null, 2)}</pre>
                     )}
                   </div>
-                  {(startedAt || (isChatRunInput(run.input) && onRetry)) && (
+                  {(startedAt || (isChatRunInput(run.input) && retry)) && (
                     <div className="run-timeline__item-meta">
-                      {isChatRunInput(run.input) && onRetry && (
+                      {isChatRunInput(run.input) && retry && (
                         <Tooltip label="Retry">
                           <ActionIcon
                             variant="transparent"
                             size="sm"
                             onClick={() =>
-                              onRetry(
+                              retry(
                                 run.id,
                                 run.events.find((e) => e.event === 'checkpoint')
                                   ?.data.id,
@@ -484,13 +487,13 @@ const RunTimeline = ({
                     data-disabled={loading}
                   >
                     <Divider />
-                    {onRetry ? (
+                    {retry ? (
                       <Button
                         variant="default"
                         size="compact-xs"
                         className="run-timeline__checkpoint-btn"
                         leftSection={<Icon as={IconRefresh} />}
-                        onClick={() => onRetry(run.id, event.data.id)}
+                        onClick={() => retry(run.id, event.data.id)}
                         disabled={loading}
                       >
                         Retry from here
@@ -1420,12 +1423,12 @@ const RunTimeline = ({
             {run.error && (
               <div className="run-timeline__item" data-event="error">
                 <Text c="red">{run.error}</Text>
-                {run.status === 'failed' && !hasCheckpoint && onRetry && (
+                {run.status === 'failed' && !hasCheckpoint && retry && (
                   <Button
                     variant="default"
                     size="compact-xs"
                     leftSection={<Icon as={IconRefresh} />}
-                    onClick={() => onRetry(run.id)}
+                    onClick={() => retry(run.id)}
                     disabled={loading}
                   >
                     Retry
