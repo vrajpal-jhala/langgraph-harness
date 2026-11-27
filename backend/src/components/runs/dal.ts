@@ -1,6 +1,6 @@
-import { sql } from 'kysely';
+import { type Kysely, sql } from 'kysely';
 
-import type { NewRun, RunUpdate, SearchMode } from '#types.js';
+import type { Database, NewRun, RunUpdate, SearchMode } from '#types.js';
 import { RunKind, RunStatus } from '#types.js';
 
 import { db } from '#utils/db.js';
@@ -113,8 +113,8 @@ export const runsDal = {
     });
   },
 
-  supersedeById: async (id: string) => {
-    const result = await db
+  supersedeById: async (id: string, executor: Kysely<Database> = db) => {
+    const result = await executor
       .updateTable('runs')
       .set({
         status: RunStatus.SUPERSEDED,

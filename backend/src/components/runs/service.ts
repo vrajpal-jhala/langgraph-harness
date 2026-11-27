@@ -26,6 +26,7 @@ import { runPubSub } from './pubsub.js';
 
 import { getAccessToken } from '#utils/auth.js';
 import { config, llms } from '#utils/config.js';
+import { db } from '#utils/db.js';
 import { errors, RunAbortedError } from '#utils/errors.js';
 import {
   findRepeatedText,
@@ -192,47 +193,41 @@ export const runsService = {
     await publishThreadUpdate(id, RunStatus.QUEUED);
 
     if (workflow.startMode === 'queued') {
-      try {
-        if (originalRun.kind === RunKind.MrReview) {
-          // Unique jobId avoids colliding with the per-MR debounce job; delay 0 skips debouncing.
-          // Hyphen, not colon — BullMQ rejects a custom jobId containing ':' unless it splits into exactly 3 parts, which a bare UUID never does.
-          await enqueueMrReview(
-            `retry-${run.id}`,
-            {
-              threadId: id,
-              runId: run.id,
-              ...(originalRun.input as MrReviewRunInput),
-              checkpointId,
-            },
-            0,
-          );
-        } else if (originalRun.kind === RunKind.WorkItemResolve) {
-          await enqueueWorkItemResolve({
+      if (originalRun.kind === RunKind.MrReview) {
+        // Unique jobId avoids colliding with the per-MR debounce job; delay 0 skips debouncing.
+        // Hyphen, not colon — BullMQ rejects a custom jobId containing ':' unless it splits into exactly 3 parts, which a bare UUID never does.
+        await enqueueMrReview(
+          `retry-${run.id}`,
+          {
             threadId: id,
             runId: run.id,
-            ...(originalRun.input as WorkItemResolveRunInput),
+            ...(originalRun.input as MrReviewRunInput),
             checkpointId,
-          });
-        } else if (originalRun.kind === RunKind.TaskResolve) {
-          await enqueueTaskResolve({
-            threadId: id,
-            runId: run.id,
-            ...(originalRun.input as TaskResolveRunInput),
-            checkpointId,
-          });
-        } else {
-          throw new Error(
-            `No retry-enqueue path wired for kind "${originalRun.kind}"`,
-          );
-        }
-      } catch (err) {
-        // Without this, a failed enqueue leaves `run` stuck QUEUED forever — no job means nothing will ever pick it up.
-        await runsService.failById(
+          },
+          0,
+        );
+      } else if (originalRun.kind === RunKind.WorkItemResolve) {
+        await enqueueWorkItemResolve({
+          threadId: id,
+          runId: run.id,
+          ...(originalRun.input as WorkItemResolveRunInput),
+          checkpointId,
+        });
+      } else if (originalRun.kind === RunKind.TaskResolve) {
+        await enqueueTaskResolve({
+          threadId: id,
+          runId: run.id,
+          ...(originalRun.input as TaskResolveRunInput),
+          checkpointId,
+        });
+      } else {
+        await runsService.failUnenqueued(
           run.id,
           id,
-          err instanceof Error ? err.message : 'Failed to enqueue retry',
+          new Error(
+            `No retry-enqueue path wired for kind "${originalRun.kind}"`,
+          ),
         );
-        throw err;
       }
     } else {
       execute(
@@ -352,6 +347,17 @@ export const runsService = {
 
   countByThread: (id: string) => runsDal.countByThread(id),
 
+  // Flag and supersede commit together — either alone loses the trigger or strands a QUEUED run with no job.
+  coalesceIntoPendingRerun: async (runId: string, id: string) => {
+    const superseded = await db.transaction().execute(async (trx) => {
+      await threadsDal.setPendingRerun(id, trx);
+      return runsDal.supersedeById(runId, trx);
+    });
+    if (!superseded) return;
+    const thread = await threadsDal.findByIdWithStatus(id);
+    if (thread) broadcast({ type: 'thread:upserted', payload: thread });
+  },
+
   supersedeById: async (runId: string, id: string) => {
     const superseded = await runsDal.supersedeById(runId);
 
@@ -371,6 +377,16 @@ export const runsService = {
   failById: async (runId: string, id: string, error: string) => {
     await runsDal.update({ status: RunStatus.FAILED, error }, runId);
     await publishThreadUpdate(id, RunStatus.FAILED);
+  },
+
+  // Without a job nothing will ever pick the run up, so it can't stay QUEUED.
+  failUnenqueued: async (runId: string, id: string, err: unknown) => {
+    await runsService.failById(
+      runId,
+      id,
+      err instanceof Error ? err.message : 'Failed to enqueue run',
+    );
+    throw err;
   },
 
   failPending: async (id: string) => {
