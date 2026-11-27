@@ -11,7 +11,7 @@ export const chatAgentNode: GraphNode<typeof chatState> = async (
   state,
   config,
 ) => {
-  const { query, reasoning, model, messages } = state;
+  const { query, reasoning, model, messages, loadedTools } = state;
   const { signal } = config;
   const configurable = config.configurable as Partial<ChatConfigurable>;
 
@@ -21,8 +21,9 @@ export const chatAgentNode: GraphNode<typeof chatState> = async (
   });
 
   try {
-    const updatedMessages = await chatAgent.invoke(
+    const result = await chatAgent.invoke(
       messages,
+      loadedTools,
       query,
       model,
       reasoning,
@@ -34,7 +35,7 @@ export const chatAgentNode: GraphNode<typeof chatState> = async (
       signal,
       configurable?.resuming ?? false,
     );
-    return { messages: updatedMessages };
+    return result;
   } finally {
     emitNodeLifecycleEvents(config, {
       event: 'node_end',

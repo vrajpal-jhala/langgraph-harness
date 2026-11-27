@@ -13,6 +13,7 @@ import {
   humanApprovalMiddleware,
   modelRetryMiddleware,
   summarizeContextMiddleware,
+  toolLoaderMiddleware,
 } from '#components/workflows/middlewares/index.js';
 import {
   type ChatConfigurable,
@@ -54,12 +55,15 @@ async function buildUserMessage(
 }
 
 // MCP tool annotations (readOnlyHint etc.) ride the generic `metadata` bag, not DynamicStructuredTool's own type.
+const mcpAnnotations = (tool: DynamicStructuredTool) =>
+  (tool.metadata as { annotations?: { readOnlyHint?: boolean } } | undefined)
+    ?.annotations;
+
+// No annotations at all means it's one of our own plain tools, not an MCP tool.
+const isMcpTool = (tool: DynamicStructuredTool) => !!mcpAnnotations(tool);
+
 function needsToolApproval(tool: DynamicStructuredTool): boolean {
-  const annotations = (
-    tool.metadata as { annotations?: { readOnlyHint?: boolean } } | undefined
-  )?.annotations;
-  // No annotations at all means it's one of our own plain tools, not an MCP tool — never needs approval.
-  return !!annotations && !annotations.readOnlyHint;
+  return isMcpTool(tool) && !mcpAnnotations(tool)!.readOnlyHint;
 }
 
 // Builds the per-turn tool-availability line fresh every model call, via dynamicSystemPromptMiddleware below — a one-shot SystemMessage baked into checkpointed history would go stale the moment the user toggles a tool group mid-conversation.
@@ -78,6 +82,7 @@ function describeToolsEnabled(toolsEnabled?: ChatConfigurable['toolsEnabled']) {
 export const chatAgent = {
   invoke: async function (
     messages: BaseMessage[],
+    loadedTools: string[],
     query: ChatState['query'],
     model: string,
     reasoning: boolean,
@@ -105,6 +110,8 @@ export const chatAgent = {
     const needsApprovalByName = new Map(
       tools.map((tool) => [tool.name, needsToolApproval(tool)]),
     );
+    // MCP servers expose hundreds of tools — bound only once the model loads them, so their schemas don't fill the context up front.
+    const mcpTools = tools.filter(isMcpTool);
 
     const systemPrompt = `${CHAT_SYSTEM_PROMPT}\n\n${describeToolsEnabled(toolsEnabled)}`;
     // Shared with contextUsageMiddleware so messages aren't tokenized twice.
@@ -120,6 +127,8 @@ export const chatAgent = {
         (_state, runtime) => runtime.context.systemPrompt,
       ),
       todoListMiddleware(),
+      // After the prompt middlewares: it appends to the same system message, which sglang requires to be a single leading one.
+      toolLoaderMiddleware(mcpTools),
       summarizeContextMiddleware({
         llm,
         modelConfig,
@@ -128,11 +137,11 @@ export const chatAgent = {
         messageTokenCache,
       }),
       contextUsageMiddleware(modelConfig, messageTokenCache),
-    ];
+    ] as const;
 
     const agent = createAgent({
       model: llm,
-      tools,
+      tools: tools.filter((tool) => !isMcpTool(tool)),
       middleware,
       contextSchema: chatToolContextSchema,
     });
@@ -142,7 +151,7 @@ export const chatAgent = {
       : messages.concat(await buildUserMessage(query));
 
     const response = await agent.invoke(
-      { messages: updatedMessages },
+      { messages: updatedMessages, loadedTools },
       {
         recursionLimit: 100,
         signal,
@@ -150,6 +159,9 @@ export const chatAgent = {
       },
     );
 
-    return response.messages;
+    return {
+      messages: response.messages,
+      loadedTools: response.loadedTools,
+    };
   },
 };

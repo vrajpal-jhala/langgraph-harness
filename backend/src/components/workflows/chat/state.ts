@@ -15,6 +15,8 @@ const chatStateSchema = z.object({
   reasoning: z.boolean().optional().default(false),
   model: z.enum(llms.map((m) => m.model) as [string, ...string[]]),
   messages: MessagesValue,
+  // Outside messages so history compaction can't drop it.
+  loadedTools: z.array(z.string()).default([]),
 });
 
 export const chatState = new StateSchema(chatStateSchema.shape);

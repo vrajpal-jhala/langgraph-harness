@@ -9,6 +9,7 @@ export * from './no-tool-call-guard.js';
 export * from './note-reply-tracking.js';
 export * from './reply-critic.js';
 export * from './summarize-context.js';
+export * from './tool-loader.js';
 export * from './tool-output-cap.js';
 export * from './trailing-question-guard.js';
 export * from './write-target-guard.js';
