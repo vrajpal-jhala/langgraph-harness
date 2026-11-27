@@ -1,5 +1,6 @@
 import { analyticsService } from '#components/analytics/service.js';
 import { repositoriesManager } from '#components/repositories/manager.js';
+import { startWorkers } from '#components/runs/bullmq.js';
 import { runsService } from '#components/runs/service.js';
 import { initQueueHandlers } from '#components/workflows/mr-review/queue.js';
 import { workflows, workflowsService } from '#components/workflows/service.js';
@@ -64,5 +65,7 @@ export const services = {
           ),
       );
     }
+
+    startWorkers();
   },
 };

@@ -14,6 +14,7 @@ import {
   WorkflowNode,
 } from '#types.js';
 
+import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { parseBranchType } from '#components/workflows/branch-naming.js';
 import {
@@ -38,7 +39,7 @@ import { agentNode } from './nodes/agent_node.js';
 import { assessCompletionNode } from './nodes/assess_completion_node.js';
 import { loadInstructionsNode } from './nodes/load_instructions_node.js';
 import { notifyIssueStatusNode } from './nodes/notify_issue_status_node.js';
-import { workItemResolveQueue } from './queue.js';
+import { enqueueWorkItemResolve, workItemResolveQueue } from './queue.js';
 import { type WorkflowState, workflowState } from './state.js';
 
 import { isAdmin } from '#utils/auth.js';
@@ -121,6 +122,22 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
   cancelPendingRun: async (run) => {
     const job = await workItemResolveQueue?.getJob(run.id);
     await job?.remove().catch(() => {});
+  },
+  recoverOrphanedRun: async (run) => {
+    // A queued run's job survives the restart and holds the thread's dedup slot, which would coalesce the new run.
+    const staleJob = await workItemResolveQueue?.getJob(run.id);
+    await staleJob?.remove().catch(() => {});
+    const input = run.input as WorkItemResolveRunInput;
+    const newRun = await runsService.create(
+      run.thread_id,
+      RunKind.WorkItemResolve,
+      input,
+    );
+    await enqueueWorkItemResolve({
+      threadId: run.thread_id,
+      runId: newRun.id,
+      ...input,
+    });
   },
   init: async () => {
     await tools.init();

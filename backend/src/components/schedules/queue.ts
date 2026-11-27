@@ -1,8 +1,9 @@
-import { Queue, Worker } from 'bullmq';
+import { Queue } from 'bullmq';
 
 import type { TaskResolveRunInput, TaskSchedule } from '#types.js';
 import { RunKind, ScheduleStatus } from '#types.js';
 
+import { createWorker } from '#components/runs/bullmq.js';
 import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
@@ -94,7 +95,7 @@ const taskScheduleQueue = config.mock.queue
   : new Queue<ScheduleJob>(QUEUE_NAME, { connection: config.redis.bullmq });
 
 if (!config.mock.queue) {
-  const worker = new Worker<ScheduleJob>(
+  const worker = createWorker<ScheduleJob>(
     QUEUE_NAME,
     (job) => processScheduleFire(job.data),
     { connection: config.redis.bullmq, concurrency: 5 },

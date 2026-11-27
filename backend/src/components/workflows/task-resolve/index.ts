@@ -16,6 +16,7 @@ import {
 
 import { repositoriesManager } from '#components/repositories/manager.js';
 import { runsDal } from '#components/runs/dal.js';
+import { runsService } from '#components/runs/service.js';
 import { threadsDal } from '#components/threads/dal.js';
 import {
   classifyBranch,
@@ -42,6 +43,7 @@ import { tools } from '#components/workflows/tools.js';
 import { agentNode } from './nodes/agent_node.js';
 import { assessCompletionNode } from './nodes/assess_completion_node.js';
 import { loadInstructionsNode } from './nodes/load_instructions_node.js';
+import { enqueueTaskResolve, taskResolveQueue } from './queue.js';
 import { type TaskResolveState, taskResolveState } from './state.js';
 
 import { isAdmin } from '#utils/auth.js';
@@ -118,6 +120,22 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
   },
   startMode: 'queued',
   interruptible: false,
+  recoverOrphanedRun: async (run) => {
+    // A queued run's job survives the restart and holds the thread's dedup slot, which would coalesce the new run.
+    const staleJob = await taskResolveQueue?.getJob(run.id);
+    await staleJob?.remove().catch(() => {});
+    const input = run.input as TaskResolveRunInput;
+    const newRun = await runsService.create(
+      run.thread_id,
+      RunKind.TaskResolve,
+      input,
+    );
+    await enqueueTaskResolve({
+      threadId: run.thread_id,
+      runId: newRun.id,
+      ...input,
+    });
+  },
   init: async () => {
     await tools.init();
     compiledWorkflow = await buildWorkflow();
