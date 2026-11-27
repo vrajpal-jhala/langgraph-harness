@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.11.0] - 2026-11-27
+
+### Features
+
+- **Reviews answer comments that tag the bot** — tagging the bot on a merge request or pull request it reviews now gets a reply in that same thread, without waiting for the next push. It resolves its own threads once the code fixes them or you settle them there, but never one someone else started. A comment that arrives while a review is waiting in the queue is answered by that review, and on merge requests the bot opened for an issue or task, tagged comments still go to that work.
+
+---
+
 ## [0.10.2] - 2026-11-27
 
 ### Fixes
