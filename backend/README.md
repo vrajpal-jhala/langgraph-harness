@@ -126,7 +126,7 @@ To reset the database completely, stop the containers and delete `$DATA_PATH/pos
 | `POST`   | `/api/threads/:id/runs/:runId/retry`    | Retry a run from a checkpoint                                                                |
 | `POST`   | `/api/threads/:id/runs/:runId/decision` | Approve or reject a tool call an interruptible run is paused on                              |
 | `GET`    | `/api/threads/:id/runs/:runId/stream`   | SSE stream of run events                                                                     |
-| `POST`   | `/api/threads/:id/runs/:runId/abort`    | Abort a running run                                                                          |
+| `POST`   | `/api/threads/:id/runs/:runId/abort`    | Abort a running run, or cancel a queued one                                                  |
 | `GET`    | `/api/workflows`                        | List workflows with live status and run stats                                                |
 | `GET`    | `/api/workflows/:id`                    | Get a single workflow's status and stats                                                     |
 | `GET`    | `/api/workflows/:id/graph`              | Get the workflow's compiled LangGraph as Mermaid syntax                                      |

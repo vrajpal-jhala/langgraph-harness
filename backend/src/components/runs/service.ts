@@ -308,7 +308,15 @@ export const runsService = {
 
   // Kept separate from abort() since abort() also has an internal caller (threadsService.delete()) that skips this ownership check.
   requestAbort: async (id: string, runId: string, session: Session) => {
-    await runsService.getById(runId, id); // confirms runId belongs to thread id
+    const run = await runsService.getById(runId, id); // confirms runId belongs to thread id
+    if (run.status === RunStatus.QUEUED) {
+      await workflowsService.forKind(run.kind).cancelPendingRun?.(run);
+      // Falls through to abort() if a worker started the run in the meantime.
+      if (await runsDal.failQueuedById(runId, `Cancelled by ${session.name}`)) {
+        await publishThreadUpdate(id, RunStatus.FAILED);
+        return;
+      }
+    }
     runsService.abort(runId, `Stopped by ${session.name}`);
   },
 
@@ -411,11 +419,10 @@ async function execute<TInput, TSecrets>(
   );
 
   try {
+    const runningRun = await runsDal.markRunning(runId);
+    // Cancelled between the worker's QUEUED check and here; runs before pubsub init, whose status key never expires.
+    if (!runningRun) return;
     await runPubSub.init(runId);
-    const runningRun = await runsDal.update(
-      { status: RunStatus.RUNNING },
-      runId,
-    );
     await publishThreadUpdate(id, RunStatus.RUNNING);
 
     const accumulated: RunEvent[] =

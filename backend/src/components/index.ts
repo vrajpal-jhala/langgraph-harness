@@ -1,7 +1,7 @@
 import { Elysia, sse } from 'elysia';
 
 import type { TaskResolveRunInput } from '#types.js';
-import { MemoryScope, RunKind, RunStatus } from '#types.js';
+import { MemoryScope, RunKind } from '#types.js';
 
 import { analyticsService } from './analytics/service.js';
 import {
@@ -126,8 +126,7 @@ export const api = new Elysia({ prefix: '/api' })
             yield sse({
               event: 'run_end',
               data: {
-                status:
-                  (await runsService.getStatus(runId)) ?? RunStatus.COMPLETED,
+                status: (await runsService.getStatus(runId)) ?? run.status,
                 error: await runsService.getError(runId),
                 started_at: run.started_at,
                 completed_at: run.completed_at,
