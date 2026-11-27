@@ -1,4 +1,4 @@
-import { REMOVE_ALL_MESSAGES } from '@langchain/langgraph';
+import { isCommand, REMOVE_ALL_MESSAGES } from '@langchain/langgraph';
 
 import { type RunEvent, type WriterEvent } from '#types.js';
 
@@ -124,7 +124,7 @@ export function translateChunk(
         event: 'tool_output',
         data: {
           id: chunk.toolCallId!,
-          output: (chunk.output as { content: string }).content,
+          output: toolOutputContent(chunk.output, chunk.toolCallId!),
           timestamp: Date.now(),
           ...(subagentId && { subagentId }),
         },
@@ -172,4 +172,13 @@ export async function* translateRunStream(
 
     yield* translateChunk(mode, chunk, state, knownLcSources);
   }
+}
+
+// A tool returning a Command (write_todos, load_tools) carries its ToolMessage inside the state update, not as the output itself.
+function toolOutputContent(output: unknown, toolCallId: string) {
+  if (!isCommand(output)) return (output as { content: string }).content;
+  const { messages } = (output.update ?? {}) as {
+    messages?: { tool_call_id?: string; content: string }[];
+  };
+  return messages?.find((m) => m.tool_call_id === toolCallId)?.content;
 }
