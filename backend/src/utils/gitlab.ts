@@ -222,6 +222,14 @@ export async function resolveGitlabUserId(
   return users[0]?.id ?? null;
 }
 
+export async function fetchProjectPath(projectId: string): Promise<string> {
+  const res = await gitlabFetch(
+    `${config.gitlab.apiUrl}/projects/${projectId}`,
+  );
+  return ((await res.json()) as { path_with_namespace: string })
+    .path_with_namespace;
+}
+
 export async function resolveProject(
   urlPath: string,
   signal?: AbortSignal,

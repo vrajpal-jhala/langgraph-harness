@@ -618,11 +618,14 @@ function buildVerifier(model: string, reasoning: boolean): CompiledVerifier {
     throw new Error(`Unknown model: ${model}`);
   }
 
-  const llm = buildChatModel(modelConfig, reasoning);
   const messageTokenCache = new WeakMap();
 
   return createAgent({
-    model: llm,
+    model: buildChatModel(
+      modelConfig,
+      reasoning,
+      config.generation.agentPresencePenalty,
+    ),
     tools: VERIFIER_TOOLS,
     systemPrompt: VERIFIER_SYSTEM_PROMPT,
     // Same relative ordering as the reviewer agent's middleware stack (agent.ts): toolOutputCap outermost of the wrapToolCall group, duplicateCallGuard before noToolCallGuard, contextUsage/llmBackendLimiter innermost.

@@ -345,7 +345,11 @@ function buildAgent(
   ];
 
   return createAgent({
-    model: llm,
+    model: buildChatModel(
+      modelConfig,
+      reasoning,
+      config.generation.agentPresencePenalty,
+    ),
     tools: tools.getAll(host.provider),
     middleware,
     contextSchema: mrReviewToolContextSchema,

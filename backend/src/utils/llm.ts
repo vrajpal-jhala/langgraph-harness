@@ -17,6 +17,7 @@ const OPENAI_COMPATIBLE_BASE_URL: Partial<Record<LLMProvider, string>> = {
 export function buildChatModel(
   modelConfig: LLM,
   reasoning: boolean,
+  presencePenalty?: number,
 ): BaseChatModel {
   const apiKey = config.generation.provider[modelConfig.provider].apiKey;
 
@@ -41,6 +42,7 @@ export function buildChatModel(
       },
       modelKwargs: {
         chat_template_kwargs: { enable_thinking: reasoning },
+        ...(presencePenalty && { presence_penalty: presencePenalty }),
       },
     });
   }
