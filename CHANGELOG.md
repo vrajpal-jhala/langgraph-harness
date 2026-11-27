@@ -6,11 +6,11 @@ All notable changes to langgraph-harness are documented here.
 
 ### Features
 
-- **Runs on Node.js 26** — the backend, frontend and services now build on Node.js 26 LTS, which includes the latest Node security fixes, and every Dockerfile base image (`node`, `nginx`, `python`) is pinned to an exact version so an image rebuild can't change it unannounced. All npm dependencies are updated, including LangGraph and LangChain.
+- **Runs on Node.js 26** — the backend, frontend and services now build on Node.js 26 LTS, which includes the latest Node security fixes, and every Dockerfile base image (`node`, `nginx`, `python`) is pinned to an exact version so an image rebuild can't change it unannounced. All npm dependencies are updated, including LangGraph and LangChain. ([#100](https://github.com/vrajpal-jhala/langgraph-harness/pull/100))
 
 ### Breaking Changes
 
-- **Local development needs Node.js 26** — running the stack outside Docker now requires Node.js 26 or newer. Docker deployments need no change.
+- **Local development needs Node.js 26** — running the stack outside Docker now requires Node.js 26 or newer. Docker deployments need no change. ([#100](https://github.com/vrajpal-jhala/langgraph-harness/pull/100))
 
 ---
 
