@@ -2,6 +2,15 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.7.1] - 2026-11-27
+
+### Fixes
+
+- **A run waiting in the queue could fail right after a restart** — a review, issue or task run queued before the backend restarted could be picked up before the backend had finished starting, and failed straight away with "Workflow not initialized". Queued work now waits until startup is complete.
+- **Issue and task runs cut short by a restart stayed failed** — a restart failed every issue or task run that was queued or underway with "Server restarted", and the issue or merge request kept showing the bot as still working. These runs now start again on their own after a restart, as reviews already did.
+
+---
+
 ## [0.7.0] - 2026-11-25
 
 ### Features

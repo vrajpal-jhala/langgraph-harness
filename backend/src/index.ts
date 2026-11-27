@@ -5,18 +5,13 @@ import { nodeAdapter } from './adapter.js';
 import { auth } from './components/auth/index.js';
 import { api } from './components/index.js';
 import { repositoriesManager } from './components/repositories/manager.js';
+import { closeWorkers } from './components/runs/bullmq.js';
 import { runsService } from './components/runs/service.js';
 import { githubWebhook } from './components/webhooks/github.js';
 import { gitlabWebhook } from './components/webhooks/gitlab.js';
-import {
-  mrReviewQueue,
-  mrReviewWorker,
-} from './components/workflows/mr-review/queue.js';
+import { mrReviewQueue } from './components/workflows/mr-review/queue.js';
 import { workflows } from './components/workflows/service.js';
-import {
-  workItemResolveQueue,
-  workItemResolveWorker,
-} from './components/workflows/work-item-resolve/queue.js';
+import { workItemResolveQueue } from './components/workflows/work-item-resolve/queue.js';
 import { ws } from './components/ws/index.js';
 import { pool } from './utils/db.js';
 import { AppError } from './utils/errors.js';
@@ -70,9 +65,8 @@ const shutdown = async () => {
   await Promise.allSettled([
     ...workflows.map((workflow) => workflow.cleanup()),
     repositoriesManager.cleanup(),
-    mrReviewWorker?.close(),
+    closeWorkers(),
     mrReviewQueue?.close(),
-    workItemResolveWorker?.close(),
     workItemResolveQueue?.close(),
     pool.end(),
   ]);

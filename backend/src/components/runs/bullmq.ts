@@ -1,6 +1,8 @@
+import type { Processor, WorkerOptions } from 'bullmq';
 import { Queue, Worker } from 'bullmq';
 
 import { config } from '#utils/config.js';
+import { logger } from '#utils/logger.js';
 
 type QueueStatus = {
   active: number;
@@ -13,6 +15,36 @@ type QueueStatus = {
     delayRemaining?: number;
   }[];
 };
+
+const workers: Worker[] = [];
+
+export function createWorker<TJobData>(
+  queueName: string,
+  processor: Processor<TJobData>,
+  options: WorkerOptions,
+): Worker<TJobData> {
+  const worker = new Worker<TJobData>(queueName, processor, {
+    ...options,
+    // Started by startWorkers() so a job queued before a restart can't run before its workflow is initialized.
+    autorun: false,
+  });
+  workers.push(worker);
+  return worker;
+}
+
+export function startWorkers() {
+  for (const worker of workers) {
+    worker
+      .run()
+      .catch((err) =>
+        logger.error({ err, queue: worker.name }, '[queue] worker stopped'),
+      );
+  }
+}
+
+export function closeWorkers() {
+  return Promise.allSettled(workers.map((worker) => worker.close()));
+}
 
 export function createRunQueue<
   TJobData extends { threadId: string; runId?: string },
@@ -49,7 +81,7 @@ export function createRunQueue<
     },
   });
 
-  const worker = new Worker<TJobData>(
+  const worker = createWorker<TJobData>(
     queueName,
     (job) =>
       process(
