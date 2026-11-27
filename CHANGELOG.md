@@ -6,9 +6,9 @@ All notable changes to langgraph-harness are documented here.
 
 ### Fixes
 
-- **Runs stuck on "Queued" when the job queue hiccupped** — if a review, issue or task run couldn't be handed to the job queue (for example a brief Redis outage), it sat on "Queued" until the next server restart. It's now marked failed straight away with the error, so it can be retried.
-- **A follow-up comment could be silently dropped** — when a comment arrived while an issue or task run was already queued, a database error partway through could lose the request to run again. Both steps now save together or not at all.
-- **The thread list's runs column showed "0" on threads with no runs** — it now stays empty as intended.
+- **Runs stuck on "Queued" when the job queue hiccupped** — if a review, issue or task run couldn't be handed to the job queue (for example a brief Redis outage), it sat on "Queued" until the next server restart. It's now marked failed straight away with the error, so it can be retried. ([#92](https://github.com/vrajpal-jhala/langgraph-harness/pull/92))
+- **A follow-up comment could be silently dropped** — when a comment arrived while an issue or task run was already queued, a database error partway through could lose the request to run again. Both steps now save together or not at all. ([#92](https://github.com/vrajpal-jhala/langgraph-harness/pull/92))
+- **The thread list's runs column showed "0" on threads with no runs** — it now stays empty as intended. ([#92](https://github.com/vrajpal-jhala/langgraph-harness/pull/92))
 
 ---
 
