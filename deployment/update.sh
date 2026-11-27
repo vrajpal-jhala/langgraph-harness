@@ -22,6 +22,7 @@ mcp=()
 [ -n "${GITHUB_PAT:-}" ] && mcp+=(github-mcp)
 
 docker compose build backend frontend db-migrate github-mcp supermemory opensandbox monitoring
+docker compose up -d postgres redis
 docker compose --profile migrate run --rm db-migrate
 # New service? Add it here too — this deploy flow never creates one automatically.
 docker compose up -d lightpanda "${mcp[@]}" supermemory docker-socket-proxy-kata opensandbox docker-socket-proxy-system monitoring

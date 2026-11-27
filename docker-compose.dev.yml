@@ -2,7 +2,7 @@ name: harness
 
 services:
   postgres:
-    image: postgres:18.6-alpine
+    image: postgres:18.7-alpine
     container_name: harness_postgres
     ports:
       - '${DB_PORT:-5432}:5432'
@@ -21,7 +21,7 @@ services:
       start_period: 5s
 
   redis:
-    image: redis:8.10.2-alpine
+    image: redis:8.12.0-alpine
     container_name: harness_redis
     ports:
       - '6379:6379'
@@ -35,7 +35,7 @@ services:
       retries: 15
 
   lightpanda:
-    image: lightpanda/browser:1.0.1
+    image: lightpanda/browser:1.0.6
     container_name: harness_lightpanda
     command: [
         '/bin/lightpanda',
@@ -55,7 +55,7 @@ services:
 
   gitlab-mcp:
     profiles: [gitlab]
-    image: zereight050/gitlab-mcp:2.3.4
+    image: zereight050/gitlab-mcp:3.1.0
     container_name: harness_gitlab_mcp
     environment:
       STREAMABLE_HTTP: 'true'
@@ -84,7 +84,7 @@ services:
     build:
       dockerfile_inline: |
         FROM busybox:1.37-musl AS busybox
-        FROM ghcr.io/github/github-mcp-server:v2.0.3
+        FROM ghcr.io/github/github-mcp-server:v2.3.0
         COPY --from=busybox /bin/busybox /busybox
     container_name: harness_github_mcp
     command: ['http']
@@ -141,7 +141,7 @@ services:
       - sandbox
 
   docker-socket-proxy-system:
-    image: tecnativa/docker-socket-proxy:v0.5.0
+    image: tecnativa/docker-socket-proxy:3.4@sha256:027f9fa5ee70be5836eeaa10ce889d7a83f34a8db16a7f412818b92997e0beab
     container_name: harness_docker_socket_proxy_system
     environment:
       CONTAINERS: 1

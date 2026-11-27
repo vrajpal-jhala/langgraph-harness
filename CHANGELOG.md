@@ -2,6 +2,19 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.12.1] - 2026-11-27
+
+### Features
+
+- **Updated server components** — Postgres 18.7, Redis 8.12, Lightpanda 1.0.6, OpenSandbox 1.2.1 (server, SDK and sandbox images), the GitLab MCP server 3.1.0, the GitHub MCP server 2.3.0 and docker-socket-proxy 3.4. `deployment/update.sh` applies all of them, including Postgres and Redis. ([#101](https://github.com/vrajpal-jhala/langgraph-harness/pull/101))
+
+### Fixes
+
+- **Upgrades didn't apply a new Redis version** — `deployment/update.sh` never recreated `redis`, so a new Redis image only took effect after a manual `docker compose up -d redis`, and a new Postgres image only through the migration step's dependency. Both are now brought up before the migration step and recreated whenever their image or config changes. ([#101](https://github.com/vrajpal-jhala/langgraph-harness/pull/101))
+- **Monitoring stopped working after Docker restarted** — the system socket proxy mounted the Docker socket file itself, and with live-restore a Docker restart replaces that file, leaving the proxy talking to a dead socket so the Monitoring page returned errors until the proxy was restarted. It now mounts the socket's directory, so it always sees the current socket. ([#101](https://github.com/vrajpal-jhala/langgraph-harness/pull/101))
+
+---
+
 ## [0.12.0] - 2026-11-27
 
 ### Features
