@@ -233,6 +233,10 @@
     }
   }
 
+  &__item[data-event='history_trimmed'] .run-timeline__wait {
+    color: var(--mantine-color-yellow-9);
+  }
+
   &__item[data-event='summarize_context_start'],
   &__item[data-event='comment_critic_start'],
   &__item[data-event='reply_critic_start'],

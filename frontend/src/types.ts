@@ -610,6 +610,14 @@ export type WorkflowEvent =
       };
     }
   | {
+      event: 'history_trimmed';
+      data: {
+        messagesBefore: number;
+        messagesAfter: number;
+        timestamp: number;
+      };
+    }
+  | {
       event: 'summarize_context_start';
       data: {
         id: string;

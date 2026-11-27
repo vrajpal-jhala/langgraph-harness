@@ -1,6 +1,7 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 import {
+  AIMessage,
   type BaseMessage,
   createAgent,
   dynamicSystemPromptMiddleware,
@@ -19,7 +20,10 @@ import {
 } from '#types.js';
 
 import { memoriesService } from '#components/memories/service.js';
-import { emitAgentPromptEvent } from '#components/workflows/emit.js';
+import {
+  emitAgentPromptEvent,
+  emitHistoryTrimmedEvent,
+} from '#components/workflows/emit.js';
 import {
   contextUsageMiddleware,
   duplicateCallGuardMiddleware,
@@ -141,6 +145,10 @@ function buildSystemPrompt(
 
   return blocks.join('\n\n');
 }
+
+const TRIMMED_HISTORY_NOTE =
+  "Earlier review rounds above keep only each round's request and final message; their tool calls and results were dropped. " +
+  "Treat those final messages as notes, not a record — check the MR's discussions and drafts for what was actually posted or resolved.";
 
 // ponytail: chars, not tokens — only Qwen models have a local tokenizer; ~4 chars per token keeps these near 8k and 4k tokens.
 const FULL_MEMORIES_CHARS = 32_000;
@@ -387,10 +395,22 @@ export const agent = {
     const trailingQuestionNudged = { nudged: false };
     const diffLineMapCache = new Map();
     const draftPositions = new Map();
-    const userMessage = new HumanMessage(note);
-    const updatedMessages = messages.length
-      ? messages.concat(userMessage)
-      : [userMessage];
+    // Earlier runs' tool calls and results go stale with each push, and the review re-reads the MR live anyway — only what each run was asked and concluded carries over.
+    const priorTurns = messages.filter(
+      (m) =>
+        HumanMessage.isInstance(m) ||
+        (AIMessage.isInstance(m) && !m.tool_calls?.length),
+    );
+    const trimmed = priorTurns.length < messages.length;
+    if (trimmed)
+      emitHistoryTrimmedEvent(graphConfig, {
+        messagesBefore: messages.length,
+        messagesAfter: priorTurns.length,
+      });
+    // Without this, an earlier run's final message reads as a verified record of what it posted.
+    const humanMessage = trimmed ? `${TRIMMED_HISTORY_NOTE}\n\n${note}` : note;
+    const userMessage = new HumanMessage(humanMessage);
+    const updatedMessages = priorTurns.concat(userMessage);
     // Fed to the model via dynamicSystemPromptMiddleware, not spliced into messages — so it never gets baked into checkpointed history.
     const systemPrompt = buildSystemPrompt(
       host,
@@ -400,7 +420,7 @@ export const agent = {
     emitAgentPromptEvent(graphConfig, {
       id: crypto.randomUUID(),
       systemPrompt,
-      humanMessage: note,
+      humanMessage,
     });
     const response = await mrReviewAgent.invoke(
       { messages: updatedMessages },
