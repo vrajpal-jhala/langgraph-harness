@@ -22,6 +22,8 @@ const workflowStateSchema = z.object({
     sourceBranch: z.string(),
     targetBranch: z.string(),
     defaultBranch: z.string(),
+    answerTaggedComments: z.boolean().optional().default(false),
+    replyOnly: z.boolean().optional().default(false),
   }),
   reasoning: z.boolean().optional().default(false),
   model: z.enum(llms.map((m) => m.model) as [string, ...string[]]),
@@ -77,6 +79,10 @@ export type WorkflowConfigurable = {
   revived: boolean;
   model: string;
   reasoning: boolean;
+  answerTaggedComments: boolean;
+  replyOnly: boolean;
+  taggedDiscussionIds: Set<string>;
+  ownDiscussionIds: Set<string>;
 };
 
 export type WorkflowRuntime = {

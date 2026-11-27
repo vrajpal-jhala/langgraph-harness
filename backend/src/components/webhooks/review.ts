@@ -27,6 +27,9 @@ export const reviewThreadMetadata = (
   number: codeChangeRequestNumber,
 });
 
+export const ANSWER_TAGGED_COMMENTS =
+  'Answer comments that tag you, as Step 6 of the code-review skill describes.';
+
 // Called after worktree cleanup on merge/close, so a merged or closed state also tells the UI the worktree is gone.
 export async function recordCodeChangeRequestState(
   host: GitHost,
@@ -138,14 +141,24 @@ export async function startReviewRun(params: {
     });
   }
 
+  // On an MR an issue or task workflow opened, comments tagging the bot are instructions for that workflow.
+  const answerTaggedComments = !(await threadsDal.findByMetadata({
+    source: host.provider,
+    project: projectPath,
+    codeChangeRequestNumber: String(codeChangeRequestNumber),
+  }));
   const query = {
-    note: `Perform a code review of ${host.codeChangeRequestName} ${ref} in project "${projectPath}".`,
+    // A tagged comment waits for this run instead of starting its own, so the review answers it too.
+    note:
+      `Perform a code review of ${host.codeChangeRequestName} ${ref} in project "${projectPath}".` +
+      (answerTaggedComments ? ` Also: ${ANSWER_TAGGED_COMMENTS}` : ''),
     projectPath,
     codeChangeRequestNumber: String(codeChangeRequestNumber),
     sourceBranch,
     sourceSha,
     targetBranch,
     defaultBranch,
+    answerTaggedComments,
   };
   const runInput = {
     kind: RunKind.MrReview,

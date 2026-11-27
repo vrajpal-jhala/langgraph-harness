@@ -7,7 +7,7 @@ import { repositoriesManager } from '#components/repositories/manager.js';
 import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
 import { handleOnce } from './delivery.js';
-import { mentionsUser, startFollowUpRun } from './follow-up.js';
+import { startFollowUpRun } from './follow-up.js';
 import {
   recordCodeChangeRequestState,
   reviewThreadMetadata,
@@ -20,6 +20,7 @@ import { config, isProjectInScope } from '#utils/config.js';
 import { gitHosts } from '#utils/git-host.js';
 import { isStillReviewer } from '#utils/github.js';
 import { parseHarnessYml } from '#utils/harness-config.js';
+import { mentionsUser } from '#utils/helpers.js';
 import { logger } from '#utils/logger.js';
 import { isAutomatedStatusNote } from '#utils/notes.js';
 
@@ -366,11 +367,18 @@ async function handleCommentEvent(event: string, body: any) {
       reason: 'human_comment_not_tagged',
     };
 
-  const thread = await threadsDal.findByMetadata({
-    source: GitProvider.GitHub,
-    project: projectPath,
-    codeChangeRequestNumber: String(prNumber),
-  });
+  const thread =
+    (await threadsDal.findByMetadata({
+      source: GitProvider.GitHub,
+      project: projectPath,
+      codeChangeRequestNumber: String(prNumber),
+    })) ??
+    // A review posts many comments of its own, so only a person tagging the bot reaches its review thread.
+    (isBotAuthored
+      ? undefined
+      : await threadsDal.findByMetadata(
+          reviewThreadMetadata(host, projectPath, prNumber),
+        ));
   if (!thread)
     return {
       received: true,

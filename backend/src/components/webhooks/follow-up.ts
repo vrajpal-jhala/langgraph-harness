@@ -1,25 +1,24 @@
 import type {
   GitHost,
+  MrReviewRunInput,
   TaskResolveRunInput,
   Thread,
   WorkItemResolveRunInput,
 } from '#types.js';
-import { RunKind } from '#types.js';
+import { RunKind, RunStatus } from '#types.js';
 
 import { runsDal } from '#components/runs/dal.js';
 import { runsService } from '#components/runs/service.js';
+import { ANSWER_TAGGED_COMMENTS } from '#components/webhooks/review.js';
+import {
+  enqueueMrReview,
+  reviewJobId,
+} from '#components/workflows/mr-review/queue.js';
 import { enqueueTaskResolve } from '#components/workflows/task-resolve/queue.js';
 import { enqueueWorkItemResolve } from '#components/workflows/work-item-resolve/queue.js';
 
 import { config, isProjectInScope } from '#utils/config.js';
 import { parseHarnessYml } from '#utils/harness-config.js';
-
-// A bare substring would also match `@bot-fan` or `a@bot.com`; usernames on both providers can contain `-`, `_` and `.`.
-export function mentionsUser(text: string, username: string): boolean {
-  if (!username) return false;
-  const escaped = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(?<![\\w-])@${escaped}(?![\\w-]|\\.\\w)`, 'i').test(text);
-}
 
 export async function startFollowUpRun(params: {
   host: GitHost;
@@ -48,10 +47,13 @@ export async function startFollowUpRun(params: {
   if (ownNoteIds.includes(String(noteId)))
     return { received: true, status: 'skipped', reason: 'own_note' };
 
+  // Review threads gain a run per push, so a cap would eventually silence replies on a long-lived MR.
   const runCap =
     thread.kind === RunKind.TaskResolve
       ? config.taskResolve.runCap
-      : config.workItemResolve.runCap;
+      : thread.kind === RunKind.WorkItemResolve
+        ? config.workItemResolve.runCap
+        : Infinity;
   if ((await runsService.countByThread(thread.id)) >= runCap) {
     return { received: true, status: 'skipped', reason: 'run_cap_reached' };
   }
@@ -62,6 +64,52 @@ export async function startFollowUpRun(params: {
 
   // Fresh parse, not a replay — unlike retry(), which intentionally reuses the original snapshot.
   const harnessConfig = await parseHarnessYml(host, projectPath);
+
+  if (thread.kind === RunKind.MrReview) {
+    // A waiting review already answers tagged comments, and replacing it would drop its review of the latest push.
+    if (latestRun.status === RunStatus.QUEUED)
+      return {
+        received: true,
+        status: 'accepted',
+        detail: 'mr_review_reply_pending',
+      };
+
+    const latestInput = latestRun.input as MrReviewRunInput;
+    const ref = host.codeChangeRequestRef(
+      latestInput.query.codeChangeRequestNumber,
+    );
+    const reviewInput = {
+      ...latestInput,
+      config: harnessConfig,
+      query: {
+        ...latestInput.query,
+        note:
+          `You were tagged in a comment on ${host.codeChangeRequestName} ${ref} in project "${projectPath}". ` +
+          `${ANSWER_TAGGED_COMMENTS} ` +
+          `Resolve one of your threads only if the code now fixes it or the person gave an explicit decision there (won't fix, fixed differently, tracked elsewhere) — a question or your own answer doesn't settle it. ` +
+          `A new push gets its own review, so don't review the diff here or post new findings.`,
+        answerTaggedComments: true,
+        replyOnly: true,
+      },
+    };
+
+    const run = await runsService.create(
+      thread.id,
+      RunKind.MrReview,
+      reviewInput,
+    );
+    await enqueueMrReview(reviewJobId(host.provider, reviewInput.query), {
+      threadId: thread.id,
+      runId: run.id,
+      ...reviewInput,
+    });
+
+    return {
+      received: true,
+      status: 'accepted',
+      detail: 'mr_review_reply_enqueued',
+    };
+  }
 
   if (thread.kind === RunKind.TaskResolve) {
     const { defaultBranch, submittedBy, model } =

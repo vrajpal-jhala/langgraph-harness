@@ -386,6 +386,8 @@ export type MrReviewRunInput = {
     sourceSha: string;
     targetBranch: string;
     defaultBranch: string;
+    answerTaggedComments?: boolean;
+    replyOnly?: boolean;
   };
   model: ModelName;
   reasoning: boolean;
