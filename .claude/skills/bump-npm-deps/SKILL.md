@@ -43,7 +43,7 @@ Classify every row:
   follow semver).
 
 Exception: `@types/node` stays on the Node major in that location's Dockerfile
-(`node:22-slim` today). A jump past it is MAJOR with nothing to read — it's types
+(`node:26-slim` today). A jump past it is MAJOR with nothing to read — it's types
 only and has no changelog — so put it under "Needs manual action". The supermemory
 server is pinned in `services/supermemory/Dockerfile`, not `package.json`, so it
 never appears here; don't bump it.

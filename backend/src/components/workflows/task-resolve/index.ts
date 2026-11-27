@@ -376,6 +376,7 @@ export const taskResolveWorkflow: Workflow<TaskResolveRunInput> = {
                 host,
               },
               streamMode: ['messages', 'tools', 'custom', 'checkpoints'],
+              subgraphs: true,
               signal,
             },
           );

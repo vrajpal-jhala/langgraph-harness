@@ -68,14 +68,19 @@ image IDs; read their versions from the repo pins.
 (Docker Hub `zereight050/gitlab-mcp` gets a matching tag per release),
 `github/github-mcp-server` (`ghcr.io`, `vX.Y.Z` tags). PyPI for
 `opensandbox-server`. Docker Hub tags for `postgres`/`redis` (`X.Y-alpine`) and
-`last_updated` for the floating `nginx:alpine`, `python:3.12-slim`, `node:22-slim`.
+the newest patch tag of each Dockerfile base image (`node:26.x.y-slim`/`-alpine`,
+`nginx:x.y.z-alpine`, `python:3.12.x-slim`). A Node security release
+(`security: true` in `https://nodejs.org/dist/index.json`) is a reason to run
+this skill on its own.
 
-Pins live in `docker-compose.yml`, `docker-compose.dev.yml`,
+Pins live in `docker-compose.yml`, `docker-compose.dev.yml`, the `FROM` lines of
+the `backend`, `frontend` and `services/*` Dockerfiles,
 `services/supermemory/Dockerfile` (install URL and version),
 `services/opensandbox/Dockerfile`, `services/opensandbox/sandbox.toml`
 (`execd`/`egress` release tags), `@alibaba-group/opensandbox` in `backend` and
-`services/monitoring`, and the matching lines in `docs/deployment.md`. The SGLang
-tag exists only in the server's `compose.yaml` (see `docs/sglang-deployment.md`).
+`services/monitoring`, the `node-version` in `.github/workflows/*.yml`, and the
+matching lines in `docs/deployment.md`. The SGLang tag exists only in the
+server's `compose.yaml` (see `docs/sglang-deployment.md`).
 
 Report one short table (component, running, latest). Host packages (Docker,
 containerd, NVIDIA, kernel) come through `apt`, not the repo.

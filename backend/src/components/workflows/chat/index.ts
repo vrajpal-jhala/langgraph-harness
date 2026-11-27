@@ -153,6 +153,7 @@ async function* resumeWithDecision(
       resuming: true,
     },
     streamMode: ['messages', 'tools', 'custom', 'checkpoints'],
+    subgraphs: true,
     signal,
   });
 
@@ -312,6 +313,7 @@ export const chatWorkflow: Workflow<ChatRunInput, ChatSecrets> = {
             ...(fromCheckpointId && { checkpoint_id: fromCheckpointId }),
           },
           streamMode: ['messages', 'tools', 'custom', 'checkpoints'],
+          subgraphs: true,
           signal,
         },
       );

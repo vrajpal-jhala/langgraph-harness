@@ -1,13 +1,16 @@
 diff --git a/node_modules/@langchain/core/dist/runnables/base.js b/node_modules/@langchain/core/dist/runnables/base.js
-index 655c9eb..120b564 100644
+index c40a5a4..1b0b6b1 100644
 --- a/node_modules/@langchain/core/dist/runnables/base.js
 +++ b/node_modules/@langchain/core/dist/runnables/base.js
-@@ -389,25 +389,18 @@ var Runnable = class extends Serializable {
+@@ -390,21 +390,16 @@ var Runnable = class extends Serializable {
  		}
  		const abortController = new AbortController();
  		const outerThis = this;
-+		const onParentAbort = () => abortController.abort(config.signal.reason);
-+		config.signal?.addEventListener("abort", onParentAbort, { once: true });
++		const composed = new AbortController();
++		const onParentAbort = () => composed.abort(config.signal.reason);
++		if (config.signal?.aborted) onParentAbort();
++		else config.signal?.addEventListener("abort", onParentAbort, { once: true });
++		abortController.signal.addEventListener("abort", () => composed.abort(abortController.signal.reason), { once: true });
  		async function consumeRunnableStream() {
 -			let signal;
  			try {
@@ -23,20 +26,15 @@ index 655c9eb..120b564 100644
  				const runnableStream = await outerThis.stream(input, {
  					...config,
 -					signal
-+					signal: abortController.signal
++					signal: composed.signal
  				});
  				const tappedStream = eventStreamer.tapOutputIterable(runId, runnableStream);
  				for await (const _ of tappedStream) if (abortController.signal.aborted) break;
- 			} finally {
-+				config.signal?.removeEventListener("abort", onParentAbort);
- 				await eventStreamer.finish();
- 			}
- 		}
-@@ -429,6 +422,7 @@ var Runnable = class extends Serializable {
+@@ -434,6 +429,7 @@ var Runnable = class extends Serializable {
  				yield event;
  			}
  		} finally {
 +			config.signal?.removeEventListener("abort", onParentAbort);
  			abortController.abort();
- 			await runnableStreamConsumePromise;
- 		}
+ 			await runnableStreamConsumePromise.catch((e) => {
+ 				if (e !== abortController.signal.reason) throw e;
