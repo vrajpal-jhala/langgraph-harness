@@ -4,7 +4,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir opensandbox-server==1.1.1
+RUN pip install --no-cache-dir opensandbox-server==1.2.1
 COPY sandbox.toml /root/.sandbox.toml
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

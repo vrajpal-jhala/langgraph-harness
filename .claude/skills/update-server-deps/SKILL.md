@@ -144,12 +144,8 @@ Before it:
 
 - supermemory changing → back up `${DATA_PATH}/supermemory` and check
   `services/supermemory/.env` for settings the new version removed.
-- postgres tag changing → `pg_dump` first; `update.sh` recreates it through the
-  `db-migrate` dependency.
-- Redis is **not** touched by `update.sh`. After the deploy, with no run active:
-  `cd <install-dir> && set -a && source backend/.env && set +a && docker compose up -d redis`.
-- Fresh base images need one manual `docker compose build --pull` (tags float on
-  purpose and `update.sh` has no `--pull`).
+- postgres or redis tag changing → `deployment/update.sh` recreates both before the
+  migration step. A Postgres major needs a `pg_dump`/restore first.
 
 ## 5. Verify
 
