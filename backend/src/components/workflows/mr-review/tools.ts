@@ -16,6 +16,7 @@ import {
   type SubagentErrorEvent,
 } from '#types.js';
 
+import { memoriesDal } from '#components/memories/dal.js';
 import { createMemoryCandidateTool } from '#components/memories/tool.js';
 import { gitService } from '#components/repositories/service.js';
 import { githubMcp } from '#components/workflows/github-mcp.js';
@@ -38,6 +39,7 @@ import type {
   WorkflowConfigurable,
 } from './state.js';
 
+import { createBm25Index, parseQuery } from '#utils/bm25.js';
 import { config, llms } from '#utils/config.js';
 import {
   type DiffLineMap,
@@ -147,6 +149,68 @@ const createMemoryCandidate = createMemoryCandidateTool<WorkflowConfigurable>({
     codeChangeRequestNumber: configurable.codeChangeRequestNumber ?? '',
   }),
 });
+
+const MEMORY_SEARCH_MATCHES = 5;
+
+// The system prompt inlines only what fits its budget; this reads the rest by exact title or keywords.
+const searchProjectMemories = tool(
+  async ({ query }, runtime: GitToolRuntime) => {
+    const memories = await memoriesDal.listByProject(
+      runtime.configurable?.repoKey ?? '',
+    );
+    const found = new Map<string, (typeof memories)[number]>();
+
+    // Titles often contain commas and brackets, so match whole titles before parseQuery splits and strips the rest.
+    let rest = (
+      Array.isArray(query) ? query.join(',') : (query ?? '')
+    ).toLowerCase();
+    for (const m of memories) {
+      const title = m.title.toLowerCase();
+      if (!rest.includes(title)) continue;
+      found.set(m.id, m);
+      rest = rest.replace(title, '');
+    }
+
+    const items = parseQuery(rest);
+    if (!found.size && !items.length) {
+      throw new Error(
+        'search_project_memories needs memory titles or keywords as one comma-separated string.',
+      );
+    }
+
+    const search = createBm25Index(memories, (m) => ({
+      title: m.title,
+      body: m.content,
+    }));
+    for (const item of items) {
+      for (const m of search(item, MEMORY_SEARCH_MATCHES)) found.set(m.id, m);
+    }
+
+    if (!found.size) {
+      throw new Error(
+        `No project memory matched ${items.map((i) => `"${i}"`).join(', ')}. Try different keywords.`,
+      );
+    }
+
+    return [...found.values()]
+      .map((m) => `[${m.category}] ${m.title}: ${m.content}`)
+      .join('\n\n');
+  },
+  {
+    name: 'search_project_memories',
+    description:
+      "Read this repository's stored review memories that aren't shown in full in the system prompt. Pass exact titles from the memory index and/or keywords for the area you're reviewing, as one comma-separated string.",
+    schema: z.object({
+      // Array-tolerant so a malformed call from a local model reaches the friendly error above instead of a schema failure.
+      query: z
+        .union([z.string(), z.array(z.string())])
+        .optional()
+        .describe(
+          'Comma-separated memory titles or keywords, e.g. "Use shared date helpers, i18n keys"',
+        ),
+    }),
+  },
+);
 
 // base = merge-base(source, target) unless overridden, head = source: the net change of the MR, not the moving target branch.
 async function diffRange(
@@ -1025,6 +1089,7 @@ const GIT_READ_TOOLS = new Set([
 ]);
 
 const LOCAL_READ_TOOLS = new Set([
+  searchProjectMemories.name,
   gitGrep.name,
   readTextFile.name,
   readMultipleFiles.name,
@@ -1112,6 +1177,7 @@ export const tools = {
     const baseTools = [
       loadSkill,
       createMemoryCandidate,
+      searchProjectMemories,
       gitChangedFiles,
       gitDiff,
       gitFileDiff,

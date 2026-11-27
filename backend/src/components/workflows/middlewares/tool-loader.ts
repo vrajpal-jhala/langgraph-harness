@@ -14,88 +14,13 @@ import {
   emitToolOutputEvent,
 } from '#components/workflows/emit.js';
 
+import { createBm25Index, parseQuery } from '#utils/bm25.js';
+
 const LOAD_TOOLS = 'load_tools';
 const KEYWORD_MATCHES = 5;
 
-// The model's words vs the tools' — GitHub says "pull request", GitLab "merge request" and "note" for a comment.
-const SYNONYMS: Record<string, string[]> = {
-  pr: ['merge', 'request'],
-  mr: ['merge', 'request'],
-  pull: ['merge'],
-  comment: ['note'],
-  log: ['output', 'trace'],
-};
-
-function tokenize(text: string): string[] {
-  return text
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter(Boolean)
-    .map((word) =>
-      word.length > 3 && word.endsWith('s') ? word.slice(0, -1) : word,
-    )
-    .flatMap((word) => [word, ...(SYNONYMS[word] ?? [])]);
-}
-
 const firstSentence = (text: string) =>
   text.split(/(?<=\.)\s/)[0].slice(0, 160);
-
-// ponytail: BM25 over names and descriptions; move to hybrid with embeddings if wrong picks show up in real use.
-function createBm25Index(tools: DynamicStructuredTool[]) {
-  const k1 = 1.2;
-  const b = 0.75;
-  // Names count twice and only the first sentence of a description is indexed — the rest is boilerplate shared by every MCP tool.
-  const docs = tools.map((t) => {
-    const nameTokens = tokenize(t.name);
-    return [
-      ...nameTokens,
-      ...nameTokens,
-      ...tokenize(firstSentence(t.description)),
-    ];
-  });
-  const avgLength =
-    docs.reduce((sum, doc) => sum + doc.length, 0) / (docs.length || 1);
-  const docFreq = new Map<string, number>();
-  for (const doc of docs) {
-    for (const term of new Set(doc)) {
-      docFreq.set(term, (docFreq.get(term) ?? 0) + 1);
-    }
-  }
-
-  return (query: string, limit: number) => {
-    const terms = [...new Set(tokenize(query))];
-    return docs
-      .map((doc, i) => {
-        let score = 0;
-        for (const term of terms) {
-          const df = docFreq.get(term);
-          if (!df) continue;
-          const tf = doc.filter((t) => t === term).length;
-          if (!tf) continue;
-          const idf = Math.log(1 + (docs.length - df + 0.5) / (df + 0.5));
-          score +=
-            (idf * tf * (k1 + 1)) /
-            (tf + k1 * (1 - b + (b * doc.length) / avgLength));
-        }
-        return { tool: tools[i], score };
-      })
-      .filter((match) => match.score > 0)
-      .sort((x, y) => y.score - x.score)
-      .slice(0, limit)
-      .map((match) => match.tool);
-  };
-}
-
-// Local models send arrays, JSON-ish strings or nothing at all for a list argument — accept all of it.
-function parseQuery(query: string | string[] | undefined): string[] {
-  const raw = Array.isArray(query) ? query.join(',') : (query ?? '');
-  return raw
-    .replace(/[[\]"'`]/g, '')
-    .split(/[,\n]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
 
 function editDistance(a: string, b: string): number {
   let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
@@ -148,7 +73,11 @@ const stateSchema = new StateSchema({
  */
 export function toolLoaderMiddleware(tools: DynamicStructuredTool[]) {
   const byName = new Map(tools.map((t) => [t.name, t]));
-  const search = createBm25Index(tools);
+  // Only the first sentence of a description — the rest is boilerplate shared by every MCP tool.
+  const search = createBm25Index(tools, (t) => ({
+    title: t.name,
+    body: firstSentence(t.description),
+  }));
 
   const loadTools = tool(
     ({ query }, runtime) => {

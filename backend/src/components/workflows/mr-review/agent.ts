@@ -13,8 +13,8 @@ import {
   type GitHost,
   GitProvider,
   type LLM,
-  MEMORY_CATEGORIES,
   type MemoryCandidate,
+  type MemoryCategory,
   type MemoryCategoryEntryMap,
 } from '#types.js';
 
@@ -135,32 +135,87 @@ function buildSystemPrompt(
   }
 
   if (projectMemories) {
-    const categoriesWithMemories = MEMORY_CATEGORIES.filter(
-      (category) => projectMemories[category].length,
-    );
+    const block = buildProjectMemoriesBlock(projectMemories);
+    if (block) blocks.push(block);
+  }
 
-    if (categoriesWithMemories.length) {
-      const sections = categoriesWithMemories.map((category) => {
-        return [
-          `${category}:`,
-          ...projectMemories![category].map(
-            (entry) => `- ${entry.title}: ${entry.content}`,
-          ),
-        ].join('\n');
-      });
+  return blocks.join('\n\n');
+}
 
+// ponytail: chars, not tokens — only Qwen models have a local tokenizer; ~4 chars per token keeps these near 8k and 4k tokens.
+const FULL_MEMORIES_CHARS = 32_000;
+const MEMORY_INDEX_CHARS = 16_000;
+const MEMORY_PRIORITY: MemoryCategory[] = [
+  'preference',
+  'decision',
+  'lesson',
+  'knowledge',
+];
+
+const categorySections = (entries: Map<MemoryCategory, string[]>): string[] =>
+  [...entries]
+    .filter(([, lines]) => lines.length)
+    .map(([category, lines]) => [`${category}:`, ...lines].join('\n'));
+
+// One budget across all categories, filled in priority order; whatever doesn't fit is listed by title, or only counted once even the titles would bloat.
+function buildProjectMemoriesBlock(
+  projectMemories: MemoryCategoryEntryMap,
+): string | undefined {
+  const full = new Map<MemoryCategory, string[]>();
+  const overflow = new Map<MemoryCategory, string[]>();
+  let remaining = FULL_MEMORIES_CHARS;
+  let spilled = false;
+
+  for (const category of MEMORY_PRIORITY) {
+    full.set(category, []);
+    overflow.set(category, []);
+    for (const entry of projectMemories[category]) {
+      const line = `- ${entry.title}: ${entry.content}`;
+      // Once one entry doesn't fit, everything after it overflows too, so a later small entry can't jump the priority order.
+      spilled ||= line.length > remaining;
+      if (spilled) {
+        overflow.get(category)!.push(`- ${entry.title}`);
+        continue;
+      }
+      full.get(category)!.push(line);
+      remaining -= line.length;
+    }
+  }
+
+  const sections = categorySections(full);
+  const overflowCount = [...overflow.values()].reduce(
+    (sum, titles) => sum + titles.length,
+    0,
+  );
+  if (!sections.length && !overflowCount) return;
+
+  const blocks = [
+    '<project_memories>',
+    'Notes carried over from past reviews of this repository.',
+    ...(sections.length ? [sections.join('\n\n')] : []),
+  ];
+
+  if (overflowCount) {
+    const index = categorySections(overflow).join('\n\n');
+    const searchHint = `Before flagging or skipping something in an area these may cover, read the relevant ones with search_project_memories.`;
+    if (index.length <= MEMORY_INDEX_CHARS) {
       blocks.push(
-        [
-          '<project_memories>',
-          'Notes carried over from past reviews of this repository.',
-          sections.join('\n\n'),
-          '</project_memories>',
-        ].join('\n'),
+        `${overflowCount} more memories, titles only. ${searchHint}`,
+        index,
+      );
+    } else {
+      const counts = [...overflow]
+        .filter(([, titles]) => titles.length)
+        .map(([category, titles]) => `${category}: ${titles.length}`)
+        .join(', ');
+      blocks.push(
+        `${overflowCount} more memories not shown (${counts}). ${searchHint} Search by keywords for the files and topics this change touches.`,
       );
     }
   }
 
-  return blocks.join('\n\n');
+  blocks.push('</project_memories>');
+  return blocks.join('\n');
 }
 
 type CompiledAgent = ReturnType<typeof createAgent>;

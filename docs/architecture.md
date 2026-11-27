@@ -231,7 +231,7 @@ flowchart TB
 
 ### 🟩 Built — shared across all four harnesses
 
-- Semantic memory: an LLM-curated store (project-scoped and personal/chat-scoped), plain Postgres columns (`category`/`title`/`content`/`evidence`, no vector search), loaded in full into the system prompt rather than retrieved by similarity — browsable at `/memories`
+- Semantic memory: an LLM-curated store (project-scoped and personal/chat-scoped), plain Postgres columns (`category`/`title`/`content`/`evidence`, no vector search), loaded into the system prompt rather than retrieved by similarity — MR Review inlines them within a fixed budget (preferences and decisions first, newest first) and lists the rest by title, which it reads with a keyword-search tool (`search_project_memories`, BM25, no embeddings); the other harnesses still load them in full — browsable at `/memories`
 - Postgres checkpointer + retry, React UI with live SSE + analytics (retry/abort/delete actions on top of live viewing, not read-only)
 - Git providers: sign-in via GitLab or GitHub OAuth (linked into one account by verified email, or from Settings), admin rights from each provider's own username list; each provider is all-or-nothing in config, and one left out is switched off entirely — sign-in, webhook route, MCP tools, the workflows that need it — and its existing runs can't be retried or restarted; every workflow, Chat's git-host tools and analytics' by-repo view work on either provider
 
@@ -243,7 +243,7 @@ flowchart TB
 
 ### ⬜ Pipeline
 
-- **Memory:** scaling evolving memories beyond the 2-project chat-only PoC to every project and all four harnesses; a summariser/consolidation loop distilling episodic run history into durable memories; vector-similarity retrieval over the memory store (today's full-list-into-prompt approach is the only retrieval mode); genuine multi-hop graph queries, if evolving memories' linking turns out not to be enough for that
+- **Memory:** scaling evolving memories beyond the 2-project chat-only PoC to every project and all four harnesses; a summariser/consolidation loop distilling episodic run history into durable memories; vector-similarity retrieval over the memory store (today's prompt loading plus MR Review's keyword search are the only retrieval modes); genuine multi-hop graph queries, if evolving memories' linking turns out not to be enough for that
 - **LLM Ops:** self-hosted Langfuse tracing, observe, LLM-as-judge evals on a golden MR dataset, diagnose → gate → release loop with prompt/skill/model versioning
 - **Multi-agent:** supervisor/router + future agents (triage, docs, security, Figma) as consumers of the shared memory + ops foundation
 
