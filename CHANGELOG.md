@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.11.1] - 2026-11-27
+
+### Fixes
+
+- **Stopped runs counted as failures** — a run stopped on purpose, by clicking Stop, merging or closing its merge request, closing its issue or unassigning the bot, was marked failed and pulled down the success rate on the Analytics page. These runs are now marked cancelled: they show in grey with the reason, can be filtered for in the thread list, appear as their own series in Analytics, and are left out of the success rate. Runs stopped before this release are corrected too, and past repeat-call guard stops that were counted as model errors now show under guard aborts.
+
+---
+
 ## [0.11.0] - 2026-11-27
 
 ### Features
