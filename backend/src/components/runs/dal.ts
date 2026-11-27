@@ -127,6 +127,26 @@ export const runsDal = {
     return result.numUpdatedRows > 0n;
   },
 
+  markRunning: (id: string) =>
+    db
+      .updateTable('runs')
+      .set({ status: RunStatus.RUNNING })
+      .where('id', '=', id)
+      .where('status', '=', RunStatus.QUEUED)
+      .returningAll()
+      .executeTakeFirst(),
+
+  failQueuedById: async (id: string, error: string) => {
+    const result = await db
+      .updateTable('runs')
+      .set({ status: RunStatus.FAILED, error })
+      .where('id', '=', id)
+      .where('status', '=', RunStatus.QUEUED)
+      .executeTakeFirst();
+
+    return result.numUpdatedRows > 0n;
+  },
+
   // Plain substring match, not a jsonb path query, since input's shape differs by workflow (only chat has images).
   isUploadReferenced: async (ref: string) => {
     const row = await db

@@ -671,28 +671,30 @@ const ThreadDetailPage = () => {
           </Tooltip>
         )}
       </Group>
-      {selectedRun?.status === 'running' && canMutate && (
-        <>
-          <Button
-            color="red"
-            variant="filled"
-            size="xs"
-            onClick={requestAbort}
-            leftSection={<Icon as={IconPlayerStop} />}
-            visibleFrom="md"
-          >
-            Abort
-          </Button>
-          <ActionIcon
-            color="red"
-            variant="filled"
-            onClick={requestAbort}
-            hiddenFrom="md"
-          >
-            <Icon as={IconPlayerStop} />
-          </ActionIcon>
-        </>
-      )}
+      {(selectedRun?.status === 'running' ||
+        selectedRun?.status === 'queued') &&
+        canMutate && (
+          <>
+            <Button
+              color="red"
+              variant="filled"
+              size="xs"
+              onClick={requestAbort}
+              leftSection={<Icon as={IconPlayerStop} />}
+              visibleFrom="md"
+            >
+              {selectedRun.status === 'queued' ? 'Cancel' : 'Abort'}
+            </Button>
+            <ActionIcon
+              color="red"
+              variant="filled"
+              onClick={requestAbort}
+              hiddenFrom="md"
+            >
+              <Icon as={IconPlayerStop} />
+            </ActionIcon>
+          </>
+        )}
     </Group>
   );
   const runsLoading = loadingRuns && !runs.length;
