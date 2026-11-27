@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.10.0] - 2026-11-27
+
+### Features
+
+- **Threads show when their merge request was merged or closed** — once a merge request or pull request is merged or closed, its review thread and any issue or task thread that opened it show a merge or closed icon in the thread list and next to the thread title, which also means its working copy has been cleaned up. Reopening it clears the icon. ([#94](https://github.com/vrajpal-jhala/langgraph-harness/pull/94))
+
+---
+
 ## [0.9.0] - 2026-11-27
 
 ### Features

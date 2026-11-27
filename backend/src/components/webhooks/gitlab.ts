@@ -8,7 +8,11 @@ import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
 import { handleOnce } from './delivery.js';
 import { mentionsUser, startFollowUpRun } from './follow-up.js';
-import { reviewThreadMetadata, startReviewRun } from './review.js';
+import {
+  recordCodeChangeRequestState,
+  reviewThreadMetadata,
+  startReviewRun,
+} from './review.js';
 import { startWorkItemResolveRun } from './work-item.js';
 
 import { gitlabWebhookAuth } from '#utils/auth.js';
@@ -276,6 +280,13 @@ async function handleMergeRequestEvent(body: any) {
       });
     }
 
+    await recordCodeChangeRequestState(
+      host,
+      projectPath,
+      mrIid,
+      action === 'merge' ? 'merged' : 'closed',
+    );
+
     // Fire-and-forget — analytics only.
     if (thread) {
       analyticsService
@@ -310,6 +321,9 @@ async function handleMergeRequestEvent(body: any) {
     object_attributes?.target_project_id
   )
     return { received: true, status: 'skipped', reason: 'fork_mr' };
+
+  if (action === 'reopen')
+    await recordCodeChangeRequestState(host, projectPath, mrIid, 'opened');
 
   const isInitial = action === 'open' || action === 'reopen';
   const isReReview = action === 'update' && !!object_attributes?.oldrev;

@@ -8,7 +8,11 @@ import { threadsDal } from '#components/threads/dal.js';
 import { threadsService } from '#components/threads/service.js';
 import { handleOnce } from './delivery.js';
 import { mentionsUser, startFollowUpRun } from './follow-up.js';
-import { reviewThreadMetadata, startReviewRun } from './review.js';
+import {
+  recordCodeChangeRequestState,
+  reviewThreadMetadata,
+  startReviewRun,
+} from './review.js';
 import { startWorkItemResolveRun } from './work-item.js';
 
 import { githubWebhookAuth } from '#utils/auth.js';
@@ -185,6 +189,13 @@ async function handlePullRequestEvent(body: any) {
       });
     }
 
+    await recordCodeChangeRequestState(
+      host,
+      projectPath,
+      prNumber,
+      pull_request.merged ? 'merged' : 'closed',
+    );
+
     // Fire-and-forget — analytics only.
     if (thread) {
       analyticsService
@@ -216,6 +227,9 @@ async function handlePullRequestEvent(body: any) {
   // The worktree is checked out from the base repo's clone, where a fork's branch doesn't exist — or a same-named base branch would be reviewed instead.
   if (pull_request.head?.repo?.full_name !== projectPath)
     return { received: true, status: 'skipped', reason: 'fork_pr' };
+
+  if (action === 'reopened')
+    await recordCodeChangeRequestState(host, projectPath, prNumber, 'opened');
 
   const isInitial = action === 'opened' || action === 'reopened';
   const isReReview = action === 'synchronize';
