@@ -1,4 +1,5 @@
 import type { RunnableConfig } from '@langchain/core/runnables';
+import { START } from '@langchain/langgraph';
 
 import { checkpointer } from '#utils/db.js';
 import { logger } from '#utils/logger.js';
@@ -58,9 +59,9 @@ export async function migrateLegacyState(params: {
 
     const { next } = await graph.getState(config);
     const pendingIndex = next.length === 1 ? nodeOrder.indexOf(next[0]) : -1;
-    const asNode = next.length
-      ? nodeOrder[pendingIndex - 1]
-      : nodeOrder[nodeOrder.length - 1];
+    // At step 0 no node has run yet, so the update goes in as the graph's input.
+    const before = pendingIndex === 0 ? START : nodeOrder[pendingIndex - 1];
+    const asNode = next.length ? before : nodeOrder[nodeOrder.length - 1];
     if (!asNode) {
       logger.warn(
         { threadId, next },

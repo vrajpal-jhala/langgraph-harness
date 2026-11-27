@@ -12,6 +12,7 @@ import {
 import type { SandboxAgentRuntime } from '#components/workflows/state.js';
 
 import { parseRepoKey } from '#utils/git-host.js';
+import { fetchProjectPath } from '#utils/gitlab.js';
 import { mcpToolName } from '#utils/helpers.js';
 
 type RunTarget = {
@@ -29,6 +30,18 @@ const githubRepoMatches = (args: ToolArgs, { projectPath }: RunTarget) =>
 const gitlabMergeRequestMatches = (args: ToolArgs, target: RunTarget) =>
   samePath(decodeURIComponent(String(args.project_id)), target.projectPath) &&
   String(args.merge_request_iid) === target.codeChangeRequestNumber;
+
+const gitlabMergeRequestTools = new Set(
+  [
+    'create_merge_request_discussion_note',
+    'create_draft_note',
+    'bulk_publish_draft_notes',
+    'publish_draft_note',
+    'approve_merge_request',
+    'unapprove_merge_request',
+    'resolve_merge_request_thread',
+  ].map((tool) => mcpToolName(GitProvider.GitLab, tool)),
+);
 
 // The identifiers in the prompt are only a hint, so a prompt-injected issue, comment or diff could otherwise point a write at any repo the bot token reaches.
 const targetMatches: Record<
@@ -48,20 +61,28 @@ const targetMatches: Record<
     githubRepoMatches(args, target) &&
     String(args.pullNumber) === target.codeChangeRequestNumber,
   ...Object.fromEntries(
-    [
-      'create_merge_request_discussion_note',
-      'create_draft_note',
-      'bulk_publish_draft_notes',
-      'publish_draft_note',
-      'approve_merge_request',
-      'unapprove_merge_request',
-      'resolve_merge_request_thread',
-    ].map((tool) => [
-      mcpToolName(GitProvider.GitLab, tool),
+    [...gitlabMergeRequestTools].map((tool) => [
+      tool,
       gitlabMergeRequestMatches,
     ]),
   ),
 };
+
+// The run's own MR is the only target the guard allows, so missing IDs can only mean that one, and a numeric project_id is checked by its path.
+async function withGitlabTarget(
+  args: ToolArgs,
+  target: RunTarget,
+): Promise<ToolArgs> {
+  const projectId = String(args.project_id ?? target.projectPath);
+  return {
+    ...args,
+    project_id: /^\d+$/.test(projectId)
+      ? await fetchProjectPath(projectId).catch(() => projectId)
+      : projectId,
+    merge_request_iid:
+      args.merge_request_iid ?? target.codeChangeRequestNumber ?? undefined,
+  };
+}
 
 export function writeTargetGuardMiddleware(writeToolNames: Set<string>) {
   return createMiddleware({
@@ -82,9 +103,15 @@ export function writeTargetGuardMiddleware(writeToolNames: Set<string>) {
             : null,
         codeChangeRequestNumber: configurable.codeChangeRequestNumber ?? null,
       };
+      const toolArgs = gitlabMergeRequestTools.has(name)
+        ? await withGitlabTarget(args as ToolArgs, target)
+        : (args as ToolArgs);
       // A write tool with no rule here is refused rather than let through unchecked.
-      if (targetMatches[name]?.(args as ToolArgs, target))
-        return handler(request);
+      if (targetMatches[name]?.(toolArgs, target))
+        return handler({
+          ...request,
+          toolCall: { ...request.toolCall, args: toolArgs },
+        });
 
       const allowed = [
         ...(target.issueNumber
@@ -99,7 +126,7 @@ export function writeTargetGuardMiddleware(writeToolNames: Set<string>) {
       emitToolInputEvent(request.runtime, {
         id: id ?? '',
         name,
-        input: (args as ToolArgs) ?? {},
+        input: toolArgs,
       });
       emitToolOutputEvent(request.runtime, {
         id: id ?? '',

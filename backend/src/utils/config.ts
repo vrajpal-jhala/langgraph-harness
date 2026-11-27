@@ -142,6 +142,8 @@ export const config = {
   },
   generation: {
     temperature: 0.1,
+    // Agent turns only — near-greedy Qwen loops on "Let me now check…" without a tool call, and the penalty skews JSON verdict calls.
+    agentPresencePenalty: 1.5,
     reasoning: false,
     provider: {
       [LLMProvider.OpenRouter]: {

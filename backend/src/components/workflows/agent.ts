@@ -39,7 +39,7 @@ import {
 } from './state.js';
 import { tools } from './tools.js';
 
-import { llms } from '#utils/config.js';
+import { config, llms } from '#utils/config.js';
 import { describeToolCalls, mcpToolName } from '#utils/helpers.js';
 import { buildChatModel } from '#utils/llm.js';
 
@@ -254,7 +254,11 @@ function buildAgent(model: string, host: GitHost): CompiledAgent {
   ];
 
   return createAgent({
-    model: llm,
+    model: buildChatModel(
+      modelConfig,
+      false,
+      config.generation.agentPresencePenalty,
+    ),
     tools: tools.getAll(host),
     middleware,
     contextSchema: sandboxAgentToolContextSchema,
