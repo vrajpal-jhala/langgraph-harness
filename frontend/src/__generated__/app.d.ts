@@ -768,6 +768,14 @@ type QueueWaitEvent = {
 		timestamp: number;
 	};
 };
+type HistoryTrimmedEvent = {
+	event: "history_trimmed";
+	data: {
+		messagesBefore: number;
+		messagesAfter: number;
+		timestamp: number;
+	};
+};
 type SummarizeContextStartEvent = {
 	event: "summarize_context_start";
 	data: {
@@ -874,7 +882,7 @@ type RunStepRetryEvent = {
 };
 type RunStepEvent = RunStepStartEvent | RunStepRetryEvent | RunStepEndEvent;
 type LangGraphEvent = MessageEvent$1 | ReasoningStartEvent | ReasoningEndEvent | CheckpointEvent | ToolInputEvent | ToolOutputEvent;
-type WriterEvent = ToolInputEvent | ToolOutputEvent | MessageEvent$1 | ReasoningStartEvent | ReasoningEndEvent | NodeEvent | AgentPromptEvent | SubagentErrorEvent | ModelRetryEvent | ContextUsageEvent | LlmBackendWaitStartEvent | LlmBackendWaitEndEvent | SummarizeContextStartEvent | SummarizeContextEndEvent | CommentCriticStartEvent | CommentCriticEndEvent | ReplyCriticStartEvent | ReplyCriticEndEvent | CorrectiveNudgeStartEvent | CorrectiveNudgeEndEvent | ExtractProjectMemoryStartEvent | ExtractProjectMemoryEndEvent | InterruptEvent;
+type WriterEvent = ToolInputEvent | ToolOutputEvent | MessageEvent$1 | ReasoningStartEvent | ReasoningEndEvent | NodeEvent | AgentPromptEvent | SubagentErrorEvent | ModelRetryEvent | ContextUsageEvent | LlmBackendWaitStartEvent | LlmBackendWaitEndEvent | HistoryTrimmedEvent | SummarizeContextStartEvent | SummarizeContextEndEvent | CommentCriticStartEvent | CommentCriticEndEvent | ReplyCriticStartEvent | ReplyCriticEndEvent | CorrectiveNudgeStartEvent | CorrectiveNudgeEndEvent | ExtractProjectMemoryStartEvent | ExtractProjectMemoryEndEvent | InterruptEvent;
 type WorkflowEvent = LangGraphEvent | WriterEvent;
 type RunEvent = RunStepEvent | QueueWaitEvent | WorkflowEvent;
 declare const RunStatus: {

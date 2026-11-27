@@ -10,6 +10,7 @@ import type {
   CorrectiveNudgeStartEvent,
   ExtractProjectMemoryEndEvent,
   ExtractProjectMemoryStartEvent,
+  HistoryTrimmedEvent,
   InterruptEvent,
   LlmBackendWaitEndEvent,
   LlmBackendWaitStartEvent,
@@ -45,6 +46,16 @@ export function emitAgentPromptEvent(
     event: 'agent_prompt',
     data: { ...data, timestamp: Date.now() },
   } satisfies AgentPromptEvent);
+}
+
+export function emitHistoryTrimmedEvent(
+  config: LangGraphRunnableConfig,
+  data: Omit<HistoryTrimmedEvent['data'], 'timestamp'>,
+) {
+  config.writer?.({
+    event: 'history_trimmed',
+    data: { ...data, timestamp: Date.now() },
+  } satisfies HistoryTrimmedEvent);
 }
 
 export function emitContextUsageEvent(

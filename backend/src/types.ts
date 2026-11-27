@@ -732,6 +732,15 @@ export type QueueWaitEvent = {
   };
 };
 
+export type HistoryTrimmedEvent = {
+  event: 'history_trimmed';
+  data: {
+    messagesBefore: number;
+    messagesAfter: number;
+    timestamp: number;
+  };
+};
+
 export type SummarizeContextStartEvent = {
   event: 'summarize_context_start';
   data: {
@@ -864,6 +873,7 @@ export type WriterEvent =
   | ContextUsageEvent
   | LlmBackendWaitStartEvent
   | LlmBackendWaitEndEvent
+  | HistoryTrimmedEvent
   | SummarizeContextStartEvent
   | SummarizeContextEndEvent
   | CommentCriticStartEvent

@@ -23,6 +23,7 @@ import {
   IconHourglass,
   IconRefresh,
   IconRobot,
+  IconScissors,
   IconX,
 } from '@tabler/icons-react';
 
@@ -823,6 +824,25 @@ const RunTimeline = ({
                       <Icon as={IconHourglass} />
                       <Text component="span" size="sm" c="dimmed">
                         Queued for {formatDuration(event.data.waitMs)}
+                      </Text>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (event.event === 'history_trimmed') {
+                return (
+                  <div
+                    key={`history_trimmed:${event.data.timestamp}`}
+                    className="run-timeline__item"
+                    data-event="history_trimmed"
+                  >
+                    <div className="run-timeline__wait">
+                      <Icon as={IconScissors} />
+                      <Text component="span">
+                        Dropped{' '}
+                        {event.data.messagesBefore - event.data.messagesAfter}{' '}
+                        tool messages from earlier runs
                       </Text>
                     </div>
                   </div>
