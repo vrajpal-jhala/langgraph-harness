@@ -51,7 +51,7 @@ export const threadsService = {
         }
       } else if (run.status === RunStatus.QUEUED) {
         await workflowsService.forKind(run.kind).cancelPendingRun?.(run);
-        await runsService.failById(run.id, id, reason);
+        await runsService.cancelById(run.id, id, reason);
       }
     }
   },

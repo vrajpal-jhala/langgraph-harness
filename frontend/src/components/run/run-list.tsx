@@ -28,7 +28,10 @@ const RunListItem = ({
   contextWindow,
   precedingContextTotal,
 }: IRunListItemProps) => {
-  const isTerminal = run.status === 'completed' || run.status === 'failed';
+  const isTerminal =
+    run.status === 'completed' ||
+    run.status === 'failed' ||
+    run.status === 'cancelled';
   const durationMs =
     isTerminal && run.started_at && run.completed_at
       ? +new Date(run.completed_at) - +new Date(run.started_at)

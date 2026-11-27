@@ -136,10 +136,10 @@ export const runsDal = {
       .returningAll()
       .executeTakeFirst(),
 
-  failQueuedById: async (id: string, error: string) => {
+  cancelQueuedById: async (id: string, reason: string) => {
     const result = await db
       .updateTable('runs')
-      .set({ status: RunStatus.FAILED, error })
+      .set({ status: RunStatus.CANCELLED, error: reason })
       .where('id', '=', id)
       .where('status', '=', RunStatus.QUEUED)
       .executeTakeFirst();
@@ -284,6 +284,10 @@ export const runsDal = {
           .countAll<number>()
           .filterWhere('status', '=', RunStatus.FAILED)
           .as('failed'),
+        eb.fn
+          .countAll<number>()
+          .filterWhere('status', '=', RunStatus.CANCELLED)
+          .as('cancelled'),
         eb.fn.max('created_at').as('last_run_at'),
       ])
       .where('kind', '=', kind)
@@ -294,6 +298,7 @@ export const runsDal = {
       [RunStatus.RUNNING]: Number(row?.running ?? 0),
       [RunStatus.COMPLETED]: Number(row?.completed ?? 0),
       [RunStatus.FAILED]: Number(row?.failed ?? 0),
+      [RunStatus.CANCELLED]: Number(row?.cancelled ?? 0),
     };
 
     return {

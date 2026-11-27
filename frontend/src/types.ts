@@ -39,6 +39,7 @@ export type RunStatus =
   | 'running'
   | 'completed'
   | 'failed'
+  | 'cancelled'
   | 'interrupted'
   // not shown in UI
   | 'superseded';

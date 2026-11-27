@@ -302,7 +302,7 @@ export const runsService = {
   abort: (runId: string, reason: string) => {
     const controller = abortControllers.get(runId);
     if (!controller) throw errors.runs.notActive();
-    controller.abort(new DOMException(reason, 'AbortError'));
+    controller.abort(new DOMException(reason, 'CancelError'));
   },
 
   // Kept separate from abort() since abort() also has an internal caller (threadsService.delete()) that skips this ownership check.
@@ -311,8 +311,10 @@ export const runsService = {
     if (run.status === RunStatus.QUEUED) {
       await workflowsService.forKind(run.kind).cancelPendingRun?.(run);
       // Falls through to abort() if a worker started the run in the meantime.
-      if (await runsDal.failQueuedById(runId, `Cancelled by ${session.name}`)) {
-        await publishThreadUpdate(id, RunStatus.FAILED);
+      if (
+        await runsDal.cancelQueuedById(runId, `Cancelled by ${session.name}`)
+      ) {
+        await publishThreadUpdate(id, RunStatus.CANCELLED);
         return;
       }
     }
@@ -372,6 +374,19 @@ export const runsService = {
 
     const thread = await threadsDal.findByIdWithStatus(id);
     if (thread) broadcast({ type: 'thread:upserted', payload: thread });
+  },
+
+  cancelById: async (runId: string, id: string, reason: string) => {
+    if (await runsDal.cancelQueuedById(runId, reason)) {
+      await publishThreadUpdate(id, RunStatus.CANCELLED);
+      return;
+    }
+    // A worker started the run after the caller saw it queued.
+    try {
+      runsService.abort(runId, reason);
+    } catch {
+      // Already settled.
+    }
   },
 
   failById: async (runId: string, id: string, error: string) => {
@@ -481,9 +496,13 @@ async function execute<TInput, TSecrets>(
         controller.signal.aborted &&
         (controller.signal.reason as DOMException)?.name ===
           'GenerationLoopError';
+      const cancelled =
+        controller.signal.aborted &&
+        (controller.signal.reason as DOMException)?.name === 'CancelError';
       const isRunAborted = err instanceof RunAbortedError;
       const isAbort =
         timedOut ||
+        cancelled ||
         generationLoop ||
         isRunAborted ||
         (err instanceof Error && err.name === 'AbortError') ||
@@ -504,19 +523,20 @@ async function execute<TInput, TSecrets>(
               : err instanceof Error
                 ? err.message
                 : 'Unknown error';
-      await runsDal.update(
-        { status: RunStatus.FAILED, error, events: accumulated },
-        runId,
-      );
-      const errorKind: ErrorKind = timedOut
-        ? 'timeout'
-        : generationLoop
-          ? 'generationLoop'
-          : isRunAborted
-            ? 'guardAbort'
-            : isAbort
-              ? 'manualAbort'
-              : 'modelError';
+      const status = cancelled ? RunStatus.CANCELLED : RunStatus.FAILED;
+      await runsDal.update({ status, error, events: accumulated }, runId);
+      const errorKind: ErrorKind = cancelled
+        ? 'cancelled'
+        : timedOut
+          ? 'timeout'
+          : generationLoop
+            ? 'generationLoop'
+            : isRunAborted
+              ? 'guardAbort'
+              : // Only abortAll() aborts the controller with anything else.
+                isAbort && controller.signal.aborted
+                ? 'serverRestart'
+                : 'modelError';
       recordRunSummary(
         runId,
         runningRun?.started_at,
@@ -524,8 +544,8 @@ async function execute<TInput, TSecrets>(
         false,
         errorKind,
       );
-      await runPubSub.finish(runId, RunStatus.FAILED, error);
-      await publishThreadUpdate(id, RunStatus.FAILED);
+      await runPubSub.finish(runId, status, error);
+      await publishThreadUpdate(id, status);
 
       await workflow.onFailure?.(input, ctx, isAbort, timedOut);
     }

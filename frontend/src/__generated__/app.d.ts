@@ -892,6 +892,7 @@ declare const RunStatus: {
 	readonly RUNNING: "running";
 	readonly COMPLETED: "completed";
 	readonly FAILED: "failed";
+	readonly CANCELLED: "cancelled";
 	readonly SUPERSEDED: "superseded";
 	readonly INTERRUPTED: "interrupted";
 };
@@ -2354,10 +2355,11 @@ export declare const app: Elysia<"", {
 							distinctThreads: number;
 							avgRunsPerThread: number | null;
 							successful: number;
+							successRate: number | null;
 							errorKinds: {
 								timeout: number;
 								guardAbort: number;
-								manualAbort: number;
+								cancelled: number;
 								modelError: number;
 								serverRestart: number;
 								generationLoop: number;
@@ -2477,7 +2479,7 @@ export declare const app: Elysia<"", {
 							successRate: number | null;
 							timeout: number;
 							guardAbort: number;
-							manualAbort: number;
+							cancelled: number;
 							modelError: number;
 							serverRestart: number;
 							generationLoop: number;

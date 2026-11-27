@@ -7,6 +7,7 @@ export const RUN_STATUS_COLOR: Record<RunStatus, string> = {
   running: 'blue',
   completed: 'green',
   failed: 'red',
+  cancelled: 'gray',
   interrupted: 'yellow',
   superseded: 'gray',
 };
@@ -21,6 +22,7 @@ export const CHAT_STATUS_COLOR: Record<RunStatus, string> = {
   queued: 'blue',
   running: 'blue',
   failed: 'red',
+  cancelled: 'gray',
   interrupted: 'yellow',
   completed: 'gray',
   superseded: 'gray',

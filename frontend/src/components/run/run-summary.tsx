@@ -41,6 +41,12 @@ const RunSummary = ({ run }: IRunSummaryProps) => {
           {run.error ?? 'Run failed with an unknown error.'}
         </Alert>
       );
+    } else if (run.status === 'cancelled') {
+      summary = (
+        <Alert color="gray" title="Cancelled" withCloseButton={false}>
+          {run.error}
+        </Alert>
+      );
     } else if (run.status === 'completed') {
       const finalMessage =
         [...run.events].reverse().find((e) => e.event === 'message')?.data

@@ -1465,18 +1465,22 @@ const RunTimeline = ({
 
             {run.error && (
               <div className="run-timeline__item" data-event="error">
-                <Text c="red">{run.error}</Text>
-                {run.status === 'failed' && !hasCheckpoint && retry && (
-                  <Button
-                    variant="default"
-                    size="compact-xs"
-                    leftSection={<Icon as={IconRefresh} />}
-                    onClick={() => retry(run.id)}
-                    disabled={loading}
-                  >
-                    Retry
-                  </Button>
-                )}
+                <Text c={run.status === 'cancelled' ? 'dimmed' : 'red'}>
+                  {run.error}
+                </Text>
+                {(run.status === 'failed' || run.status === 'cancelled') &&
+                  !hasCheckpoint &&
+                  retry && (
+                    <Button
+                      variant="default"
+                      size="compact-xs"
+                      leftSection={<Icon as={IconRefresh} />}
+                      onClick={() => retry(run.id)}
+                      disabled={loading}
+                    >
+                      Retry
+                    </Button>
+                  )}
               </div>
             )}
           </Fragment>
