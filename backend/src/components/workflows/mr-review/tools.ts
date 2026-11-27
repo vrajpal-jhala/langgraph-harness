@@ -1003,7 +1003,7 @@ const submitReview = tool(
         .string()
         .optional()
         .describe(
-          'Only for REQUEST_CHANGES, as the one-line reason an approval is withdrawn',
+          "Only for REQUEST_CHANGES, as the one-line reason an approval is withdrawn, or to answer a comment on the pull request's conversation that tags you",
         ),
       comments: z
         .array(
@@ -1128,6 +1128,7 @@ const REVIEW_TOOLS: Record<GitProvider, ReviewToolSet> = {
       'create_draft_note',
       'bulk_publish_draft_notes',
       'publish_draft_note',
+      'create_merge_request_discussion_note',
       // resolve threads
       'resolve_merge_request_thread',
     ]),

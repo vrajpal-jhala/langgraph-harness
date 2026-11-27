@@ -160,3 +160,10 @@ export function messageContent(content: ToolMessage['content']): string {
     ? content
     : content.map((block) => ('text' in block ? block.text : '')).join('');
 }
+
+// A bare substring would also match `@bot-fan` or `a@bot.com`; usernames on both providers can contain `-`, `_` and `.`.
+export function mentionsUser(text: string, username: string): boolean {
+  if (!username) return false;
+  const escaped = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![\\w-])@${escaped}(?![\\w-]|\\.\\w)`, 'i').test(text);
+}

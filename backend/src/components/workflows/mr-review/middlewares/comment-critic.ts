@@ -10,7 +10,10 @@ import {
   emitCommentCriticStartEvent,
 } from '#components/workflows/emit.js';
 import { withBackendLimit } from '#components/workflows/middlewares/llm-backend-limiter.js';
-import type { WorkflowRuntime } from '#components/workflows/mr-review/state.js';
+import type {
+  WorkflowConfigurable,
+  WorkflowRuntime,
+} from '#components/workflows/mr-review/state.js';
 
 import {
   mcpToolName,
@@ -38,6 +41,10 @@ type ToolCall = { name: string; id?: string; args: Record<string, unknown> };
 
 type Draft = { id: string; body: string };
 
+type RunFlags = Partial<
+  Pick<WorkflowConfigurable, 'answerTaggedComments' | 'replyOnly'>
+>;
+
 type ReviewFlow = {
   // Lists comments left over from an earlier run, to screen them too.
   listDrafts?: string;
@@ -46,13 +53,13 @@ type ReviewFlow = {
   // undefined: not a publish; null: publishes every draft; a string: publishes only that draft.
   publishTarget: (call: ToolCall) => string | null | undefined;
   // A publish that carries its comments in its own args, so a dropped one is removed from them instead of withdrawn from the host.
-  inlineDrafts?: (call: ToolCall) => Draft[] | undefined;
+  inlineDrafts?: (call: ToolCall, run: RunFlags) => Draft[] | undefined;
   withoutDrafts?: (
     args: Record<string, unknown>,
     droppedIds: Set<string>,
   ) => Record<string, unknown>;
   // The arg carrying a review-level summary, which Step 6 forbids — stripped deterministically.
-  summaryArg: (call: ToolCall) => string | undefined;
+  summaryArg: (call: ToolCall, run: RunFlags) => string | undefined;
 };
 
 const GITLAB_BULK_PUBLISH = mcpToolName(
@@ -94,12 +101,15 @@ const REVIEW_FLOWS: Record<GitProvider, ReviewFlow> = {
     createsDraft: () => false,
     draftIdFrom: () => undefined,
     publishTarget: () => undefined,
-    inlineDrafts: (call) => {
+    inlineDrafts: (call, run) => {
       if (call.name !== GITHUB_SUBMIT_REVIEW) return undefined;
       const { comments = [], replies = [] } = call.args as InlineArgs;
       return [
         ...comments.map((c, i) => ({ id: `comment-${i}`, body: c.body ?? '' })),
-        ...replies.map((r, i) => ({ id: `reply-${i}`, body: r.body ?? '' })),
+        // A reply-only run's replies answer questions, which a screen for actionable findings would withhold.
+        ...(run.replyOnly
+          ? []
+          : replies.map((r, i) => ({ id: `reply-${i}`, body: r.body ?? '' }))),
       ];
     },
     withoutDrafts: (args, droppedIds) => {
@@ -110,10 +120,11 @@ const REVIEW_FLOWS: Record<GitProvider, ReviewFlow> = {
         replies: replies.filter((_, i) => !droppedIds.has(`reply-${i}`)),
       };
     },
-    // GitHub needs a body to request changes, where it's the one-line reason for withdrawing an approval.
-    summaryArg: (call) =>
+    // GitHub needs a body to request changes, where it's the one-line reason for withdrawing an approval, and to answer a conversation comment.
+    summaryArg: (call, run) =>
       call.name === GITHUB_SUBMIT_REVIEW &&
-      call.args.event !== 'REQUEST_CHANGES'
+      call.args.event !== 'REQUEST_CHANGES' &&
+      !run.answerTaggedComments
         ? 'body'
         : undefined,
   },
@@ -232,9 +243,10 @@ export function commentCriticMiddleware({
         return result;
       }
 
-      const summaryArg = flow.summaryArg(call);
+      const run = configurable ?? {};
+      const summaryArg = flow.summaryArg(call, run);
       const publishTarget = flow.publishTarget(call);
-      const inline = flow.inlineDrafts?.(call);
+      const inline = flow.inlineDrafts?.(call, run);
 
       if (summaryArg || publishTarget !== undefined || inline) {
         const summary = call.args[summaryArg ?? ''];

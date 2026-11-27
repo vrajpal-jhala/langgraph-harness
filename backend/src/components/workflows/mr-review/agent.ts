@@ -40,6 +40,7 @@ import {
   commentCriticMiddleware,
   draftIntegrityMiddleware,
   dynamicDiffToolsMiddleware,
+  threadPermissionsMiddleware,
 } from './middlewares/index.js';
 import {
   type MrReviewToolContext,
@@ -232,6 +233,7 @@ type CompiledAgent = ReturnType<typeof createAgent>;
 const agentCache = new Map<string, CompiledAgent>();
 
 const gitlabReviewMiddleware = (llm: BaseChatModel, modelConfig: LLM) => [
+  threadPermissionsMiddleware(GitProvider.GitLab),
   draftIntegrityMiddleware({
     getFileDiffTool: tools.getInternal(
       mcpToolName(GitProvider.GitLab, 'get_merge_request_file_diff'),
@@ -270,6 +272,7 @@ const gitlabReviewMiddleware = (llm: BaseChatModel, modelConfig: LLM) => [
 ];
 
 const githubReviewMiddleware = (llm: BaseChatModel, modelConfig: LLM) => [
+  threadPermissionsMiddleware(GitProvider.GitHub),
   commentCriticMiddleware({
     llm,
     provider: modelConfig.provider,
@@ -381,6 +384,8 @@ export const agent = {
       codeChangeRequestNumber,
       sourceBranch,
       targetBranch,
+      answerTaggedComments,
+      replyOnly,
     } = query;
     const host = graphConfig.configurable?.host as GitHost;
     const repoKey = host.repoKey(projectPath);
@@ -450,6 +455,10 @@ export const agent = {
           revived,
           model,
           reasoning,
+          answerTaggedComments,
+          replyOnly,
+          taggedDiscussionIds: new Set<string>(),
+          ownDiscussionIds: new Set<string>(),
         } satisfies WorkflowConfigurable,
         context: { systemPrompt },
       },
