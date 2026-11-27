@@ -7,9 +7,11 @@ import {
   enqueueMrReview,
   reviewJobId,
 } from '#components/workflows/mr-review/queue.js';
+import { broadcast } from '#components/ws/index.js';
 
 import { config, llms } from '#utils/config.js';
 import { shouldReviewBranch } from '#utils/harness-config.js';
+import { logger } from '#utils/logger.js';
 
 const defaultModel = llms.find((m) => m.isDefault)?.model ?? llms[0].model;
 const stableBranchRegExp = new RegExp(config.mrReview.stableBranchPattern);
@@ -24,6 +26,47 @@ export const reviewThreadMetadata = (
   project: projectPath,
   number: codeChangeRequestNumber,
 });
+
+// Called after worktree cleanup on merge/close, so a merged or closed state also tells the UI the worktree is gone.
+export async function recordCodeChangeRequestState(
+  host: GitHost,
+  projectPath: string,
+  codeChangeRequestNumber: number,
+  state: 'opened' | 'merged' | 'closed',
+) {
+  // Display-only, so a failure is logged rather than failing the webhook it rides on.
+  try {
+    const threads = await Promise.all([
+      threadsDal.findByMetadata(
+        reviewThreadMetadata(host, projectPath, codeChangeRequestNumber),
+      ),
+      threadsDal.findByMetadata({
+        source: host.provider,
+        project: projectPath,
+        codeChangeRequestNumber: String(codeChangeRequestNumber),
+      }),
+    ]);
+    await Promise.all(
+      threads.flatMap((thread) =>
+        thread
+          ? (async () => {
+              await threadsDal.mergeMetadata(thread.id, {
+                codeChangeRequestState: state,
+              });
+              const updated = await threadsDal.findByIdWithStatus(thread.id);
+              if (updated)
+                broadcast({ type: 'thread:upserted', payload: updated });
+            })()
+          : [],
+      ),
+    );
+  } catch (err) {
+    logger.error(
+      { err, projectPath, codeChangeRequestNumber, state },
+      '[webhook] failed to record code change request state',
+    );
+  }
+}
 
 export async function startReviewRun(params: {
   host: GitHost;

@@ -27,6 +27,7 @@
 }
 
 .thread-title-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -62,6 +63,9 @@
   }
 }
 
+.thread-col-state {
+  width: 32px;
+}
 .thread-col-status {
   width: 115px;
 }

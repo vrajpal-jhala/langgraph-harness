@@ -1,3 +1,5 @@
+import { IconGitMerge, IconGitPullRequestClosed } from '@tabler/icons-react';
+
 import type { RunStatus, WorkflowStatus } from './types';
 
 export const RUN_STATUS_COLOR: Record<RunStatus, string> = {
@@ -22,4 +24,9 @@ export const CHAT_STATUS_COLOR: Record<RunStatus, string> = {
   interrupted: 'yellow',
   completed: 'gray',
   superseded: 'gray',
+};
+
+export const CODE_CHANGE_REQUEST_STATE = {
+  merged: { icon: IconGitMerge, color: 'violet.6', label: 'Merged' },
+  closed: { icon: IconGitPullRequestClosed, color: 'red.6', label: 'Closed' },
 };

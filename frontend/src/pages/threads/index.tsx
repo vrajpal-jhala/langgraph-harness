@@ -31,7 +31,7 @@ import Counter from '@/components/counter';
 import Icon from '@/components/icon';
 
 import { api, ws } from '@/api';
-import { RUN_STATUS_COLOR } from '@/constants';
+import { CODE_CHANGE_REQUEST_STATE, RUN_STATUS_COLOR } from '@/constants';
 import { Context } from '@/contexts';
 import { useAuth } from '@/hooks/useAuth';
 import { useConfirmAction } from '@/hooks/useConfirmAction';
@@ -159,6 +159,22 @@ const ThreadsPage = () => {
       }
       setThreads((prev) => prev.filter(({ id }) => id !== thread.id));
     }, thread);
+  };
+
+  const renderState = (thread: Thread) => {
+    const ccrState =
+      CODE_CHANGE_REQUEST_STATE[
+        thread.metadata
+          ?.codeChangeRequestState as keyof typeof CODE_CHANGE_REQUEST_STATE
+      ];
+    if (!ccrState) return null;
+    return (
+      <Tooltip label={`${ccrState.label}, worktree cleaned up`}>
+        <Box component="span" c={ccrState.color} display="flex" flex="none">
+          <Icon as={ccrState.icon} aria-label={ccrState.label} />
+        </Box>
+      </Tooltip>
+    );
   };
 
   const renderTitle = (thread: Thread) => (
@@ -401,7 +417,10 @@ const ThreadsPage = () => {
                   >
                     <Group justify="space-between" wrap="nowrap" gap="xs">
                       <Box className="thread-title-box">
-                        {renderTitle(thread)}
+                        <Group gap={6} wrap="nowrap">
+                          {renderState(thread)}
+                          {renderTitle(thread)}
+                        </Group>
                       </Box>
                       <Group
                         gap="xs"
@@ -442,6 +461,7 @@ const ThreadsPage = () => {
             >
               <Table.Thead>
                 <Table.Tr>
+                  <Table.Th className="thread-col-state" />
                   <Table.Th>Title</Table.Th>
                   <Table.Th className="thread-col-status">Status</Table.Th>
                   <Table.Th className="thread-col-runs">Runs</Table.Th>
@@ -462,6 +482,7 @@ const ThreadsPage = () => {
                       onClick={(e) => handleSelectThread(thread.id, e)}
                       onAuxClick={(e) => handleSelectThread(thread.id, e)}
                     >
+                      <Table.Td>{renderState(thread)}</Table.Td>
                       <Table.Td>{renderTitle(thread)}</Table.Td>
                       <Table.Td>{renderBadge(thread)}</Table.Td>
                       <Table.Td>{renderRunStats(thread)}</Table.Td>

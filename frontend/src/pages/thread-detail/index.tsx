@@ -8,6 +8,7 @@ import {
 import {
   ActionIcon,
   Badge,
+  Box,
   Button,
   Card,
   Center,
@@ -51,6 +52,7 @@ import TodoList from './components/todo-list';
 
 import { api, ws } from '@/api';
 import { config } from '@/config';
+import { CODE_CHANGE_REQUEST_STATE } from '@/constants';
 import { Context } from '@/contexts';
 import { useAuth } from '@/hooks/useAuth';
 import { useConfirmAction } from '@/hooks/useConfirmAction';
@@ -310,6 +312,8 @@ const ThreadDetailPage = () => {
       if (data.type !== 'thread:upserted') return;
       const t = data.payload;
       if (t.id !== threadId) return;
+      // The push is also how a merged/closed state reaches the header.
+      setThread(t);
 
       const controller = abortRef.current!;
       (async () => {
@@ -626,6 +630,11 @@ const ThreadDetailPage = () => {
                 label: 'Open merge request',
               }
           : undefined;
+  const ccrState =
+    CODE_CHANGE_REQUEST_STATE[
+      thread?.metadata
+        ?.codeChangeRequestState as keyof typeof CODE_CHANGE_REQUEST_STATE
+    ];
   const header = (
     <Group
       className="thread-detail__header"
@@ -644,6 +653,18 @@ const ThreadDetailPage = () => {
         </ActionIcon>
         {thread ? (
           <>
+            {ccrState && (
+              <Tooltip label={`${ccrState.label}, worktree cleaned up`}>
+                <Box
+                  component="span"
+                  c={ccrState.color}
+                  display="flex"
+                  flex="none"
+                >
+                  <Icon as={ccrState.icon} aria-label={ccrState.label} />
+                </Box>
+              </Tooltip>
+            )}
             <Title order={4} className="thread-detail__title">
               {thread.title}
             </Title>
