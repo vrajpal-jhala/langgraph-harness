@@ -314,6 +314,7 @@ export const workItemResolveWorkflow: Workflow<WorkItemResolveRunInput> = {
                 host,
               },
               streamMode: ['messages', 'tools', 'custom', 'checkpoints'],
+              subgraphs: true,
               signal,
             },
           );

@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 22+
+- Node.js 26+
 - Docker (for PostgreSQL, Redis, and Lightpanda)
 - A GitLab or GitHub account for the bot to act as (or one of each) — see [step 2](#_2-pick-gitlab-github-or-both)
 - An LLM backend: an OpenRouter/Gemini/Groq API key, or a local Ollama/sglang instance

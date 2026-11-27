@@ -1,4 +1,4 @@
-FROM node:22-slim
+FROM node:26.13.1-slim
 
 # So a failed curl below fails the build instead of installing nothing silently.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

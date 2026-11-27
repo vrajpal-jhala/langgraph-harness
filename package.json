@@ -1,6 +1,6 @@
 {
   "name": "langgraph-harness",
-  "version": "0.11.2",
+  "version": "0.12.0",
   "author": "Vrajpal Jhala",
   "description": "Self-hosted AI coding agent platform for GitLab and GitHub, built with LangGraph. An open-source alternative to the code review and coding agents in GitLab Duo and GitHub Copilot: reviews merge and pull requests, resolves issues autonomously, and chats with full project context.",
   "keywords": [
@@ -43,9 +43,9 @@
   },
   "devDependencies": {
     "husky": "9.1.7",
-    "lint-staged": "17.6.0",
+    "lint-staged": "17.6.2",
     "npm-run-all": "4.1.5",
-    "prettier": "3.9.10",
+    "prettier": "3.10.1",
     "wait-on": "9.5.1"
   }
 }

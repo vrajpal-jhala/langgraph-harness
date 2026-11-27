@@ -69,7 +69,7 @@ Everything else is tracked in [open issues](https://github.com/vrajpal-jhala/lan
 
 ## Quick Start
 
-**Prerequisites:** Node.js 22+, Docker, a bot account and OAuth app on GitLab, GitHub, or both, and an OpenRouter/Gemini/Groq key or a local Ollama/sglang instance.
+**Prerequisites:** Node.js 26+, Docker, a bot account and OAuth app on GitLab, GitHub, or both, and an OpenRouter/Gemini/Groq key or a local Ollama/sglang instance.
 
 ```bash
 npm install

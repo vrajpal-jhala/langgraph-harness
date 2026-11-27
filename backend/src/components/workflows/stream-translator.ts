@@ -153,13 +153,15 @@ export function translateChunk(
 // Same translation for every workflow — only the recognized lc_sources set differs per caller.
 export async function* translateRunStream(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  stream: AsyncIterable<[string, any]>,
+  stream: AsyncIterable<[string[], string, any]>,
   knownLcSources: Set<string>,
 ): AsyncGenerator<RunEvent> {
   const state = createTranslateState();
 
-  for await (const [mode, chunk] of stream) {
-    if (mode === 'checkpoints') {
+  // Streamed with subgraphs: true — LangGraph only surfaces the agent subgraph's messages and tool events under its own namespace.
+  for await (const [namespace, mode, chunk] of stream) {
+    // A subgraph's checkpoint ids can't be resumed from the parent graph, so only the root's become retry points.
+    if (mode === 'checkpoints' && namespace.length === 0) {
       // Skip the initial input checkpoint (fresh run) and the terminal one (retry would be a no-op).
       if (chunk.metadata?.source !== 'input' && chunk.next.length > 0) {
         const checkpointId = chunk.config.configurable?.checkpoint_id;

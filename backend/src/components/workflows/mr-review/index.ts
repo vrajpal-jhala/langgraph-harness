@@ -280,6 +280,7 @@ export const mrReviewWorkflow: Workflow<MrReviewRunInput> = {
             ...(fromCheckpointId && { checkpoint_id: fromCheckpointId }),
           },
           streamMode: ['messages', 'tools', 'custom', 'checkpoints'],
+          subgraphs: true,
           signal,
         },
       );
