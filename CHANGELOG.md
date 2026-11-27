@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.8.1] - 2026-11-27
+
+### Fixes
+
+- **Preparing the repository looked frozen while git kept retrying** — when fetching or checking out the repository failed, a review or issue run sat on "Prepare worktree" with no sign of progress until every attempt was used up, which could take several minutes. The step now shows which attempt it's on and the latest error as each one fails. ([#91](https://github.com/vrajpal-jhala/langgraph-harness/pull/91))
+
+---
+
 ## [0.8.0] - 2026-11-27
 
 ### Features
