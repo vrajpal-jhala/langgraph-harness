@@ -2,6 +2,14 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.9.0] - 2026-11-27
+
+### Features
+
+- **Chat with GitLab or GitHub tools on starts with far more room** — the model used to receive every GitLab and GitHub tool up front, about 68k tokens of tool definitions before the conversation began, which crowded out the conversation and made smaller models unusable with them. It now sees just their names and loads the ones it needs, by name or by describing what it wants, bringing that down to about 7k. Loaded tools stay available for the rest of the chat, and actions that change things still ask for your approval.
+
+---
+
 ## [0.8.2] - 2026-11-27
 
 ### Fixes
