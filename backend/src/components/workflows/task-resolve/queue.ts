@@ -114,17 +114,18 @@ export async function enqueueTaskResolve(data: TaskResolveJob) {
   }
 
   // Fresh jobId + dedup id is the atomic signal (ours comes back iff free) — a bare duplicate jobId isn't, BullMQ no-ops that silently.
-  const job = await taskResolveQueue!.add(JOB_NAME, data, {
-    jobId: data.runId,
-    deduplication: { id: data.threadId },
-  });
+  try {
+    const job = await taskResolveQueue!.add(JOB_NAME, data, {
+      jobId: data.runId,
+      deduplication: { id: data.threadId },
+    });
 
-  if (job.id === data.runId) return 'fresh';
+    if (job.id === data.runId) return 'fresh';
 
-  await Promise.all([
-    runsService.supersedeById(data.runId, data.threadId),
-    threadsDal.setPendingRerun(data.threadId),
-  ]);
+    await runsService.coalesceIntoPendingRerun(data.runId, data.threadId);
 
-  return 'coalesced';
+    return 'coalesced';
+  } catch (err) {
+    return runsService.failUnenqueued(data.runId, data.threadId, err);
+  }
 }

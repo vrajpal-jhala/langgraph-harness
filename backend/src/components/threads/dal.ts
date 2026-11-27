@@ -1,6 +1,7 @@
-import { sql, type SqlBool } from 'kysely';
+import { type Kysely, sql, type SqlBool } from 'kysely';
 
 import type {
+  Database,
   GitProvider,
   NewThread,
   ThreadFilters,
@@ -147,8 +148,8 @@ export const threadsDal = {
       .execute();
   },
 
-  setPendingRerun: async (id: string) => {
-    await db
+  setPendingRerun: async (id: string, executor: Kysely<Database> = db) => {
+    await executor
       .updateTable('threads')
       .set({
         metadata: sql`coalesce(metadata, '{}'::jsonb) || '{"pendingRerun": true}'::jsonb`,
@@ -251,8 +252,10 @@ export const threadsDal = {
           'latest_runs.status as latest_run_status',
           'latest_runs.started_at as latest_run_started_at',
           'latest_runs.completed_at as latest_run_completed_at',
-          sql<number>`coalesce(run_stats.total_count, 0)`.as('run_count'),
-          sql<number>`coalesce(run_stats.failed_count, 0)`.as('failure_count'),
+          sql<number>`coalesce(run_stats.total_count, 0)::int`.as('run_count'),
+          sql<number>`coalesce(run_stats.failed_count, 0)::int`.as(
+            'failure_count',
+          ),
         ])
         .orderBy('threads.updated_at', 'desc')
         .limit(limit)

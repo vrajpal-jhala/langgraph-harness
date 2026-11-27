@@ -167,6 +167,16 @@ export async function enqueueMrReview(
     return { status: 'fresh' };
   }
 
+  return replaceMrReviewJob(jobId, data, delay).catch((err: unknown) =>
+    runsService.failUnenqueued(data.runId, data.threadId, err),
+  );
+}
+
+async function replaceMrReviewJob(
+  jobId: string,
+  data: RunJob,
+  delay: number,
+): Promise<EnqueueMrReviewResult> {
   const existing = await mrReviewQueue!.getJob(jobId);
 
   if (!existing) {
@@ -183,7 +193,7 @@ export async function enqueueMrReview(
     await existing.remove();
   } catch (err: unknown) {
     if (err instanceof Error && err.message.includes('locked')) {
-      // Job is actively running — caller must fail the run record it just created.
+      // Job is actively running — the new run stays QUEUED for the completed handler to pick up.
       logger.debug(
         { jobId },
         '[mr-review-queue] job locked, skipping re-enqueue',
