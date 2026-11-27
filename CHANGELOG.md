@@ -2,6 +2,16 @@
 
 All notable changes to langgraph-harness are documented here.
 
+## [0.7.2] - 2026-11-27
+
+### Fixes
+
+- **The Abort button disappeared after retrying a run** — a retried run that was still waiting in the queue briefly showed as completed, which hid the button until the page caught up. It now shows as queued.
+- **A queued run couldn't be stopped** — the button only appeared once a run had started. A queued run now shows a Cancel button that takes it out of the queue, and the run says who cancelled it.
+- **A run stopped just as it was starting could still go ahead** — closing an issue, unassigning the bot, merging or closing a merge request, or cancelling a queued run at the moment a worker picked it up marked the run as stopped, but it then carried on in full and could still push changes. It now stays stopped.
+
+---
+
 ## [0.7.1] - 2026-11-27
 
 ### Fixes
